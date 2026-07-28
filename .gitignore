@@ -1,0 +1,30 @@
+# Entorno y secretos
+.env
+.env.local
+credentials.json
+token.json
+*.pem
+
+# Archivos intermedios (siempre regenerables)
+.tmp/
+!.tmp/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
+dist/
+build/
+*.log
+
+# SO / editor
+.DS_Store
+.idea/
+.vscode/

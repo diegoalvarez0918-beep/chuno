@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -lt ~/Downloads ~/Desktop ~/Documents 2>/dev/null | head -60)"
+    ]
+  }
+}
