@@ -6,6 +6,9 @@
 --
 -- Idempotente: se puede volver a correr para dejar la demo como nueva.
 
+DELETE FROM uso_llm       WHERE negocio_id IN ('demo-optica', 'mi-optica');
+DELETE FROM leads         WHERE negocio_id IN ('demo-optica', 'mi-optica');
+DELETE FROM contactos     WHERE negocio_id IN ('demo-optica', 'mi-optica');
 DELETE FROM auditoria     WHERE negocio_id IN ('demo-optica', 'mi-optica');
 DELETE FROM propuestas    WHERE negocio_id IN ('demo-optica', 'mi-optica');
 DELETE FROM pedidos       WHERE negocio_id IN ('demo-optica', 'mi-optica');
@@ -160,3 +163,42 @@ INSERT INTO auditoria (id, negocio_id, accion, detalle_json, actor, creado_en) V
   ('a3','demo-optica','vigia_avisos','{"avisos":2,"revisados":7}','cron',datetime('now','-40 minutes')),
   ('a4','demo-optica','aviso_enviado','{"pedidoId":"p-paola"}','admin',datetime('now','-9 days')),
   ('a5','demo-optica','propuesta_aprobada','{"tipo":"enviar_aviso","exito":true}','admin',datetime('now','-9 days'));
+
+-- ──────────────────────────────────────────────────────────────────── CRM ───
+-- Ningún dato de aquí lo escribió una persona: todos salieron de las
+-- conversaciones de arriba. Ese es el punto de la pantalla de clientes.
+
+INSERT INTO contactos
+  (id, negocio_id, nombre, canal, canal_chat_id, primera_interaccion, ultima_interaccion, total_mensajes)
+VALUES
+  ('ct-marta','demo-optica','Marta Ruiz','demo','demo-1',datetime('now','-9 days'),datetime('now','-1 days'),4),
+  ('ct-sandra','demo-optica','Sandra Ospina','demo','demo-2',datetime('now','-2 hours'),datetime('now','-2 hours'),3),
+  ('ct-luisa','demo-optica','Luisa Gómez','demo','demo-3',datetime('now','-6 days'),datetime('now','-2 days'),2),
+  ('ct-carlos','demo-optica','Carlos Peña','demo','demo-4',datetime('now','-8 days'),datetime('now','-3 days'),2),
+  ('ct-andres','demo-optica','Andrés Molina','demo','demo-5',datetime('now','-5 days'),datetime('now','-4 days'),3),
+  ('ct-diana','demo-optica','Diana Sáenz','demo','demo-6',datetime('now','-3 days'),datetime('now','-3 days'),2),
+  ('ct-jorge','demo-optica','Jorge Rivas','demo','demo-7',datetime('now','-2 days'),datetime('now','-2 days'),2),
+  ('ct-paola','demo-optica','Paola Trujillo','demo','demo-8',datetime('now','-20 days'),datetime('now','-9 days'),5),
+  ('ct-fernando','demo-optica','Fernando Castro','demo','demo-9',datetime('now','-4 days'),datetime('now','-4 days'),2);
+
+INSERT INTO leads
+  (id, negocio_id, contacto_id, estado, interes, valor_estimado_centavos, creado_en, actualizado_en)
+VALUES
+  ('ld-sandra','demo-optica','ct-sandra','nuevo','Gafas monofocales para niña',NULL,datetime('now','-2 hours'),datetime('now','-2 hours')),
+  ('ld-fernando','demo-optica','ct-fernando','contactado','Reparación de bisagra',NULL,datetime('now','-4 days'),datetime('now','-4 days')),
+  ('ld-andres','demo-optica','ct-andres','interesado','Gafas de sol formuladas',51000000,datetime('now','-5 days'),datetime('now','-5 days')),
+  ('ld-marta','demo-optica','ct-marta','cliente','Lentes progresivos con antirreflejo',68000000,datetime('now','-9 days'),datetime('now','-9 days')),
+  ('ld-luisa','demo-optica','ct-luisa','cliente','Cambio de lentes con antirreflejo',32000000,datetime('now','-6 days'),datetime('now','-6 days')),
+  ('ld-paola','demo-optica','ct-paola','cliente','Lentes progresivos premium',89000000,datetime('now','-20 days'),datetime('now','-20 days'));
+
+-- Consumo del modelo, para que el panel muestre salud y gasto reales.
+INSERT INTO uso_llm (id, negocio_id, modelo, tokens_entrada, tokens_salida, exito, creado_en)
+VALUES
+  ('u1','demo-optica','gemini-3.6-flash',1840,220,1,datetime('now','-2 hours')),
+  ('u2','demo-optica','gemini-3.6-flash',2100,480,1,datetime('now','-2 hours')),
+  ('u3','demo-optica','gemini-3.6-flash',1650,190,1,datetime('now','-1 days')),
+  ('u4','demo-optica','gemini-3.6-flash',1720,510,1,datetime('now','-1 days')),
+  ('u5','demo-optica','gemini-3.6-flash',1580,0,0,datetime('now','-3 days')),
+  ('u6','demo-optica','gemini-3.6-flash',1910,340,1,datetime('now','-3 days')),
+  ('u7','demo-optica','gemini-3.6-flash',2240,610,1,datetime('now','-4 days')),
+  ('u8','demo-optica','gemini-3.6-flash',1770,290,1,datetime('now','-5 days'));

@@ -155,3 +155,58 @@ CREATE TABLE IF NOT EXISTS auditoria (
 );
 
 CREATE INDEX IF NOT EXISTS idx_audit_negocio ON auditoria (negocio_id, creado_en);
+
+-- ────────────────────────────────────────────────────────────────────  CRM ───
+-- Se alimenta solo desde las conversaciones: no hay pantalla de captura y no
+-- debe haberla. Si un dato exige que alguien lo escriba a mano, no va aquí.
+
+CREATE TABLE IF NOT EXISTS contactos (
+  id                  TEXT PRIMARY KEY,
+  negocio_id          TEXT NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
+  nombre              TEXT NOT NULL,
+  canal               TEXT NOT NULL,
+  canal_chat_id       TEXT NOT NULL,
+  primera_interaccion TEXT NOT NULL,
+  ultima_interaccion  TEXT NOT NULL,
+  total_mensajes      INTEGER NOT NULL DEFAULT 0
+);
+
+-- Una persona por canal y por negocio. El mismo índice que hace idempotente el
+-- alta del contacto cuando llegan dos mensajes a la vez.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_contacto_canal
+  ON contactos (negocio_id, canal, canal_chat_id);
+CREATE INDEX IF NOT EXISTS idx_contacto_recientes
+  ON contactos (negocio_id, ultima_interaccion);
+
+CREATE TABLE IF NOT EXISTS leads (
+  id                      TEXT PRIMARY KEY,
+  negocio_id              TEXT NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
+  contacto_id             TEXT NOT NULL REFERENCES contactos(id) ON DELETE CASCADE,
+  estado                  TEXT NOT NULL DEFAULT 'nuevo'
+                            CHECK (estado IN ('nuevo','contactado','interesado','cliente','perdido')),
+  interes                 TEXT,
+  valor_estimado_centavos INTEGER,
+  creado_en               TEXT NOT NULL,
+  actualizado_en          TEXT NOT NULL
+);
+
+-- Un lead abierto por contacto: si vuelve a escribir sobre lo mismo, es el
+-- mismo lead, no uno nuevo.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_lead_contacto ON leads (negocio_id, contacto_id);
+CREATE INDEX IF NOT EXISTS idx_lead_estado ON leads (negocio_id, estado);
+
+-- ─────────────────────────────────────────────────────────────  uso del LLM ───
+-- Para poder responder "¿cuánto llevo gastado?" con un número y no con un
+-- encogimiento de hombros.
+
+CREATE TABLE IF NOT EXISTS uso_llm (
+  id             TEXT PRIMARY KEY,
+  negocio_id     TEXT NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
+  modelo         TEXT NOT NULL,
+  tokens_entrada INTEGER NOT NULL DEFAULT 0,
+  tokens_salida  INTEGER NOT NULL DEFAULT 0,
+  exito          INTEGER NOT NULL DEFAULT 1,
+  creado_en      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_uso_negocio ON uso_llm (negocio_id, creado_en);

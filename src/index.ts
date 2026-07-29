@@ -15,6 +15,10 @@ import { guardarMensaje, obtenerOCrearConversacion } from "./db/repos/conversaci
 import { listarPedidos } from "./db/repos/pedido";
 import { contarPendientes, listarPendientes } from "./db/repos/propuesta";
 import { listarAuditoria, purgarMensajesViejos } from "./db/repos/varios";
+import { listarContactos, listarLeads } from "./db/repos/crm";
+import { calcularMetricas } from "./db/repos/metricas";
+import { vistaMetricas } from "./admin/vistas-metricas";
+import { vistaClientes } from "./admin/vistas-clientes";
 
 export { AgenteConversacion };
 
@@ -38,7 +42,49 @@ app.get("/salud", (c) => c.json({ ok: true, servicio: "chuno" }));
  * es exactamente lo que un dueño recibe. Nada de maquetas.
  */
 function montarPanel(base: string, negocioDe: (env: Env) => string) {
-  app.get(`${base}`, (c) => c.redirect(`${base}/bandeja`));
+  app.get(`${base}`, (c) => c.redirect(`${base}/inicio`));
+
+  app.get(`${base}/inicio`, async (c) => {
+    const negocioId = negocioDe(c.env);
+    const negocio = await obtenerNegocio(c.env.DB, negocioId);
+    if (!negocio) return c.text("Negocio no configurado", 404);
+
+    const metricas = await calcularMetricas(c.env.DB, negocioId, negocio.zonaHoraria);
+
+    return c.html(
+      pagina({
+        titulo: "Inicio",
+        negocio: negocio.nombre,
+        activo: "inicio",
+        pendientes: metricas.decisionesPendientes,
+        contenido: vistaMetricas(metricas),
+        base,
+      }),
+    );
+  });
+
+  app.get(`${base}/clientes`, async (c) => {
+    const negocioId = negocioDe(c.env);
+    const negocio = await obtenerNegocio(c.env.DB, negocioId);
+    if (!negocio) return c.text("Negocio no configurado", 404);
+
+    const [contactos, leads, pendientes] = await Promise.all([
+      listarContactos(c.env.DB, negocioId),
+      listarLeads(c.env.DB, negocioId),
+      contarPendientes(c.env.DB, negocioId),
+    ]);
+
+    return c.html(
+      pagina({
+        titulo: "Clientes",
+        negocio: negocio.nombre,
+        activo: "clientes",
+        pendientes,
+        contenido: vistaClientes(contactos, leads),
+        base,
+      }),
+    );
+  });
 
   app.get(`${base}/bandeja`, async (c) => {
     const negocioId = negocioDe(c.env);

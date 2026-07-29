@@ -86,12 +86,22 @@ td { padding: 12px 10px; border-top: 1px solid var(--borde); vertical-align: top
 .pie { color: var(--suave); font-size: 12px; margin-top: 28px; text-align: center; }
 .registro { font-size: 13px; color: var(--suave); display: flex; gap: 10px; padding: 8px 0; border-top: 1px solid var(--borde); }
 .registro time { white-space: nowrap; }
+.metricas { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); margin-bottom:12px; }
+.metrica { background:var(--tarjeta); border:1px solid var(--borde); border-radius:var(--radio); padding:16px; }
+.metrica .cifra { font-size:30px; font-weight:700; letter-spacing:-1px; line-height:1.1; }
+.metrica .rotulo { color:var(--suave); font-size:13px; margin-top:4px; }
+.metrica.alerta .cifra { color:var(--alerta); }
+.salud { display:inline-flex; align-items:center; gap:7px; font-size:17px; font-weight:600; line-height:1.6; }
+.punto { width:9px; height:9px; border-radius:50%; display:inline-block; }
+.punto.bien { background:var(--bien); }
+.punto.atencion { background:var(--aviso); }
+.punto.critico { background:var(--alerta); }
 `;
 
 export function pagina(opciones: {
   titulo: string;
   negocio: string;
-  activo: "bandeja" | "pedidos" | "registro";
+  activo: "inicio" | "bandeja" | "pedidos" | "clientes" | "registro";
   pendientes: number;
   contenido: string;
   base: string;
@@ -111,8 +121,10 @@ export function pagina(opciones: {
 </head><body><div class="envoltorio">
 <header><h1>CHUNO</h1><span class="negocio">${esc(opciones.negocio)}</span></header>
 <nav>
+  ${enlace("/inicio", "Inicio", "inicio")}
   ${enlace("/bandeja", "Decisiones", "bandeja", opciones.pendientes)}
   ${enlace("/pedidos", "Pedidos", "pedidos")}
+  ${enlace("/clientes", "Clientes", "clientes")}
   ${enlace("/registro", "Registro", "registro")}
 </nav>
 ${opciones.contenido}
