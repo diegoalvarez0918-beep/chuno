@@ -3,6 +3,9 @@
 > Constitución del proyecto. Claude Code la lee en cada sesión.
 > Si algo aquí contradice una instrucción mía en el chat, **pregúntame antes de actuar**.
 >
+> **Al arrancar una sesión nueva, lee `docs/ESTADO.md` primero:** dice qué está
+> vivo, qué fase sigue y qué gotchas ya costaron tiempo.
+>
 > Archivos hermanos: `APRENDIZAJES.md` (memoria entre sesiones) y
 > `docs/00-contexto-reto-plug-nights.md` (el concurso y sus criterios).
 > `AGENTS.md` y `GEMINI.md` son punteros de una línea a este archivo — **no los
@@ -177,4 +180,5 @@ APRENDIZAJES.md                   memoria entre sesiones
 
 **El hito 2 es el filtro.** Webhooks y secretos son donde se pierde el tiempo real. Si el bot no contesta, nada de lo demás importa.
 
-**Estado actual: Fase 1 cerrada.** Ver `docs/superpowers/specs/2026-07-29-chuno-plataforma-design.md` para las fases restantes.
+**Estado actual: Fase 1 cerrada. Sigue la Fase 2+3 (conocimiento estructurado + onboarding).**
+Detalle en `docs/ESTADO.md`; fases completas en `docs/superpowers/specs/2026-07-29-chuno-plataforma-design.md`.
