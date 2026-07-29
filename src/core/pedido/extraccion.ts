@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { fallo, ok, type Resultado } from "../resultado";
 import { FECHA_ISO, ItemPedidoSchema } from "./tipos";
 
 /**
@@ -42,6 +43,56 @@ export const ExtraccionPedidoSchema = z.object({
 });
 
 export type ExtraccionPedido = z.infer<typeof ExtraccionPedidoSchema>;
+
+/**
+ * El mismo contrato, en el dialecto que entiende Gemini para forzar salida
+ * estructurada. Está duplicado a mano y no generado, por dos razones: evita una
+ * dependencia más en el runtime de Workers, y obliga a que cualquier cambio en el
+ * contrato sea consciente en ambos lados.
+ *
+ * Si los dos se desincronizan, Zod rechaza y el pedido cae a la bandeja del
+ * dueño: el modo de falla es "molestar a un humano", no "escribir basura".
+ */
+export const ESQUEMA_GEMINI_EXTRACCION = {
+  type: "OBJECT",
+  properties: {
+    hayPedido: { type: "BOOLEAN" },
+    clienteNombre: { type: "STRING", nullable: true },
+    items: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          descripcion: { type: "STRING" },
+          cantidad: { type: "INTEGER" },
+        },
+        required: ["descripcion", "cantidad"],
+      },
+    },
+    montoCentavos: { type: "INTEGER", nullable: true },
+    fechaComprometida: { type: "STRING", nullable: true },
+    notas: { type: "STRING", nullable: true },
+    confianza: { type: "NUMBER" },
+    ambiguedades: { type: "ARRAY", items: { type: "STRING" } },
+  },
+  required: ["hayPedido", "items", "confianza", "ambiguedades"],
+} as const;
+
+/**
+ * Valida lo que devolvió el modelo. Este es el punto exacto donde termina lo
+ * probabilístico y empieza lo determinista.
+ */
+export function validarExtraccion(crudo: unknown): Resultado<ExtraccionPedido, string> {
+  const r = ExtraccionPedidoSchema.safeParse(crudo);
+  if (r.success) return ok(r.data);
+
+  const detalle = r.error.issues
+    .slice(0, 3)
+    .map((i) => `${i.path.join(".") || "raíz"}: ${i.message}`)
+    .join("; ");
+
+  return fallo(`extracción inválida — ${detalle}`);
+}
 
 /** Por debajo de esto, no se actúa sin un humano. */
 export const UMBRAL_CONFIANZA = 0.8;
