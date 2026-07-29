@@ -27,6 +27,15 @@ Más recientes arriba. Si una entrada queda obsoleta o la contradice otra más n
 
 <!-- Nuevas entradas arriba de esta línea. -->
 
+- **2026-07-29 — El listado de modelos de Gemini miente, y por eso hay lista de respaldo:** `gemini-2.5-flash` aparecía en `GET /v1beta/models` pero devolvía **404 "no longer available to new users"**. De los candidatos probados con una llave gratuita nueva: `gemini-3.6-flash`, `gemini-3.1-flash-lite` y `gemini-flash-lite-latest` funcionan y devuelven JSON limpio; `gemini-3.5-flash` envuelve el JSON en markdown; `gemini-flash-latest` se queda sin tokens antes de emitirlo (consume presupuesto razonando); `gemini-2.0-flash` da 429 de una.
+  **Por qué importa:** nunca fijar un modelo único en el código. `MODELOS_LLM` es una var con lista en orden de preferencia y el proveedor cae al siguiente ante 404 o 429 — cambiar de modelo no exige desplegar. Y `maxOutputTokens` para JSON va holgado (3000) porque los modelos con razonamiento gastan parte del presupuesto antes de escribir.
+
+- **2026-07-29 — La auditoría pagó su costo el primer día:** el bot respondía solo con su mensaje de respaldo. Una consulta a `auditoria` devolvió el motivo exacto (`HTTP 404` con el texto de Google) sin necesidad de reproducir el fallo ni leer logs.
+  **Por qué importa:** registrar el *motivo* del fallo, y no solo que hubo fallo, es lo que convierte la auditoría en herramienta de diagnóstico. Mantener esa disciplina en todo camino de error nuevo.
+
+- **2026-07-29 — El subdominio de workers.dev es un paso manual y el TLS tarda:** `wrangler deploy` falla con `code: 10063` hasta que el dueño de la cuenta entra al dashboard y crea el subdominio. Después, el certificado tarda ~40 segundos en emitirse y `curl` falla con error de handshake SSL mientras tanto.
+  **Por qué importa:** no es un bug del código. En un despliegue nuevo, contar con ese paso manual y con la espera antes de dar el despliegue por roto.
+
 - **2026-07-28 — `| tail` enmascara los fallos:** `npm install 2>&1 | tail -20` devolvió éxito mientras npm fallaba por conflicto de peer dependency; el código de salida era el de `tail`. Se perdieron varios minutos creyendo que había instalado.
   **Por qué importa:** en este repo, todo comando cuyo resultado importe va con `set -o pipefail` antes del pipe, o sin pipe. Ya está escrito como regla en `CLAUDE.md`.
 

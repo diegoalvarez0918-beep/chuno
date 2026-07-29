@@ -35,6 +35,9 @@
   "vars": {
     "NOMBRE_BOT": "CHUNO",
     "LLM_PROVEEDOR": "gemini",
+    // En orden de preferencia; si uno se jubila o agota su cuota, cae al
+    // siguiente. Verificados contra la capa gratuita el 2026-07-29.
+    "MODELOS_LLM": "gemini-3.6-flash,gemini-3.1-flash-lite,gemini-flash-lite-latest",
     "BUFFER_SEGUNDOS": "15",
     "RETENCION_DIAS": "90",
     // Dos negocios separados a propósito: la demo pública nunca muestra las

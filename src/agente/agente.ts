@@ -9,7 +9,7 @@ import {
 import { crearCanalTelegram } from "../canales/telegram";
 import { crearProveedorGemini } from "../llm/gemini";
 import { hoyEnZona } from "../db/id";
-import { numero, type Env } from "../env";
+import { modelos, numero, type Env } from "../env";
 import { obtenerGiro } from "../giros";
 import type { ContextoNegocio } from "../giros/tipos";
 import { obtenerNegocio } from "../db/repos/negocio";
@@ -98,7 +98,7 @@ export class AgenteConversacion extends DurableObject<Env> {
     if (!ultimoDelCliente) return;
 
     const giro = obtenerGiro(negocio.giro);
-    const llm = crearProveedorGemini(this.env.GEMINI_API_KEY);
+    const llm = crearProveedorGemini(this.env.GEMINI_API_KEY, modelos(this.env));
     const canal = crearCanalTelegram(this.env.TELEGRAM_BOT_TOKEN);
 
     const contextoNegocio: ContextoNegocio = {

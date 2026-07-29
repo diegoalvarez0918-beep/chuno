@@ -12,6 +12,12 @@ export interface Env {
   // Vars (wrangler.jsonc)
   readonly NOMBRE_BOT: string;
   readonly LLM_PROVEEDOR: string;
+  /**
+   * Modelos separados por coma, en orden de preferencia. Es una variable y no
+   * una constante del código para poder cambiar de modelo sin desplegar: Google
+   * jubila modelos sin aviso y la cuota gratuita se agota por modelo.
+   */
+  readonly MODELOS_LLM: string;
   readonly BUFFER_SEGUNDOS: string;
   readonly RETENCION_DIAS: string;
   /** Negocio sembrado que se muestra en /demo, abierto al público. */
@@ -24,4 +30,12 @@ export interface Env {
 export function numero(valor: string | undefined, porDefecto: number): number {
   const n = Number(valor);
   return Number.isFinite(n) && n > 0 ? n : porDefecto;
+}
+
+/** La lista de modelos configurada. Vacía significa "usa los del código". */
+export function modelos(env: Env): string[] {
+  return (env.MODELOS_LLM ?? "")
+    .split(",")
+    .map((m) => m.trim())
+    .filter((m) => m.length > 0);
 }
