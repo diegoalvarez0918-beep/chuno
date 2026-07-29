@@ -18,8 +18,7 @@
     {
       "binding": "DB",
       "database_name": "chuno",
-      // Se llena con el id que devuelve `wrangler d1 create chuno`.
-      "database_id": "PENDIENTE"
+      "database_id": "50f72126-740e-4813-8c9c-355ca32a8698"
     }
   ],
 
