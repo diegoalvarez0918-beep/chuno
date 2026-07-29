@@ -6,6 +6,8 @@
  * un archivo aquí, no tocar el agente. Ese es el LEGO.
  */
 
+import type { Faq, ItemCatalogo } from "../core/conocimiento/tipos";
+
 export interface ContextoNegocio {
   readonly nombre: string;
   /** YYYY-MM-DD en la zona horaria del negocio. Resuelve "el jueves". */
@@ -13,6 +15,11 @@ export interface ContextoNegocio {
   readonly zonaHoraria: string;
   /** Fragmentos de la base de conocimiento relevantes a la conversación. */
   readonly conocimiento: readonly string[];
+  /** Ítems del catálogo relevantes (o el catálogo acotado si nada coincide). */
+  readonly catalogo: readonly ItemCatalogo[];
+  readonly faq: readonly Faq[];
+  /** Cómo quiere el dueño que hable el asistente. Sale del onboarding. */
+  readonly tono: string | null;
 }
 
 export interface Giro {
