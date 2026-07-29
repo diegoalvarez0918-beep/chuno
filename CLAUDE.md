@@ -177,4 +177,4 @@ APRENDIZAJES.md                   memoria entre sesiones
 
 **El hito 2 es el filtro.** Webhooks y secretos son donde se pierde el tiempo real. Si el bot no contesta, nada de lo demás importa.
 
-**Estado actual: hito 0 cerrado.**
+**Estado actual: Fase 1 cerrada.** Ver `docs/superpowers/specs/2026-07-29-chuno-plataforma-design.md` para las fases restantes.

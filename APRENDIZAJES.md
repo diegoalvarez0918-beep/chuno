@@ -27,6 +27,12 @@ Más recientes arriba. Si una entrada queda obsoleta o la contradice otra más n
 
 <!-- Nuevas entradas arriba de esta línea. -->
 
+- **2026-07-29 — Verificar contra producción con un webhook sintético:** para probar el camino completo (Durable Object → LLM → CRM → consumo) sin escribirle a una persona real, se hace POST a `/webhook/telegram` con el secreto correcto y un `chat.id` inexistente. El agente procesa todo y solo falla el envío final, que queda auditado.
+  **Por qué importa:** da verificación real de extremo a extremo sin depender de que alguien tenga el teléfono a mano, y sin mandarle mensajes de prueba a un cliente. Es el patrón para probar cualquier canal nuevo.
+
+- **2026-07-29 — Los indicadores necesitan muestra mínima:** la salud del agente exige tres llamadas antes de emitir juicio. Sin eso, el primer fallo del día da 100% de fallos sobre un intento y pinta el panel de rojo.
+  **Por qué importa:** aplica a cualquier métrica de proporción que se le muestre a un usuario. Un indicador que se dispara con ruido se deja de mirar a la semana, y entonces no sirve ni cuando el problema es real.
+
 - **2026-07-29 — El listado de modelos de Gemini miente, y por eso hay lista de respaldo:** `gemini-2.5-flash` aparecía en `GET /v1beta/models` pero devolvía **404 "no longer available to new users"**. De los candidatos probados con una llave gratuita nueva: `gemini-3.6-flash`, `gemini-3.1-flash-lite` y `gemini-flash-lite-latest` funcionan y devuelven JSON limpio; `gemini-3.5-flash` envuelve el JSON en markdown; `gemini-flash-latest` se queda sin tokens antes de emitirlo (consume presupuesto razonando); `gemini-2.0-flash` da 429 de una.
   **Por qué importa:** nunca fijar un modelo único en el código. `MODELOS_LLM` es una var con lista en orden de preferencia y el proveedor cae al siguiente ante 404 o 429 — cambiar de modelo no exige desplegar. Y `maxOutputTokens` para JSON va holgado (3000) porque los modelos con razonamiento gastan parte del presupuesto antes de escribir.
 
