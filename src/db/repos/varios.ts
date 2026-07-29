@@ -117,6 +117,22 @@ export async function buscarConocimiento(
   return results.map((f) => `${f.titulo}: ${f.contenido}`);
 }
 
+/** Alta de un fragmento narrativo. Lo usa el onboarding para horario y descripción. */
+export async function guardarConocimiento(
+  db: D1Database,
+  negocioId: string,
+  titulo: string,
+  contenido: string,
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO conocimiento (id, negocio_id, titulo, contenido, creado_en)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+    .bind(nuevoId("kb"), negocioId, titulo, contenido, ahoraISO())
+    .run();
+}
+
 /** Palabras de 4+ letras, sin acentos y sin las vacías del español. */
 const VACIAS = new Set([
   "para", "como", "pero", "esta", "este", "esto", "hola", "gracias", "porque",

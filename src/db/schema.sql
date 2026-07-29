@@ -210,3 +210,33 @@ CREATE TABLE IF NOT EXISTS uso_llm (
 );
 
 CREATE INDEX IF NOT EXISTS idx_uso_negocio ON uso_llm (negocio_id, creado_en);
+
+-- ──────────────────────────────────────────────────  conocimiento con forma ───
+-- El catálogo y las FAQ son la parte del conocimiento que tiene estructura:
+-- un producto tiene precio y tiempo de entrega, una FAQ tiene pregunta y
+-- respuesta. La tabla `conocimiento` (texto libre) sigue para lo narrativo.
+
+CREATE TABLE IF NOT EXISTS catalogo (
+  id              TEXT PRIMARY KEY,
+  negocio_id      TEXT NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
+  nombre          TEXT NOT NULL,
+  descripcion     TEXT,
+  -- Entero, en centavos. NULL = "precio por confirmar".
+  precio_centavos INTEGER,
+  dias_entrega    INTEGER,
+  creado_en       TEXT NOT NULL,
+  actualizado_en  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_catalogo_negocio ON catalogo (negocio_id, nombre);
+
+CREATE TABLE IF NOT EXISTS faq (
+  id             TEXT PRIMARY KEY,
+  negocio_id     TEXT NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
+  pregunta       TEXT NOT NULL,
+  respuesta      TEXT NOT NULL,
+  creado_en      TEXT NOT NULL,
+  actualizado_en TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_faq_negocio ON faq (negocio_id);
