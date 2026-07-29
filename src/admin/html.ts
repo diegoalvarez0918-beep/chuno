@@ -96,12 +96,17 @@ td { padding: 12px 10px; border-top: 1px solid var(--borde); vertical-align: top
 .punto.bien { background:var(--bien); }
 .punto.atencion { background:var(--aviso); }
 .punto.critico { background:var(--alerta); }
+input:not([type=hidden]) { font: inherit; background: var(--fondo); color: var(--texto);
+  border: 1px solid var(--borde); border-radius: 8px; padding: 7px 10px; width: 100%; min-width: 60px; }
+td .acciones { flex-wrap: nowrap; }
+.fila-alta { display: grid; gap: 8px; grid-template-columns: 2fr 2fr 1fr 1fr auto; margin-top: 14px; }
+@media (max-width: 640px) { .fila-alta { grid-template-columns: 1fr 1fr; } }
 `;
 
 export function pagina(opciones: {
   titulo: string;
   negocio: string;
-  activo: "inicio" | "bandeja" | "pedidos" | "clientes" | "registro";
+  activo: "inicio" | "bandeja" | "pedidos" | "clientes" | "conocimiento" | "registro" | "comenzar";
   pendientes: number;
   contenido: string;
   base: string;
@@ -125,6 +130,7 @@ export function pagina(opciones: {
   ${enlace("/bandeja", "Decisiones", "bandeja", opciones.pendientes)}
   ${enlace("/pedidos", "Pedidos", "pedidos")}
   ${enlace("/clientes", "Clientes", "clientes")}
+  ${enlace("/conocimiento", "Conocimiento", "conocimiento")}
   ${enlace("/registro", "Registro", "registro")}
 </nav>
 ${opciones.contenido}

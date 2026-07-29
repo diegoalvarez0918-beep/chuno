@@ -14,6 +14,8 @@ DELETE FROM propuestas    WHERE negocio_id IN ('demo-optica', 'mi-optica');
 DELETE FROM pedidos       WHERE negocio_id IN ('demo-optica', 'mi-optica');
 DELETE FROM mensajes      WHERE negocio_id IN ('demo-optica', 'mi-optica');
 DELETE FROM conversaciones WHERE negocio_id IN ('demo-optica', 'mi-optica');
+DELETE FROM catalogo      WHERE negocio_id IN ('demo-optica', 'mi-optica');
+DELETE FROM faq           WHERE negocio_id IN ('demo-optica', 'mi-optica');
 DELETE FROM conocimiento  WHERE negocio_id IN ('demo-optica', 'mi-optica');
 DELETE FROM settings      WHERE negocio_id IN ('demo-optica', 'mi-optica');
 DELETE FROM negocios      WHERE id IN ('demo-optica', 'mi-optica');
@@ -202,3 +204,21 @@ VALUES
   ('u6','demo-optica','gemini-3.6-flash',1910,340,1,datetime('now','-3 days')),
   ('u7','demo-optica','gemini-3.6-flash',2240,610,1,datetime('now','-4 days')),
   ('u8','demo-optica','gemini-3.6-flash',1770,290,1,datetime('now','-5 days'));
+
+-- ─────────────────────────────────────────────────  conocimiento con forma ───
+-- Con el catálogo aquí, el asistente cita precios sin escalar. Lo que NO está
+-- (p. ej. lentes de contacto tóricos) escala al dueño — esa es la Fase 2.
+
+INSERT INTO catalogo (id, negocio_id, nombre, descripcion, precio_centavos, dias_entrega, creado_en, actualizado_en) VALUES
+  ('cat-d1','demo-optica','Lentes monofocales','Con antirreflejo incluido',18000000,3,datetime('now'),datetime('now')),
+  ('cat-d2','demo-optica','Lentes progresivos','Marco no incluido',42000000,7,datetime('now'),datetime('now')),
+  ('cat-d3','demo-optica','Examen de optometría','Se descuenta si compras las gafas el mismo día',4500000,NULL,datetime('now'),datetime('now')),
+  ('cat-d4','demo-optica','Reparación simple','Bisagras, plaquetas, ajustes',NULL,1,datetime('now'),datetime('now')),
+  ('cat-d5','demo-optica','Lentes de contacto por encargo',NULL,24000000,5,datetime('now'),datetime('now')),
+  ('cat-m1','mi-optica','Examen de vista',NULL,4500000,NULL,datetime('now'),datetime('now')),
+  ('cat-m2','mi-optica','Lentes monofocales',NULL,18000000,3,datetime('now'),datetime('now'));
+
+INSERT INTO faq (id, negocio_id, pregunta, respuesta, creado_en, actualizado_en) VALUES
+  ('faq-d1','demo-optica','¿Puedo pagar con Nequi?','Sí: Nequi, Daviplata, efectivo y tarjeta. Con tarjeta se puede diferir a 3 cuotas sin interés.',datetime('now'),datetime('now')),
+  ('faq-d2','demo-optica','¿Necesito cita para el examen?','Sí, el examen de optometría se atiende con cita. Escríbenos y te agendamos.',datetime('now'),datetime('now')),
+  ('faq-d3','demo-optica','¿Tienen garantía?','Un año en montura por defectos de fábrica y 6 meses en el tratamiento antirreflejo.',datetime('now'),datetime('now'));

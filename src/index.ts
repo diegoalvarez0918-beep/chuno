@@ -16,6 +16,8 @@ import { listarPedidos } from "./db/repos/pedido";
 import { contarPendientes, listarPendientes } from "./db/repos/propuesta";
 import { listarAuditoria, purgarMensajesViejos } from "./db/repos/varios";
 import { listarContactos, listarLeads } from "./db/repos/crm";
+import { borrarFaq, borrarItemCatalogo, guardarFaq, guardarItemCatalogo, listarCatalogo, listarFaq } from "./db/repos/catalogo";
+import { vistaConocimiento } from "./admin/vistas-conocimiento";
 import { calcularMetricas } from "./db/repos/metricas";
 import { vistaMetricas } from "./admin/vistas-metricas";
 import { vistaClientes } from "./admin/vistas-clientes";
@@ -41,6 +43,20 @@ app.get("/salud", (c) => c.json({ ok: true, servicio: "chuno" }));
  * Es la misma pantalla porque tiene que serlo: lo que un votante ve en la demo
  * es exactamente lo que un dueño recibe. Nada de maquetas.
  */
+/** El formulario pide pesos; la base guarda centavos. Vacío o basura → null. */
+function precioFormulario(texto: string): number | null {
+  const limpio = texto.replace(/[$.\s]/g, "");
+  if (limpio === "") return null;
+  const pesos = Number(limpio);
+  if (!Number.isFinite(pesos) || pesos < 0) return null;
+  return Math.round(pesos) * 100;
+}
+
+function enteroFormulario(texto: string): number | null {
+  const n = Number(texto.trim());
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+}
+
 function montarPanel(base: string, negocioDe: (env: Env) => string) {
   app.get(`${base}`, (c) => c.redirect(`${base}/inicio`));
 
@@ -84,6 +100,80 @@ function montarPanel(base: string, negocioDe: (env: Env) => string) {
         base,
       }),
     );
+  });
+
+  app.get(`${base}/conocimiento`, async (c) => {
+    const negocioId = negocioDe(c.env);
+    const negocio = await obtenerNegocio(c.env.DB, negocioId);
+    if (!negocio) return c.text("Negocio no configurado", 404);
+
+    const [items, faqs, pendientes] = await Promise.all([
+      listarCatalogo(c.env.DB, negocioId),
+      listarFaq(c.env.DB, negocioId),
+      contarPendientes(c.env.DB, negocioId),
+    ]);
+
+    return c.html(
+      pagina({
+        titulo: "Conocimiento",
+        negocio: negocio.nombre,
+        activo: "conocimiento",
+        pendientes,
+        contenido: vistaConocimiento(items, faqs, base),
+        base,
+      }),
+    );
+  });
+
+  app.post(`${base}/conocimiento/catalogo/guardar`, async (c) => {
+    const negocioId = negocioDe(c.env);
+    const f = await c.req.formData();
+
+    const nombre = String(f.get("nombre") ?? "").trim();
+    if (!nombre) return c.text("Falta el nombre del producto", 400);
+
+    await guardarItemCatalogo(c.env.DB, {
+      id: String(f.get("id") ?? "").trim() || null,
+      negocioId,
+      nombre,
+      descripcion: String(f.get("descripcion") ?? "").trim() || null,
+      precioCentavos: precioFormulario(String(f.get("precio") ?? "")),
+      diasEntrega: enteroFormulario(String(f.get("dias") ?? "")),
+    });
+
+    return c.redirect(`${base}/conocimiento`, 303);
+  });
+
+  app.post(`${base}/conocimiento/catalogo/borrar`, async (c) => {
+    const negocioId = negocioDe(c.env);
+    const id = String((await c.req.formData()).get("id") ?? "");
+    if (id) await borrarItemCatalogo(c.env.DB, negocioId, id);
+    return c.redirect(`${base}/conocimiento`, 303);
+  });
+
+  app.post(`${base}/conocimiento/faq/guardar`, async (c) => {
+    const negocioId = negocioDe(c.env);
+    const f = await c.req.formData();
+
+    const pregunta = String(f.get("pregunta") ?? "").trim();
+    const respuesta = String(f.get("respuesta") ?? "").trim();
+    if (!pregunta || !respuesta) return c.text("Faltan la pregunta o la respuesta", 400);
+
+    await guardarFaq(c.env.DB, {
+      id: String(f.get("id") ?? "").trim() || null,
+      negocioId,
+      pregunta,
+      respuesta,
+    });
+
+    return c.redirect(`${base}/conocimiento`, 303);
+  });
+
+  app.post(`${base}/conocimiento/faq/borrar`, async (c) => {
+    const negocioId = negocioDe(c.env);
+    const id = String((await c.req.formData()).get("id") ?? "");
+    if (id) await borrarFaq(c.env.DB, negocioId, id);
+    return c.redirect(`${base}/conocimiento`, 303);
   });
 
   app.get(`${base}/bandeja`, async (c) => {
