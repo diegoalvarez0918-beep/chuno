@@ -37,7 +37,10 @@
     "LLM_PROVEEDOR": "gemini",
     "BUFFER_SEGUNDOS": "15",
     "RETENCION_DIAS": "90",
-    "NEGOCIO_DEMO": "demo-optica"
+    // Dos negocios separados a propósito: la demo pública nunca muestra las
+    // conversaciones reales que entran por Telegram.
+    "NEGOCIO_DEMO": "demo-optica",
+    "NEGOCIO_TELEGRAM": "mi-optica"
   }
 
   // Secretos (nunca aquí — `wrangler secret put <NOMBRE>`):
