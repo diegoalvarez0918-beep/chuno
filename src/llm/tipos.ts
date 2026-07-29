@@ -36,6 +36,20 @@ export interface OpcionesJSON<T> {
   readonly maxTokens?: number;
 }
 
+/** Lo que consumió una llamada. Se reporta aunque falle: un error también gasta. */
+export interface UsoLLM {
+  readonly modelo: string;
+  readonly tokensEntrada: number;
+  readonly tokensSalida: number;
+  readonly exito: boolean;
+}
+
+/**
+ * El proveedor reporta consumo por aquí en vez de devolverlo, para no cambiar la
+ * forma de `generarTexto` y `generarJSON` — que ya tienen quien las llame.
+ */
+export type ReporteUso = (uso: UsoLLM) => void;
+
 export interface ProveedorLLM {
   readonly nombre: string;
   generarTexto(opciones: OpcionesTexto): Promise<Resultado<string, string>>;

@@ -1,5 +1,11 @@
 import { fallo, ok, type Resultado } from "../core/resultado";
-import type { MensajeLLM, OpcionesJSON, OpcionesTexto, ProveedorLLM } from "./tipos";
+import type {
+  MensajeLLM,
+  OpcionesJSON,
+  OpcionesTexto,
+  ProveedorLLM,
+  ReporteUso,
+} from "./tipos";
 
 /**
  * Proveedor Gemini contra la API REST, sin SDK.
@@ -29,6 +35,7 @@ interface RespuestaGemini {
     finishReason?: string;
   }>;
   error?: { message?: string; status?: string };
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
 }
 
 function aContenido(mensajes: readonly MensajeLLM[]) {
@@ -50,6 +57,7 @@ function quitarCerca(texto: string): string {
 export function crearProveedorGemini(
   apiKey: string,
   modelos: readonly string[] = MODELOS_POR_DEFECTO,
+  onUso?: ReporteUso,
 ): ProveedorLLM {
   const lista = modelos.length > 0 ? modelos : MODELOS_POR_DEFECTO;
 
@@ -86,6 +94,15 @@ export function crearProveedorGemini(
       });
 
       const datos = (await respuesta.json()) as RespuestaGemini;
+
+      // Se reporta siempre, incluso si la llamada falló: una respuesta cortada o
+      // rechazada también consumió cuota.
+      onUso?.({
+        modelo,
+        tokensEntrada: datos.usageMetadata?.promptTokenCount ?? 0,
+        tokensSalida: datos.usageMetadata?.candidatesTokenCount ?? 0,
+        exito: respuesta.ok,
+      });
 
       if (!respuesta.ok) {
         const detalle = datos.error?.message?.slice(0, 120) ?? "";

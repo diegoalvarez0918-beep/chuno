@@ -22,6 +22,9 @@ import {
 import { crearPedido } from "../db/repos/pedido";
 import { crearPropuesta } from "../db/repos/propuesta";
 import { auditar, buscarConocimiento, crearTicket } from "../db/repos/varios";
+import { registrarContacto, registrarLead } from "../db/repos/crm";
+import { registrarUso } from "../db/repos/uso";
+import type { UsoLLM } from "../llm/tipos";
 import { comoMensajesLLM, comoTranscripcion, promptExtraccion, promptRespuesta } from "./prompt";
 
 /**
@@ -98,8 +101,28 @@ export class AgenteConversacion extends DurableObject<Env> {
     if (!ultimoDelCliente) return;
 
     const giro = obtenerGiro(negocio.giro);
-    const llm = crearProveedorGemini(this.env.GEMINI_API_KEY, modelos(this.env));
     const canal = crearCanalTelegram(this.env.TELEGRAM_BOT_TOKEN);
+
+    // El CRM se alimenta aquí: sin pantalla de captura y sin que nadie escriba
+    // nada. Un CRM que exige que alguien capture los datos es un CRM que se
+    // abandona a la semana.
+    const contacto = await registrarContacto(
+      db,
+      negocioId,
+      conversacion.canal,
+      conversacion.canalChatId,
+      conversacion.clienteNombre,
+    );
+
+    // El consumo se acumula en memoria y se escribe una sola vez al final, pase
+    // lo que pase: contabilizar el gasto no puede costar un viaje a la base por
+    // cada llamada al modelo, y una llamada que falló igual consumió cuota.
+    const usos: UsoLLM[] = [];
+    const llm = crearProveedorGemini(this.env.GEMINI_API_KEY, modelos(this.env), (u) =>
+      usos.push(u),
+    );
+
+    try {
 
     const contextoNegocio: ContextoNegocio = {
       nombre: negocio.nombre,
@@ -163,14 +186,30 @@ export class AgenteConversacion extends DurableObject<Env> {
 
     // Sin esta traza, una extracción correcta que no produce nada es
     // indistinguible de una que nunca corrió.
-    if (!escalo && !registro) {
-      await auditar(
-        db,
-        negocio.id,
-        "sin_accion",
-        { hayPedido: extraccion.valor.hayPedido, confianza: extraccion.valor.confianza },
-        "agente",
-      );
+      if (!escalo && !registro) {
+        await auditar(
+          db,
+          negocio.id,
+          "sin_accion",
+          { hayPedido: extraccion.valor.hayPedido, confianza: extraccion.valor.confianza },
+          "agente",
+        );
+      }
+
+      // Un contacto que encarga algo o que pregunta algo que no sabemos
+      // responder es una oportunidad de venta. Uno que saluda, no.
+      if (extraccion.valor.hayPedido || extraccion.valor.necesitaHumano) {
+        await registrarLead(db, {
+          negocioId,
+          contactoId: contacto.id,
+          interes:
+            extraccion.valor.items.map((i) => i.descripcion).join(", ") ||
+            extraccion.valor.preguntaPendiente,
+          valorEstimadoCentavos: extraccion.valor.montoCentavos,
+        });
+      }
+    } finally {
+      await registrarUso(db, negocioId, usos);
     }
   }
 
