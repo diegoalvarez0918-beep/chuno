@@ -21,7 +21,7 @@ import {
 } from "../db/repos/conversacion";
 import { crearPedido } from "../db/repos/pedido";
 import { crearPropuesta } from "../db/repos/propuesta";
-import { auditar, buscarConocimiento } from "../db/repos/varios";
+import { auditar, buscarConocimiento, crearTicket } from "../db/repos/varios";
 import { comoMensajesLLM, comoTranscripcion, promptExtraccion, promptRespuesta } from "./prompt";
 
 /**
@@ -143,7 +143,75 @@ export class AgenteConversacion extends DurableObject<Env> {
       return;
     }
 
-    await this.registrarPedido(negocio.id, conversacion.id, extraccion.valor, conversacion.clienteNombre);
+    const clienteNombre =
+      extraccion.valor.clienteNombre ?? conversacion.clienteNombre ?? "Cliente";
+
+    // Dos consecuencias posibles y ninguna se excluye: un cliente puede encargar
+    // algo y de paso preguntar algo que el asistente no sabe.
+    const escalo = await this.escalarSiHaceFalta(
+      negocio.id,
+      conversacion.id,
+      extraccion.valor,
+      clienteNombre,
+    );
+    const registro = await this.registrarPedido(
+      negocio.id,
+      conversacion.id,
+      extraccion.valor,
+      clienteNombre,
+    );
+
+    // Sin esta traza, una extracción correcta que no produce nada es
+    // indistinguible de una que nunca corrió.
+    if (!escalo && !registro) {
+      await auditar(
+        db,
+        negocio.id,
+        "sin_accion",
+        { hayPedido: extraccion.valor.hayPedido, confianza: extraccion.valor.confianza },
+        "agente",
+      );
+    }
+  }
+
+  /**
+   * El asistente le dijo al cliente "déjame confirmo con el dueño". Esto es lo
+   * que hace que esa frase sea verdad.
+   *
+   * Deja en la bandeja un borrador vacío para que el dueño escriba la respuesta y
+   * la envíe con un clic, más un ticket abierto para que quede el rastro.
+   */
+  private async escalarSiHaceFalta(
+    negocioId: string,
+    conversacionId: string,
+    extraccion: ExtraccionPedido,
+    clienteNombre: string,
+  ): Promise<boolean> {
+    if (!extraccion.necesitaHumano || !extraccion.preguntaPendiente) return false;
+
+    const primerNombre = clienteNombre.split(" ")[0] ?? clienteNombre;
+    const pregunta = extraccion.preguntaPendiente;
+
+    const propuesta = await crearPropuesta(this.env.DB, {
+      negocioId,
+      payload: {
+        tipo: "enviar_aviso",
+        conversacionId,
+        pedidoId: null,
+        texto: `Hola ${primerNombre}, sobre lo que me preguntaste: `,
+      },
+      motivo: `${clienteNombre} preguntó: "${pregunta}". No está en la información que tienes cargada — escríbele la respuesta y yo se la envío.`,
+      confianza: null,
+      // La misma pregunta no vuelve a la bandeja; una distinta sí.
+      claveDedupe: `pregunta:${conversacionId}:${pregunta.slice(0, 60)}`,
+    });
+
+    if (!propuesta) return false;
+
+    await crearTicket(this.env.DB, negocioId, conversacionId, pregunta);
+    await auditar(this.env.DB, negocioId, "escalado_a_humano", { conversacionId }, "agente");
+
+    return true;
   }
 
   /**
@@ -155,11 +223,11 @@ export class AgenteConversacion extends DurableObject<Env> {
     negocioId: string,
     conversacionId: string,
     extraccion: ExtraccionPedido,
-    nombreConversacion: string | null,
-  ): Promise<void> {
+    clienteNombre: string,
+  ): Promise<boolean> {
     const db = this.env.DB;
 
-    if (!extraccion.hayPedido) return;
+    if (!extraccion.hayPedido) return false;
 
     // Sin nada concreto que pedir no hay pedido, por más seguro que esté el
     // modelo. Se deja rastro para poder afinar el prompt después.
@@ -171,10 +239,8 @@ export class AgenteConversacion extends DurableObject<Env> {
         { motivo: "sin items", confianza: extraccion.confianza },
         "agente",
       );
-      return;
+      return true;
     }
-
-    const clienteNombre = extraccion.clienteNombre ?? nombreConversacion ?? "Cliente";
 
     if (requiereAprobacion(extraccion)) {
       const razones = [
@@ -205,7 +271,7 @@ export class AgenteConversacion extends DurableObject<Env> {
         { tipo: "crear_pedido", confianza: extraccion.confianza, razones: razones.length },
         "agente",
       );
-      return;
+      return true;
     }
 
     const pedido = await crearPedido(db, {
@@ -226,6 +292,8 @@ export class AgenteConversacion extends DurableObject<Env> {
       { pedidoId: pedido.id, confianza: extraccion.confianza, automatico: true },
       "agente",
     );
+
+    return true;
   }
 }
 

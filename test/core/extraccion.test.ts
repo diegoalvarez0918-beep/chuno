@@ -79,6 +79,34 @@ describe("la frontera de seguridad del esquema de extracción", () => {
     expect(r.ambiguedades).toEqual([]);
     expect(r.fechaComprometida).toBeNull();
   });
+
+  it("por defecto NO escala: escalar es una decisión explícita del modelo", () => {
+    const r = ExtraccionPedidoSchema.parse({ hayPedido: false, confianza: 0.4 });
+    expect(r.necesitaHumano).toBe(false);
+    expect(r.preguntaPendiente).toBeNull();
+  });
+
+  it("acepta un escalamiento con su pregunta pendiente", () => {
+    const r = ExtraccionPedidoSchema.parse({
+      hayPedido: false,
+      confianza: 0.9,
+      necesitaHumano: true,
+      preguntaPendiente: "  ¿Qué monturas negras tienen disponibles?  ",
+    });
+
+    expect(r.necesitaHumano).toBe(true);
+    expect(r.preguntaPendiente).toBe("¿Qué monturas negras tienen disponibles?");
+  });
+
+  it("recorta una pregunta pendiente desmedida", () => {
+    const r = ExtraccionPedidoSchema.safeParse({
+      hayPedido: false,
+      confianza: 0.9,
+      necesitaHumano: true,
+      preguntaPendiente: "x".repeat(400),
+    });
+    expect(r.success).toBe(false);
+  });
 });
 
 describe("requiereAprobacion — cuándo se interrumpe al dueño", () => {

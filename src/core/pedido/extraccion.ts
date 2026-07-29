@@ -40,6 +40,19 @@ export const ExtraccionPedidoSchema = z.object({
    * razón para no actuar solo.
    */
   ambiguedades: z.array(z.string().max(200)).max(10).default([]),
+
+  /**
+   * El cliente preguntó algo que el asistente no puede responder con la
+   * información del negocio.
+   *
+   * Sin esto, el asistente le dice al cliente "déjame confirmar con el dueño" y
+   * no confirma nada con nadie: el cliente queda esperando y el dueño ni se
+   * entera. Una promesa que el sistema no puede cumplir es peor que no hacerla.
+   */
+  necesitaHumano: z.boolean().default(false),
+
+  /** Qué quedó pendiente por responder, en una línea, para que lo lea el dueño. */
+  preguntaPendiente: z.string().trim().max(300).nullable().default(null),
 });
 
 export type ExtraccionPedido = z.infer<typeof ExtraccionPedidoSchema>;
@@ -74,8 +87,10 @@ export const ESQUEMA_GEMINI_EXTRACCION = {
     notas: { type: "STRING", nullable: true },
     confianza: { type: "NUMBER" },
     ambiguedades: { type: "ARRAY", items: { type: "STRING" } },
+    necesitaHumano: { type: "BOOLEAN" },
+    preguntaPendiente: { type: "STRING", nullable: true },
   },
-  required: ["hayPedido", "items", "confianza", "ambiguedades"],
+  required: ["hayPedido", "items", "confianza", "ambiguedades", "necesitaHumano"],
 } as const;
 
 /**
