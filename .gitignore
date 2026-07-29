@@ -1,28 +1,22 @@
-# Entorno y secretos
+# Secretos — jamás versionados
 .env
 .env.local
+.dev.vars
 credentials.json
 token.json
 *.pem
 
-# Archivos intermedios (siempre regenerables)
-.tmp/
-!.tmp/.gitkeep
-
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-.pytest_cache/
-.ruff_cache/
+# Cloudflare
+.wrangler/
+.mf/
 
 # Node
 node_modules/
-.next/
 dist/
-build/
 *.log
+
+# Archivos intermedios: siempre regenerables, nunca fuente de verdad
+.tmp/
 
 # SO / editor
 .DS_Store

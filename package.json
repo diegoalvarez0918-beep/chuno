@@ -1,0 +1,28 @@
+{
+  "name": "chuno",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "El asistente que se acuerda de lo que le prometiste a tu cliente.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "db:local": "wrangler d1 execute chuno --local --file=src/db/schema.sql",
+    "db:remote": "wrangler d1 execute chuno --remote --file=src/db/schema.sql",
+    "seed:local": "wrangler d1 execute chuno --local --file=src/db/seed.sql",
+    "seed:remote": "wrangler d1 execute chuno --remote --file=src/db/seed.sql"
+  },
+  "dependencies": {
+    "hono": "^4.6.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260722.1",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0",
+    "wrangler": "^4.0.0"
+  }
+}

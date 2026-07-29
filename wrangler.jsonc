@@ -1,0 +1,49 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "chuno",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+
+  // Un Durable Object por conversación: aislamiento y concurrencia por diseño.
+  // "new_sqlite_classes" (y no "new_classes") es obligatorio — el plan gratuito de
+  // Workers solo admite Durable Objects con backend SQLite.
+  "durable_objects": {
+    "bindings": [{ "name": "AGENTE", "class_name": "AgenteConversacion" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["AgenteConversacion"] }],
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "chuno",
+      // Se llena con el id que devuelve `wrangler d1 create chuno`.
+      "database_id": "PENDIENTE"
+    }
+  ],
+
+  // Dos triggers a propósito. Un único cron diario dejaría al vigía sin poder
+  // detectar nada: revisa promesas contra la fecha de hoy y tiene que correr
+  // durante el día, no de madrugada.
+  "triggers": {
+    "crons": [
+      "*/30 * * * *", // vigía de promesas
+      "0 7 * * *" // purga de mensajes viejos (2 a.m. hora Colombia)
+    ]
+  },
+
+  "vars": {
+    "NOMBRE_BOT": "CHUNO",
+    "LLM_PROVEEDOR": "gemini",
+    "BUFFER_SEGUNDOS": "15",
+    "RETENCION_DIAS": "90",
+    "NEGOCIO_DEMO": "demo-optica"
+  }
+
+  // Secretos (nunca aquí — `wrangler secret put <NOMBRE>`):
+  //   GEMINI_API_KEY            cerebro del agente
+  //   TELEGRAM_BOT_TOKEN        canal
+  //   TELEGRAM_WEBHOOK_SECRET   valida que el webhook viene de Telegram
+  //   PANEL_PASSWORD            Basic Auth del panel del dueño
+}
