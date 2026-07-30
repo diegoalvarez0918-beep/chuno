@@ -1,8 +1,8 @@
 import { Hono, type Context } from "hono";
 import { basicAuth } from "hono/basic-auth";
 
-import { hoyEnZona } from "./db/id";
-import { numero, type Env } from "./env";
+import { hoyEnZona, nuevoId } from "./db/id";
+import { modelos, numero, type Env } from "./env";
 import { AgenteConversacion, idDeConversacion } from "./agente/agente";
 import { correrVigia } from "./crons/vigia";
 import { decidirPropuesta } from "./admin/aplicar";
@@ -10,8 +10,25 @@ import { pagina } from "./admin/html";
 import { vistaBandeja, vistaPedidos, vistaRegistro } from "./admin/vistas";
 import { landing } from "./publico/landing";
 import { crearCanalTelegram, registrarWebhook, webhookAutentico } from "./canales/telegram";
-import { obtenerNegocio } from "./db/repos/negocio";
+import { crearNegocio, listarNegocios, obtenerNegocio } from "./db/repos/negocio";
 import { leerCredencial } from "./db/repos/credencial";
+import { crearProveedorGemini } from "./llm/gemini";
+import {
+  aplicarRespuesta,
+  armarConfiguracion,
+  esFinal,
+  estadoInicial,
+  interpretar,
+} from "./core/onboarding/entrevista";
+import {
+  borrarEntrevista,
+  crearEntrevista,
+  guardarEntrevista,
+  leerEntrevista,
+} from "./db/repos/entrevista";
+import { estructurarConLLM } from "./onboarding/estructurar";
+import { materializarConfiguracion } from "./onboarding/materializar";
+import { vistaEntrevista, vistaEntrevistaDemo } from "./admin/vistas-onboarding";
 import { guardarMensaje, obtenerOCrearConversacion } from "./db/repos/conversacion";
 import { listarPedidos } from "./db/repos/pedido";
 import { contarPendientes, listarPendientes } from "./db/repos/propuesta";
@@ -58,76 +75,112 @@ function enteroFormulario(texto: string): number | null {
   return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
 }
 
-function montarPanel(base: string, negocioDe: (env: Env) => string) {
+function montarPanel(
+  base: string,
+  negocioDe: (c: Context<{ Bindings: Env }>) => string,
+  conSelector: boolean,
+) {
+  /**
+   * Resuelve el negocio de la petición. En /panel el dueño puede tener varios
+   * negocios (multi-bot) y elige con ?negocio=; en /demo el negocio es fijo —
+   * un visitante no puede pivotear hacia los datos reales.
+   */
+  async function datosPanel(c: Context<{ Bindings: Env }>) {
+    const negocioId = negocioDe(c);
+    const negocio = await obtenerNegocio(c.env.DB, negocioId);
+    if (!negocio) return null;
+
+    const consulta =
+      conSelector && negocioId !== c.env.NEGOCIO_TELEGRAM ? `?negocio=${negocioId}` : "";
+
+    const selector = conSelector
+      ? (await listarNegocios(c.env.DB)).map((n) => ({
+          url: `${base}/inicio${n.id === c.env.NEGOCIO_TELEGRAM ? "" : `?negocio=${n.id}`}`,
+          nombre: n.nombre,
+          actual: n.id === negocioId,
+        }))
+      : [];
+
+    return { negocioId, negocio, consulta, selector };
+  }
+
+  /** La consulta que conserva el negocio elegido en los redirects de los POST. */
+  function consultaDe(c: Context<{ Bindings: Env }>, negocioId: string): string {
+    return conSelector && negocioId !== c.env.NEGOCIO_TELEGRAM ? `?negocio=${negocioId}` : "";
+  }
+
   app.get(`${base}`, (c) => c.redirect(`${base}/inicio`));
 
   app.get(`${base}/inicio`, async (c) => {
-    const negocioId = negocioDe(c.env);
-    const negocio = await obtenerNegocio(c.env.DB, negocioId);
-    if (!negocio) return c.text("Negocio no configurado", 404);
+    const d = await datosPanel(c);
+    if (!d) return c.text("Negocio no configurado", 404);
 
-    const metricas = await calcularMetricas(c.env.DB, negocioId, negocio.zonaHoraria);
+    const metricas = await calcularMetricas(c.env.DB, d.negocioId, d.negocio.zonaHoraria);
 
     return c.html(
       pagina({
         titulo: "Inicio",
-        negocio: negocio.nombre,
+        negocio: d.negocio.nombre,
         activo: "inicio",
         pendientes: metricas.decisionesPendientes,
         contenido: vistaMetricas(metricas),
         base,
+        consulta: d.consulta,
+        selector: d.selector,
       }),
     );
   });
 
   app.get(`${base}/clientes`, async (c) => {
-    const negocioId = negocioDe(c.env);
-    const negocio = await obtenerNegocio(c.env.DB, negocioId);
-    if (!negocio) return c.text("Negocio no configurado", 404);
+    const d = await datosPanel(c);
+    if (!d) return c.text("Negocio no configurado", 404);
 
     const [contactos, leads, pendientes] = await Promise.all([
-      listarContactos(c.env.DB, negocioId),
-      listarLeads(c.env.DB, negocioId),
-      contarPendientes(c.env.DB, negocioId),
+      listarContactos(c.env.DB, d.negocioId),
+      listarLeads(c.env.DB, d.negocioId),
+      contarPendientes(c.env.DB, d.negocioId),
     ]);
 
     return c.html(
       pagina({
         titulo: "Clientes",
-        negocio: negocio.nombre,
+        negocio: d.negocio.nombre,
         activo: "clientes",
         pendientes,
         contenido: vistaClientes(contactos, leads),
         base,
+        consulta: d.consulta,
+        selector: d.selector,
       }),
     );
   });
 
   app.get(`${base}/conocimiento`, async (c) => {
-    const negocioId = negocioDe(c.env);
-    const negocio = await obtenerNegocio(c.env.DB, negocioId);
-    if (!negocio) return c.text("Negocio no configurado", 404);
+    const d = await datosPanel(c);
+    if (!d) return c.text("Negocio no configurado", 404);
 
     const [items, faqs, pendientes] = await Promise.all([
-      listarCatalogo(c.env.DB, negocioId),
-      listarFaq(c.env.DB, negocioId),
-      contarPendientes(c.env.DB, negocioId),
+      listarCatalogo(c.env.DB, d.negocioId),
+      listarFaq(c.env.DB, d.negocioId),
+      contarPendientes(c.env.DB, d.negocioId),
     ]);
 
     return c.html(
       pagina({
         titulo: "Conocimiento",
-        negocio: negocio.nombre,
+        negocio: d.negocio.nombre,
         activo: "conocimiento",
         pendientes,
-        contenido: vistaConocimiento(items, faqs, base),
+        contenido: vistaConocimiento(items, faqs, base, d.consulta),
         base,
+        consulta: d.consulta,
+        selector: d.selector,
       }),
     );
   });
 
   app.post(`${base}/conocimiento/catalogo/guardar`, async (c) => {
-    const negocioId = negocioDe(c.env);
+    const negocioId = negocioDe(c);
     const f = await c.req.formData();
 
     const nombre = String(f.get("nombre") ?? "").trim();
@@ -142,18 +195,18 @@ function montarPanel(base: string, negocioDe: (env: Env) => string) {
       diasEntrega: enteroFormulario(String(f.get("dias") ?? "")),
     });
 
-    return c.redirect(`${base}/conocimiento`, 303);
+    return c.redirect(`${base}/conocimiento${consultaDe(c, negocioId)}`, 303);
   });
 
   app.post(`${base}/conocimiento/catalogo/borrar`, async (c) => {
-    const negocioId = negocioDe(c.env);
+    const negocioId = negocioDe(c);
     const id = String((await c.req.formData()).get("id") ?? "");
     if (id) await borrarItemCatalogo(c.env.DB, negocioId, id);
-    return c.redirect(`${base}/conocimiento`, 303);
+    return c.redirect(`${base}/conocimiento${consultaDe(c, negocioId)}`, 303);
   });
 
   app.post(`${base}/conocimiento/faq/guardar`, async (c) => {
-    const negocioId = negocioDe(c.env);
+    const negocioId = negocioDe(c);
     const f = await c.req.formData();
 
     const pregunta = String(f.get("pregunta") ?? "").trim();
@@ -167,81 +220,84 @@ function montarPanel(base: string, negocioDe: (env: Env) => string) {
       respuesta,
     });
 
-    return c.redirect(`${base}/conocimiento`, 303);
+    return c.redirect(`${base}/conocimiento${consultaDe(c, negocioId)}`, 303);
   });
 
   app.post(`${base}/conocimiento/faq/borrar`, async (c) => {
-    const negocioId = negocioDe(c.env);
+    const negocioId = negocioDe(c);
     const id = String((await c.req.formData()).get("id") ?? "");
     if (id) await borrarFaq(c.env.DB, negocioId, id);
-    return c.redirect(`${base}/conocimiento`, 303);
+    return c.redirect(`${base}/conocimiento${consultaDe(c, negocioId)}`, 303);
   });
 
   app.get(`${base}/bandeja`, async (c) => {
-    const negocioId = negocioDe(c.env);
-    const negocio = await obtenerNegocio(c.env.DB, negocioId);
-    if (!negocio) return c.text("Negocio no configurado", 404);
+    const d = await datosPanel(c);
+    if (!d) return c.text("Negocio no configurado", 404);
 
-    const propuestas = await listarPendientes(c.env.DB, negocioId);
+    const propuestas = await listarPendientes(c.env.DB, d.negocioId);
 
     return c.html(
       pagina({
         titulo: "Decisiones",
-        negocio: negocio.nombre,
+        negocio: d.negocio.nombre,
         activo: "bandeja",
         pendientes: propuestas.length,
-        contenido: vistaBandeja(propuestas, base),
+        contenido: vistaBandeja(propuestas, `${base}/decidir${d.consulta}`),
         base,
+        consulta: d.consulta,
+        selector: d.selector,
       }),
     );
   });
 
   app.get(`${base}/pedidos`, async (c) => {
-    const negocioId = negocioDe(c.env);
-    const negocio = await obtenerNegocio(c.env.DB, negocioId);
-    if (!negocio) return c.text("Negocio no configurado", 404);
+    const d = await datosPanel(c);
+    if (!d) return c.text("Negocio no configurado", 404);
 
     const [pedidos, pendientes] = await Promise.all([
-      listarPedidos(c.env.DB, negocioId),
-      contarPendientes(c.env.DB, negocioId),
+      listarPedidos(c.env.DB, d.negocioId),
+      contarPendientes(c.env.DB, d.negocioId),
     ]);
 
     return c.html(
       pagina({
         titulo: "Pedidos",
-        negocio: negocio.nombre,
+        negocio: d.negocio.nombre,
         activo: "pedidos",
         pendientes,
-        contenido: vistaPedidos(pedidos, hoyEnZona(negocio.zonaHoraria)),
+        contenido: vistaPedidos(pedidos, hoyEnZona(d.negocio.zonaHoraria)),
         base,
+        consulta: d.consulta,
+        selector: d.selector,
       }),
     );
   });
 
   app.get(`${base}/registro`, async (c) => {
-    const negocioId = negocioDe(c.env);
-    const negocio = await obtenerNegocio(c.env.DB, negocioId);
-    if (!negocio) return c.text("Negocio no configurado", 404);
+    const d = await datosPanel(c);
+    if (!d) return c.text("Negocio no configurado", 404);
 
     const [entradas, pendientes] = await Promise.all([
-      listarAuditoria(c.env.DB, negocioId),
-      contarPendientes(c.env.DB, negocioId),
+      listarAuditoria(c.env.DB, d.negocioId),
+      contarPendientes(c.env.DB, d.negocioId),
     ]);
 
     return c.html(
       pagina({
         titulo: "Registro",
-        negocio: negocio.nombre,
+        negocio: d.negocio.nombre,
         activo: "registro",
         pendientes,
         contenido: vistaRegistro(entradas),
         base,
+        consulta: d.consulta,
+        selector: d.selector,
       }),
     );
   });
 
   app.post(`${base}/decidir`, async (c) => {
-    const negocioId = negocioDe(c.env);
+    const negocioId = negocioDe(c);
     const formulario = await c.req.formData();
 
     const id = String(formulario.get("id") ?? "");
@@ -259,7 +315,7 @@ function montarPanel(base: string, negocioDe: (env: Env) => string) {
     });
 
     // Redirección después del POST: recargar la página no repite la decisión.
-    return c.redirect(`${base}/bandeja`, 303);
+    return c.redirect(`${base}/bandeja${consultaDe(c, negocioId)}`, 303);
   });
 }
 
@@ -268,8 +324,117 @@ app.use("/panel/*", async (c, next) =>
   basicAuth({ username: "admin", password: c.env.PANEL_PASSWORD })(c, next),
 );
 
-montarPanel("/panel", (env) => env.NEGOCIO_TELEGRAM);
-montarPanel("/demo", (env) => env.NEGOCIO_DEMO);
+montarPanel("/panel", (c) => c.req.query("negocio") ?? c.env.NEGOCIO_TELEGRAM, true);
+montarPanel("/demo", (c) => c.env.NEGOCIO_DEMO, false);
+
+// ─────────────────────────────────────────────────────────────  onboarding  ──
+// La entrevista vive SOLO en /panel (Basic Auth): crear negocios es del dueño
+// de la instancia. La demo tiene su replay determinista en /demo/comenzar.
+
+function paginaEntrevista(contenido: string): string {
+  return pagina({
+    titulo: "Nuevo asistente",
+    negocio: "entrevista",
+    activo: "comenzar",
+    pendientes: 0,
+    contenido,
+    base: "/panel",
+  });
+}
+
+app.get("/panel/comenzar", (c) =>
+  c.html(paginaEntrevista(vistaEntrevista({ estado: estadoInicial(), accion: "/panel/comenzar" }))),
+);
+
+// La primera respuesta (el nombre) CREA el negocio: así la entrevista nace ya
+// con su negocio_id y no hay estado sin dueño en ninguna tabla.
+app.post("/panel/comenzar", async (c) => {
+  const texto = String((await c.req.formData()).get("texto") ?? "");
+
+  const r = interpretar("nombre", texto);
+  if (!r.ok || r.valor.paso !== "nombre") {
+    const error = r.ok ? "Petición inválida" : r.error;
+    return c.html(
+      paginaEntrevista(vistaEntrevista({ estado: estadoInicial(), accion: "/panel/comenzar", error })),
+    );
+  }
+
+  const avance = aplicarRespuesta(estadoInicial(), r.valor);
+  if (!avance.ok) return c.text(avance.error, 400);
+
+  const negocioId = nuevoId("neg");
+  await crearNegocio(c.env.DB, {
+    id: negocioId,
+    nombre: r.valor.nombre,
+    giro: "por-encargo",
+    zonaHoraria: "America/Bogota",
+  });
+  await crearEntrevista(c.env.DB, negocioId, avance.valor);
+
+  return c.redirect(`/panel/comenzar/${negocioId}`, 303);
+});
+
+app.get("/panel/comenzar/:negocioId", async (c) => {
+  const negocioId = c.req.param("negocioId");
+  const estado = await leerEntrevista(c.env.DB, negocioId);
+  if (!estado) return c.text("Entrevista no encontrada", 404);
+
+  return c.html(paginaEntrevista(vistaEntrevista({ estado, accion: `/panel/comenzar/${negocioId}` })));
+});
+
+app.post("/panel/comenzar/:negocioId", async (c) => {
+  const negocioId = c.req.param("negocioId");
+  const estado = await leerEntrevista(c.env.DB, negocioId);
+  if (!estado) return c.text("Entrevista no encontrada", 404);
+
+  const f = await c.req.formData();
+  const accion = `/panel/comenzar/${negocioId}`;
+
+  if (esFinal(estado)) {
+    if (String(f.get("confirmar")) !== "si") return c.redirect(accion, 303);
+
+    const config = armarConfiguracion(estado.datos);
+    if (!config.ok) return c.text(config.error, 400);
+
+    await materializarConfiguracion(c.env, new URL(c.req.url).origin, negocioId, config.valor);
+    await borrarEntrevista(c.env.DB, negocioId);
+
+    return c.redirect(`/panel/inicio?negocio=${negocioId}`, 303);
+  }
+
+  const texto = String(f.get("texto") ?? "");
+  let r = interpretar(estado.paso, texto);
+
+  // Fallback probabilístico SOLO para catálogo y FAQ, y solo si el parser
+  // determinista no pudo. La salida del modelo ya viene validada contra Zod.
+  if (!r.ok && (estado.paso === "catalogo" || estado.paso === "faq")) {
+    const llm = crearProveedorGemini(c.env.GEMINI_API_KEY, modelos(c.env));
+    r = await estructurarConLLM(llm, estado.paso, texto);
+  }
+
+  if (!r.ok) {
+    return c.html(paginaEntrevista(vistaEntrevista({ estado, accion, error: r.error })));
+  }
+
+  const avance = aplicarRespuesta(estado, r.valor);
+  if (!avance.ok) return c.text(avance.error, 400);
+
+  await guardarEntrevista(c.env.DB, negocioId, avance.valor);
+  return c.redirect(accion, 303);
+});
+
+app.get("/demo/comenzar", (c) =>
+  c.html(
+    pagina({
+      titulo: "Nuevo asistente",
+      negocio: "Floristería La Orquídea (ejemplo)",
+      activo: "comenzar",
+      pendientes: 0,
+      contenido: vistaEntrevistaDemo(),
+      base: "/demo",
+    }),
+  ),
+);
 
 // ───────────────────────────────────────────────────────────────  Telegram  ──
 
