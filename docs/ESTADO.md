@@ -75,7 +75,8 @@ navegador** — una captura cacheada ya casi provocó un diagnóstico falso:
 ```bash
 B=https://chuno.vozdigital-ai.workers.dev
 PASS=$(grep '^PANEL_PASSWORD=' .dev.vars | cut -d= -f2-)
-curl -s $B/ | grep -c 'PROMESAS'                                   # 1 = landing nueva
+curl -s $B/ | grep -c 'En qué se diferencia'                       # 1 = landing nueva
+curl -s -o /dev/null -w '%{http_code} %{size_download}\n' $B/hero.jpg      # 200 y ~190 KB
 curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' $B/panel/inicio   # 302 → /entrar
 curl -s -o /dev/null -w '%{http_code}\n' -u "admin:$PASS" $B/panel/inicio  # 200, Basic Auth vive
 curl -s -o /dev/null -w '%{http_code}\n' -X POST $B/demo/conocimiento/faq/borrar -d 'id=faq-d1'  # 404

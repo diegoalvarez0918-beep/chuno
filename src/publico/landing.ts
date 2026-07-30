@@ -259,29 +259,46 @@ body {
 .lienzo { position: relative; width: 100%; height: 100%; max-width: 1100px; margin: 0 auto; }
 
 /* ── La foto del hero ─────────────────────────────────────────────────────
-   Arranca oculta y solo entra si /hero.png carga de verdad. Si el archivo no
+   Arranca oculta y solo entra si /hero.jpg carga de verdad. Si el archivo no
    está, la página se queda con las burbujas y el tablero en vez de mostrar un
    hero vacío: un despliegue no puede depender de que alguien se acordara de
    subir un PNG.
    El spotlight no necesita dos imágenes — la de abajo va en gris y la de
    arriba a color, recortada por la misma máscara. Es el mismo archivo. */
-.capa-foto { z-index: 6; display: none; }
+/* El modo multiply es lo que hace desaparecer el fondo blanco de la foto sobre
+   el crema del hero, sin recortarla ni exigir un PNG con transparencia: blanco
+   por cualquier color da ese color. El verde del personaje queda intacto.
+   Va en el CONTENEDOR y no en la imagen: la capa tiene z-index, o sea que
+   es su propio contexto de apilamiento, y una imagen que se mezcla ahí adentro
+   lo hace contra un fondo transparente — es decir, contra nada. */
+.capa-foto {
+  z-index: 6; display: none;
+  mix-blend-mode: multiply;
+  /* Ocupa el hero completo, no la mitad derecha que usan las capas de burbujas:
+     la foto es el fondo de la pantalla, no un elemento al lado del texto. */
+  left: 0; top: 0;
+}
 .hero.con-foto .capa-foto { display: block; }
 .hero.con-foto .capa-caos, .hero.con-foto .capa-orden { display: none; }
+/* El JPEG no deja el fondo en 255 exacto y bajo multiply eso pinta un rectángulo
+   tenue alrededor del personaje. Un empujón mínimo de brillo y contraste lleva
+   ese casi-blanco a blanco puro —que bajo multiply es invisible— sin que el
+   verde ni las llamas se noten alterados. */
 .capa-foto img {
   position: absolute; inset: 0; width: 100%; height: 100%;
-  object-fit: contain; object-position: center bottom;
+  object-fit: contain; object-position: 76% bottom;
+  filter: brightness(1.05) contrast(1.05);
 }
-.capa-foto.gris img { filter: grayscale(1) contrast(.85) opacity(.42); }
-.capa-foto.color {
-  z-index: 7;
-  -webkit-mask-image: radial-gradient(circle 620px at var(--mx) var(--my), #000 0 62%, rgba(0,0,0,.85) 76%, rgba(0,0,0,.3) 90%, transparent 100%);
-  mask-image: radial-gradient(circle 620px at var(--mx) var(--my), #000 0 62%, rgba(0,0,0,.85) 76%, rgba(0,0,0,.3) 90%, transparent 100%);
-}
-@media (hover: none), (prefers-reduced-motion: reduce) {
-  .capa-foto.color { -webkit-mask-image: none; mask-image: none; }
-  .capa-foto.gris { display: none; }
-}
+@media (max-width: 767px) { .capa-foto img { object-position: center bottom; } }
+.capa-foto.gris img { filter: grayscale(1) brightness(1.08) contrast(1.05) opacity(.5); }
+/* La foto va a color y sin recortar, siempre.
+   La versión de dos capas —gris abajo, color revelada por el spotlight— se
+   probó y falla en reposo: el puntero arranca en el centro, así que quien
+   entra y no mueve el mouse ve un personaje gris. En una página que tiene
+   treinta segundos para convencer, el estado por defecto no puede ser el
+   apagado. */
+.capa-foto.color { z-index: 7; }
+.hero.con-foto .capa-foto.gris { display: none; }
 
 /* Apagadas a propósito: son el ruido del que el tablero rescata al dueño. Si
    compiten en contraste con lo que revela el spotlight, no se lee ninguno. */
@@ -680,10 +697,10 @@ ${FUENTES_VOZ}
        abajo. El onload va inline porque tiene que dispararse antes de que el
        guion del final del documento corra. -->
   <div class="capa capa-foto gris" aria-hidden="true">
-    <img src="/hero.png" alt="" onload="document.querySelector('.hero').classList.add('con-foto')">
+    <img src="/hero.jpg" alt="" onload="document.querySelector('.hero').classList.add('con-foto')">
   </div>
   <div class="capa capa-foto color" id="foto-color" aria-hidden="true">
-    <img src="/hero.png" alt="">
+    <img src="/hero.jpg" alt="">
   </div>
 
   <div class="capa capa-caos" aria-hidden="true"><div class="lienzo">${burbujas}</div></div>
