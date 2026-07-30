@@ -1,8 +1,8 @@
 # Estado del proyecto
 
 > Traspaso entre sesiones. Léelo después de `CLAUDE.md` y antes de tocar nada.
-> Última actualización: 2026-07-30 (madrugada), tras la landing con login, el
-> blindaje de la demo y su resembrado. Todo desplegado y subido.
+> Última actualización: 2026-07-30 (mañana), tras el rediseño de superficie —
+> panel lateral, Kanban de clientes y hero con foto. Todo desplegado.
 
 ---
 
@@ -14,7 +14,9 @@
 | Landing | `/` | Sistema Voz, 3 secciones, hero con spotlight |
 | Entrada al panel | `/entrar` | Formulario propio; deja cookie de sesión firmada |
 | Demo sin registro | `/demo/inicio` | `demo-optica`, **solo lectura** y resembrada cada 30 min |
-| Panel del dueño | `/panel/inicio` | Cookie de sesión **o** Basic Auth |
+| Panel del dueño | `/panel/inicio` | Cookie de sesión **o** Basic Auth. Barra lateral fija |
+| Embudo de clientes | `/panel/clientes` | Kanban de 5 columnas, se mueve arrastrando o con botones |
+| Imagen del hero | `/hero.jpg` | 190 KB. Sale de `public/`, servida por el `notFound` del Worker |
 | Conocimiento del negocio | `/panel/conocimiento` | CRUD de catálogo y preguntas frecuentes |
 | Entrevista de onboarding | `/panel/comenzar` | 7 preguntas → negocio nuevo configurado |
 | Repetición de la entrevista | `/demo/comenzar` | Pública, determinista, sin LLM y sin escribir |
@@ -136,13 +138,42 @@ las Fases 4, 5 y 7-8 del spec: agregarle superficie a un producto cuyo lazo
 operativo no cierra es construir sobre algo que todavía se cae.
 
 1. **Los pedidos se duplican.** El agente re-extrae el hilo completo en cada ráfaga y la propuesta `crear_pedido` se crea sin `claveDedupe` (`agente.ts`). Un cliente que escribe tres veces produce tres pedidos. `listarPedidosDeConversacion` ya existe y no la llama nadie.
-2. **El pedido nunca avanza de estado.** `borrador → … → entregado` está implementado y probado, pero no hay ruta ni botón: los payloads `cambiar_estado` y `cambiar_fecha` se ejecutan en `aplicar.ts` y nadie los crea. El tablero es de solo lectura y nada llega nunca a "listo".
+2. **El pedido nunca avanza de estado.** `borrador → … → entregado` está implementado y probado, pero no hay ruta ni botón: los payloads `cambiar_estado` y `cambiar_fecha` se ejecutan en `aplicar.ts` y nadie los crea. El tablero es de solo lectura y nada llega nunca a "listo". **El equivalente del CRM ya se cerró el 2026-07-30** (`avanzarLead` ahora se llama desde `/panel/clientes/mover`); esto es lo mismo para pedidos y el patrón a copiar está ahí.
 3. **El vigía avisa una sola vez por pedido, para siempre.** `idx_prop_dedupe` es único sobre `(negocio_id, clave_dedupe)` sin filtrar por estado: descartar un aviso lo silencia definitivamente.
 4. **No hay bandeja de conversaciones.** El dueño aprueba mensajes hacia su cliente sin poder leer lo que el cliente escribió, y `pausarConversacion` —tomar el control del chat— es código que nadie llama. `listarConversaciones` y `listarTicketsAbiertos`, igual.
 
 5. **`seed.sql` borra `mi-optica`, el negocio real.** Sus `DELETE` cubren los dos negocios. Hoy es inofensivo porque `mi-optica` solo ha tenido conversaciones de prueba, pero con un cliente conectado un `npm run seed:remote` distraído le borra el historial. Se arregla acotando sus `DELETE` a `demo-optica` y sembrando lo de `mi-optica` por separado.
 
 También: el `conocimiento` libre (horario, dirección, garantía) y el `tono` solo los escribe el onboarding y no son editables después.
+
+### Bloqueado en una decisión de Diego
+
+**Catálogo con imágenes y marca blanca** están pedidos y sin empezar. Los dos
+necesitan que un cliente **suba** archivos desde el panel, y el binding de
+assets que se agregó el 2026-07-30 no sirve para eso: publica archivos que
+están en el repo, no recibe subidas. Las dos opciones:
+
+- **R2** — capa gratuita de 10 GB, pero hay que habilitarlo en la cuenta.
+  Cuidado con el precedente de Vectorize: "está en el plan gratuito" y resultó
+  de pago. Verificar antes de diseñar sobre eso.
+- **base64 en D1** — cero infraestructura nueva, pero infla la base y deja de
+  ser razonable pasando de unas decenas de productos.
+
+Con el almacenamiento resuelto, la marca blanca sale casi gratis: color, nombre
+y logo por negocio caben en la tabla `settings`, que ya existe.
+
+### Deuda que dejó el rediseño
+
+**El hero ya no explica el producto.** Antes mostraba el caos de chats
+convirtiéndose en un tablero de promesas: feo, pero decía qué hace CHUNO en dos
+segundos. Ahora es un personaje que se ve mucho mejor y no dice nada sobre
+pedidos ni fechas. La composición vieja sigue en el código —`.capa-caos` y
+`.capa-orden` en `landing.ts`— y se activa sola si `/hero.jpg` desaparece.
+
+La opción que da las dos cosas y no se alcanzó a hacer: el personaje a color
+como base, y el tablero apareciendo con el spotlight **encima de él**. El
+cursor destaparía el estado operativo sobre la imagen en vez de sobre burbujas
+grises.
 
 **Cabo suelto sin resolver:** el 2026-07-30 `mi-optica` apareció sin conversaciones ni mensajes, conservando su auditoría y su `uso_llm` del webhook sintético de las 03:07 UTC. El resembrado queda descartado como causa —borra esas dos tablas también, y sobrevivieron—, pero no se pudo fechar la pérdida porque no se midió antes de desplegar. El único código que borra `conversaciones` es `seed.sql`, que se corre a mano.
 

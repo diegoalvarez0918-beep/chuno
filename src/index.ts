@@ -677,6 +677,23 @@ app.get("/panel/conectar-telegram", async (c) => {
   );
 });
 
+/**
+ * Lo que no atendió ninguna ruta lo intentan los archivos estáticos.
+ *
+ * Explícito y no implícito: con `main` y `assets` declarados a la vez, quién
+ * responde primero lo decide la plataforma, y en el primer despliegue con
+ * assets la imagen del hero devolvió 404 aunque wrangler la había subido. Un
+ * orden que no controlamos no es una garantía.
+ */
+app.notFound(async (c) => {
+  if (c.env.ASSETS) {
+    const estatico = await c.env.ASSETS.fetch(c.req.raw);
+    if (estatico.status !== 404) return estatico;
+  }
+
+  return c.text("No encontrado", 404);
+});
+
 // ──────────────────────────────────────────────────────────────────  worker  ──
 
 export default {

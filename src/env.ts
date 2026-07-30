@@ -2,6 +2,13 @@
 export interface Env {
   readonly DB: D1Database;
   readonly AGENTE: DurableObjectNamespace;
+  /**
+   * Archivos estáticos (`public/`). Se consultan explícitamente desde el
+   * `notFound` del Worker: teniendo `main` y `assets` a la vez, quién atiende
+   * primero depende de la configuración de la plataforma, y confiar en ese
+   * orden ya nos costó un despliegue con la imagen del hero en 404.
+   */
+  readonly ASSETS: Fetcher;
 
   // Secretos (wrangler secret put)
   readonly GEMINI_API_KEY: string;
