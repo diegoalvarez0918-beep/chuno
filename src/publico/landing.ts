@@ -225,7 +225,7 @@ body {
    mantiene de fondo y no de titular. */
 .palabra text {
   font-family: var(--display); font-weight: 800; font-size: 235px;
-  fill: #D5D5CC;
+  fill: #B9B9AC;
 }
 @keyframes palabraSube { to { transform: translateY(0); } }
 
@@ -288,6 +288,9 @@ body {
   position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: contain; object-position: 76% bottom;
   filter: brightness(1.05) contrast(1.05);
+  /* El guion escribe transform en cada cuadro; avisarlo evita que el navegador
+     recomponga la capa entera cada vez. */
+  will-change: transform;
 }
 @media (max-width: 767px) { .capa-foto img { object-position: center bottom; } }
 .capa-foto.gris img { filter: grayscale(1) brightness(1.08) contrast(1.05) opacity(.5); }
@@ -570,41 +573,64 @@ const GUION = `
     });
   }
 
-  // El spotlight.
+  // El puntero mueve dos cosas: el spotlight del tablero cuando NO hay foto, y
+  // la foto misma cuando sí la hay.
   //
-  // Se hace con una máscara de gradiente y dos variables CSS. La versión obvia
-  // —pintar un canvas y pasarlo con toDataURL()— codifica un PNG completo en
-  // CADA cuadro; en un teléfono de gama media eso cae a un dígito de fps.
-  // Las dos capas recortadas siguen el mismo puntero: el tablero cuando no hay
-  // foto, la versión a color cuando sí la hay. Solo una está visible a la vez.
-  var capas = [document.getElementById('orden'), document.getElementById('foto-color')]
-    .filter(Boolean);
-  var capa = capas[0];
+  // El spotlight se hace con una máscara de gradiente y dos variables CSS. La
+  // versión obvia —pintar un canvas y pasarlo con toDataURL()— codifica un PNG
+  // completo en CADA cuadro; en un teléfono de gama media eso cae a un dígito
+  // de fps.
+  //
+  // La geometría se toma del hero y no de la capa: cuando la foto carga, la
+  // capa del tablero queda en display:none y su rectángulo mide cero, así que
+  // todas las cuentas darían cero sin fallar en ningún lado.
+  var hero = document.querySelector('.hero');
+  var orden = document.getElementById('orden');
+  var fotos = document.querySelectorAll('.capa-foto img');
   var quieto = window.matchMedia('(hover: none), (prefers-reduced-motion: reduce)');
-  if (capa && !quieto.matches) {
+
+  if (hero && !quieto.matches) {
     var destinoX = 0, destinoY = 0, x = 0, y = 0, arrancado = false;
 
     function centrar() {
-      var r = capa.getBoundingClientRect();
+      var r = hero.getBoundingClientRect();
       if (!arrancado) { destinoX = x = r.width / 2; destinoY = y = r.height / 2; }
     }
     centrar();
     window.addEventListener('resize', centrar);
 
     window.addEventListener('pointermove', function (e) {
-      var r = capa.getBoundingClientRect();
+      var r = hero.getBoundingClientRect();
       arrancado = true;
       destinoX = e.clientX - r.left;
       destinoY = e.clientY - r.top;
     }, { passive: true });
 
+    // Cuánto se despega el ninja del puntero. Poco a propósito: el gesto tiene
+    // que sentirse vivo, no mareado.
+    var DESPLAZA = 18;
+    var GIRA = 1.6;
+
     (function seguir() {
       x += (destinoX - x) * 0.12;
       y += (destinoY - y) * 0.12;
-      capas.forEach(function (c) {
-        c.style.setProperty('--mx', x.toFixed(1) + 'px');
-        c.style.setProperty('--my', y.toFixed(1) + 'px');
-      });
+
+      if (orden) {
+        orden.style.setProperty('--mx', x.toFixed(1) + 'px');
+        orden.style.setProperty('--my', y.toFixed(1) + 'px');
+      }
+
+      var r = hero.getBoundingClientRect();
+      // -0.5 a 0.5 desde el centro del hero.
+      var rx = r.width ? x / r.width - 0.5 : 0;
+      var ry = r.height ? y / r.height - 0.5 : 0;
+
+      var t = 'translate3d(' + (rx * DESPLAZA).toFixed(2) + 'px, ' +
+              (ry * DESPLAZA).toFixed(2) + 'px, 0) rotate(' +
+              (rx * GIRA).toFixed(2) + 'deg)';
+
+      for (var i = 0; i < fotos.length; i++) fotos[i].style.transform = t;
+
       requestAnimationFrame(seguir);
     })();
   }
