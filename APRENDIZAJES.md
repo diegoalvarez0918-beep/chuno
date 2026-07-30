@@ -27,6 +27,18 @@ Más recientes arriba. Si una entrada queda obsoleta o la contradice otra más n
 
 <!-- Nuevas entradas arriba de esta línea. -->
 
+- **2026-07-30 — Un `if (exito)` sin `else` es un fallo invisible:** el agente solo guardaba su respuesta cuando el envío a Telegram salía bien. Si `sendMessage` fallaba, no quedaba ni mensaje ni rastro: el cliente no recibía nada y el dueño no podía enterarse. Me costó dos diagnósticos creer que el agente no había corrido, cuando sí había corrido.
+  **Por qué importa:** en todo camino donde algo sale hacia el cliente, la rama de fallo necesita su propia entrada de auditoría — no basta con no hacer nada. La regla del proyecto ("la auditoría guarda el motivo, no solo el hecho") aplica también a los motivos que nadie escribió todavía.
+
+- **2026-07-30 — Gemini devuelve 503 por saturación, no solo 404 y 429:** `gemini-3.6-flash` empezó a responder `HTTP 503 "experiencing high demand"` y el proveedor no reintentaba con el siguiente modelo, porque su lista de errores reintentables solo tenía 404 y 429. Resultado: la extracción de pedidos moría entera aunque hubiera dos modelos de respaldo disponibles.
+  **Por qué importa:** la lista de errores reintentables hay que revisarla contra lo que la API devuelve de verdad, no contra lo que uno supuso al escribirla. Un respaldo que no se activa es igual a no tener respaldo.
+
+- **2026-07-30 — Un test escrito después de la implementación no ha demostrado nada:** los parsers del onboarding quedaron implementados antes que su test (se cortó una sesión a la mitad). El test pasó a la primera, que es justo lo que no prueba nada. Se rompió el parser a propósito (quitarle el `×100` al precio) y se comprobó que cuatro tests caían en rojo.
+  **Por qué importa:** cuando el orden rojo-verde se pierde por la razón que sea, una mutación deliberada es el sustituto barato de la fase roja. Sin eso, un test que solo ha existido en verde puede estar comprobando nada.
+
+- **2026-07-30 — El parser conservador escala; el permisivo inventa:** el parser de catálogo convertía cualquier renglón en un producto, así que "vendemos de todo un poco" se volvía un producto llamado así, que iba al catálogo del dueño y de ahí al prompt del agente. La regla que lo arregla es simple: un solo renglón sin precio ni días no es una lista, es una frase.
+  **Por qué importa:** cuando hay un respaldo más capaz detrás (aquí el LLM), al parser determinista le conviene rendirse en vez de adivinar. Adivinar mal ensucia datos que después el agente le repite a un cliente.
+
 - **2026-07-29 — Verificar contra producción con un webhook sintético:** para probar el camino completo (Durable Object → LLM → CRM → consumo) sin escribirle a una persona real, se hace POST a `/webhook/telegram` con el secreto correcto y un `chat.id` inexistente. El agente procesa todo y solo falla el envío final, que queda auditado.
   **Por qué importa:** da verificación real de extremo a extremo sin depender de que alguien tenga el teléfono a mano, y sin mandarle mensajes de prueba a un cliente. Es el patrón para probar cualquier canal nuevo.
 

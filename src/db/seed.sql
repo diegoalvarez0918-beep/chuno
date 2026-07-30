@@ -16,6 +16,8 @@ DELETE FROM mensajes      WHERE negocio_id IN ('demo-optica', 'mi-optica');
 DELETE FROM conversaciones WHERE negocio_id IN ('demo-optica', 'mi-optica');
 DELETE FROM catalogo      WHERE negocio_id IN ('demo-optica', 'mi-optica');
 DELETE FROM faq           WHERE negocio_id IN ('demo-optica', 'mi-optica');
+DELETE FROM credenciales  WHERE negocio_id IN ('demo-optica', 'mi-optica');
+DELETE FROM entrevistas   WHERE negocio_id IN ('demo-optica', 'mi-optica');
 DELETE FROM conocimiento  WHERE negocio_id IN ('demo-optica', 'mi-optica');
 DELETE FROM settings      WHERE negocio_id IN ('demo-optica', 'mi-optica');
 DELETE FROM negocios      WHERE id IN ('demo-optica', 'mi-optica');
