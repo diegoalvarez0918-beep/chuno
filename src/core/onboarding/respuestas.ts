@@ -88,10 +88,20 @@ function parsearLineaCatalogo(linea: string): ItemCatalogoEntrada | null {
 
 export function parsearCatalogo(texto: string): ItemCatalogoEntrada[] {
   if (esSaltar(texto)) return [];
-  return texto
+
+  const items = texto
     .split(/\r?\n/)
     .map(parsearLineaCatalogo)
     .filter((i): i is ItemCatalogoEntrada => i !== null);
+
+  // Un solo renglón, sin precio y sin días, no es una lista: es una frase.
+  // "vendemos de todo un poco" se convertiría en un producto fantasma con ese
+  // nombre, que acabaría en el catálogo del dueño y en el prompt del agente.
+  // Devolver vacío hace que el paso escale al LLM, que sí sabe leer prosa.
+  const unico = items.length === 1 ? items[0] : undefined;
+  if (unico && unico.precioCentavos === null && unico.diasEntrega === null) return [];
+
+  return items;
 }
 
 export function parsearFaq(texto: string): FaqEntrada[] {
