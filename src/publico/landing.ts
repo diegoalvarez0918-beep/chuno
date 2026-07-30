@@ -57,7 +57,7 @@ const PASOS: readonly { n: string; titulo: string; texto: string }[] = [
     n: "03",
     titulo: "El vigía levanta la mano a tiempo",
     texto:
-      "Revisa tus promesas cada media hora. Cuando una se va a caer, te avisa antes de que el cliente reclame — no después.",
+      "Revisa tus promesas cada media hora. Cuando una se está por caer te avisa a tiempo, mientras todavía puedes llamar al cliente tú.",
   },
   {
     n: "04",
@@ -755,8 +755,9 @@ ${FUENTES_VOZ}
   <p class="rotulo">${onda(14)}En qué se diferencia</p>
   <h2>Todo el mundo está haciendo bots que contestan.</h2>
   <p class="entrada">
-    El tuyo ya contesta: eres tú, a las once de la noche. El problema nunca fue
-    responder — fue acordarse. Esta es la diferencia, renglón por renglón.
+    Tú ya contestas, a las once de la noche. Lo difícil viene después:
+    acordarte de qué le prometiste a cada cliente y para cuándo. Un bot que
+    contesta más rápido no te ayuda con eso.
   </p>
   <div class="contraste">${contraste}</div>
 </section>
@@ -767,8 +768,8 @@ ${FUENTES_VOZ}
     <p class="rotulo">${onda(14)}Cómo funciona</p>
     <h2>Un chatbot contesta. CHUNO se acuerda.</h2>
     <p class="entrada">
-      La diferencia no está en cómo responde, sino en lo que deja atrás: un pedido
-      con fecha comprometida que alguien vigila por ti.
+      Cada conversación deja un pedido con nombre, con lo que encargó y con la
+      fecha que le prometiste. Después alguien vigila esa fecha por ti.
     </p>
     <div class="pasos">${pasos}</div>
     <div class="comando">
