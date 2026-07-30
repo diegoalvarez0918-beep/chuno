@@ -10,8 +10,10 @@
 | Qué | Dónde | Notas |
 |---|---|---|
 | Herramienta pública | https://chuno.vozdigital-ai.workers.dev | Entregable #2 del concurso |
-| Demo sin registro | `/demo/inicio` | Negocio sembrado `demo-optica` |
-| Panel del dueño | `/panel/inicio` | Basic Auth, usuario `admin` |
+| Landing | `/` | Sistema Voz, 3 secciones, hero con spotlight |
+| Entrada al panel | `/entrar` | Formulario propio; deja cookie de sesión firmada |
+| Demo sin registro | `/demo/inicio` | `demo-optica`, **solo lectura** y resembrada cada 30 min |
+| Panel del dueño | `/panel/inicio` | Cookie de sesión **o** Basic Auth |
 | Conocimiento del negocio | `/panel/conocimiento` | CRUD de catálogo y preguntas frecuentes |
 | Entrevista de onboarding | `/panel/comenzar` | 7 preguntas → negocio nuevo configurado |
 | Repetición de la entrevista | `/demo/comenzar` | Pública, determinista, sin LLM y sin escribir |
@@ -105,6 +107,19 @@ Están en `APRENDIZAJES.md` con más detalle. Los que muerden más rápido:
 - **Los modelos de Gemini se jubilan sin aviso** y el listado de la API los sigue mostrando. Por eso `MODELOS_LLM` es una var con lista de respaldo y el proveedor cae al siguiente ante 404, 429 o 503. El 503 se agregó el 2026-07-30: `gemini-3.6-flash` empezó a devolverlo por saturación y tumbaba la extracción entera, porque el proveedor no reintentaba con otro modelo.
 - **Un envío fallido a Telegram no guarda mensaje del agente.** Si `sendMessage` falla, no hay fila en `mensajes` — solo la acción `envio_fallido` en `auditoria`. Buscar la respuesta en `mensajes` y no encontrarla no significa que el agente no haya funcionado.
 - **La auditoría es la herramienta de diagnóstico.** Cuando algo falle, consulta `auditoria` antes de reproducir nada: guarda el motivo, no solo el hecho.
+- **Un solo formato de fecha: ISO-8601 con `T` y `Z`.** D1 compara fechas como texto, y `datetime('now')` de SQLite produce `2026-07-30 17:00:00` con espacio, que ordena ANTES que cualquier `...T...`. Mezclarlo con lo que escribe la app rompe las métricas y el `ORDER BY` en silencio.
+- **`seed.sql` no se puede colgar de un cron.** Sus `DELETE` incluyen `mi-optica`, el negocio real de Telegram. El resembrado periódico es `src/crons/resembrar.ts`, que solo toca `demo-optica`.
+
+## Lo que le falta de verdad a la plataforma
+
+Revisión del 2026-07-30. Ninguno se ve en la demo sembrada; los cuatro muerden con uso real.
+
+1. **Los pedidos se duplican.** El agente re-extrae el hilo completo en cada ráfaga y la propuesta `crear_pedido` se crea sin `claveDedupe` (`agente.ts`). Un cliente que escribe tres veces produce tres pedidos. `listarPedidosDeConversacion` ya existe y no la llama nadie.
+2. **El pedido nunca avanza de estado.** `borrador → … → entregado` está implementado y probado, pero no hay ruta ni botón: los payloads `cambiar_estado` y `cambiar_fecha` se ejecutan en `aplicar.ts` y nadie los crea. El tablero es de solo lectura y nada llega nunca a "listo".
+3. **El vigía avisa una sola vez por pedido, para siempre.** `idx_prop_dedupe` es único sobre `(negocio_id, clave_dedupe)` sin filtrar por estado: descartar un aviso lo silencia definitivamente.
+4. **No hay bandeja de conversaciones.** El dueño aprueba mensajes hacia su cliente sin poder leer lo que el cliente escribió, y `pausarConversacion` —tomar el control del chat— es código que nadie llama. `listarConversaciones` y `listarTicketsAbiertos`, igual.
+
+También: el `conocimiento` libre (horario, dirección, garantía) y el `tono` solo los escribe el onboarding y no son editables después.
 
 ## Identidad visual — sistema Voz
 

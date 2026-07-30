@@ -9,6 +9,9 @@ import { decidirPropuesta } from "./admin/aplicar";
 import { pagina } from "./admin/html";
 import { vistaBandeja, vistaPedidos, vistaRegistro } from "./admin/vistas";
 import { landing } from "./publico/landing";
+import { vistaEntrar } from "./publico/entrar";
+import { DURACION_SESION_SEGUNDOS, firmarSesion, verificarSesion } from "./core/sesion";
+import { resembrarDemo } from "./crons/resembrar";
 import { crearCanalTelegram, registrarWebhook, webhookAutentico } from "./canales/telegram";
 import { crearNegocio, listarNegocios, obtenerNegocio } from "./db/repos/negocio";
 import { leerCredencial } from "./db/repos/credencial";
@@ -75,11 +78,20 @@ function enteroFormulario(texto: string): number | null {
   return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
 }
 
-function montarPanel(
-  base: string,
-  negocioDe: (c: Context<{ Bindings: Env }>) => string,
-  conSelector: boolean,
-) {
+function montarPanel(opciones: {
+  base: string;
+  negocioDe: (c: Context<{ Bindings: Env }>) => string;
+  conSelector: boolean;
+  /**
+   * La demo es pública: sus POST estarían abiertos a internet. Con esto las
+   * rutas de escritura de conocimiento ni siquiera se registran — no existe la
+   * ruta, no hay 403 que sortear. Aprobar decisiones sí se conserva: es la
+   * experiencia de la demo, y el canal `demo` no le manda nada a nadie.
+   */
+  soloLectura?: boolean;
+}) {
+  const { base, negocioDe, conSelector } = opciones;
+  const soloLectura = opciones.soloLectura ?? false;
   /**
    * Resuelve el negocio de la petición. En /panel el dueño puede tener varios
    * negocios (multi-bot) y elige con ?negocio=; en /demo el negocio es fijo —
@@ -174,7 +186,7 @@ function montarPanel(
         negocio: d.negocio.nombre,
         activo: "conocimiento",
         pendientes,
-        contenido: vistaConocimiento(items, faqs, base, d.consulta),
+        contenido: vistaConocimiento(items, faqs, base, d.consulta, soloLectura),
         base,
         consulta: d.consulta,
         selector: d.selector,
@@ -182,6 +194,7 @@ function montarPanel(
     );
   });
 
+  if (!soloLectura) {
   app.post(`${base}/conocimiento/catalogo/guardar`, async (c) => {
     const negocioId = negocioDe(c);
     const f = await c.req.formData();
@@ -232,6 +245,7 @@ function montarPanel(
     if (id) await borrarFaq(c.env.DB, negocioId, id);
     return c.redirect(`${base}/conocimiento${consultaDe(c, negocioId)}`, 303);
   });
+  }
 
   app.get(`${base}/bandeja`, async (c) => {
     const d = await datosPanel(c);
@@ -322,13 +336,115 @@ function montarPanel(
   });
 }
 
-// El panel real va detrás de contraseña. El usuario es siempre "admin".
-app.use("/panel/*", async (c, next) =>
-  basicAuth({ username: "admin", password: c.env.PANEL_PASSWORD })(c, next),
-);
+// ────────────────────────────────────────────────────────────────  sesión ──
 
-montarPanel("/panel", (c) => c.req.query("negocio") ?? c.env.NEGOCIO_TELEGRAM, true);
-montarPanel("/demo", (c) => c.env.NEGOCIO_DEMO, false);
+const COOKIE_SESION = "chuno_sesion";
+
+/** Segundos epoch. El núcleo no tiene reloj propio; se lo damos aquí. */
+function ahoraEpoch(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
+function leerCookie(c: Context<{ Bindings: Env }>, nombre: string): string | null {
+  const crudo = c.req.header("cookie");
+  if (!crudo) return null;
+
+  for (const parte of crudo.split(";")) {
+    const [k, ...resto] = parte.trim().split("=");
+    if (k === nombre) return resto.join("=");
+  }
+
+  return null;
+}
+
+/**
+ * A dónde mandar al dueño después de entrar.
+ *
+ * Se valida contra el prefijo `/panel/` porque sale de la URL: un parámetro de
+ * redirección sin validar es un redirect abierto, y desde una landing pública
+ * eso es un regalo para quien quiera montar una página de phishing encima.
+ */
+function destinoSeguro(crudo: string | undefined): string {
+  return crudo && crudo.startsWith("/panel/") && !crudo.startsWith("//")
+    ? crudo
+    : "/panel/inicio";
+}
+
+async function haySesion(c: Context<{ Bindings: Env }>): Promise<boolean> {
+  const token = leerCookie(c, COOKIE_SESION);
+  if (!token) return false;
+
+  return verificarSesion(token, c.env.CLAVE_CIFRADO, c.env.PANEL_PASSWORD, ahoraEpoch());
+}
+
+/**
+ * El panel acepta dos formas de identificarse, y el orden importa:
+ *
+ * 1. La cookie de sesión, que es lo que deja el formulario de `/entrar`.
+ * 2. Basic Auth, si viene la cabecera. **No se puede quitar:** lo usan el CLI y
+ *    los `curl -u admin:$PASS` de `docs/ESTADO.md`.
+ *
+ * Sin ninguna de las dos no se responde 401 —que dispararía el diálogo feo del
+ * navegador— sino que se manda a la pantalla de entrada.
+ */
+app.use("/panel/*", async (c, next) => {
+  if (await haySesion(c)) return next();
+
+  if (c.req.header("authorization")) {
+    return basicAuth({ username: "admin", password: c.env.PANEL_PASSWORD })(c, next);
+  }
+
+  return c.redirect(`/entrar?destino=${encodeURIComponent(new URL(c.req.url).pathname)}`, 302);
+});
+
+app.get("/entrar", async (c) => {
+  if (await haySesion(c)) return c.redirect(destinoSeguro(c.req.query("destino")), 302);
+  return c.html(vistaEntrar({ destino: destinoSeguro(c.req.query("destino")) }));
+});
+
+app.post("/entrar", async (c) => {
+  const formulario = await c.req.formData();
+  const destino = destinoSeguro(String(formulario.get("destino") ?? ""));
+
+  if (String(formulario.get("clave") ?? "") !== c.env.PANEL_PASSWORD) {
+    // Mensaje genérico a propósito: no confirma ni desmiente nada.
+    return c.html(vistaEntrar({ destino, error: "Esa contraseña no es." }), 401);
+  }
+
+  const token = await firmarSesion(
+    c.env.CLAVE_CIFRADO,
+    c.env.PANEL_PASSWORD,
+    ahoraEpoch() + DURACION_SESION_SEGUNDOS,
+  );
+
+  // SameSite=Lax es lo que impide que una página ajena haga un POST a
+  // /panel/decidir desde el navegador del dueño y le mande un mensaje a un
+  // cliente. Con autenticación por cookie no es un adorno: es la defensa CSRF.
+  c.header(
+    "set-cookie",
+    `${COOKIE_SESION}=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${DURACION_SESION_SEGUNDOS}`,
+  );
+
+  return c.redirect(destino, 303);
+});
+
+app.post("/salir", (c) => {
+  c.header("set-cookie", `${COOKIE_SESION}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`);
+  return c.redirect("/", 303);
+});
+
+montarPanel({
+  base: "/panel",
+  negocioDe: (c) => c.req.query("negocio") ?? c.env.NEGOCIO_TELEGRAM,
+  conSelector: true,
+});
+
+montarPanel({
+  base: "/demo",
+  negocioDe: (c) => c.env.NEGOCIO_DEMO,
+  conSelector: false,
+  soloLectura: true,
+});
 
 // ─────────────────────────────────────────────────────────────  onboarding  ──
 // La entrevista vive SOLO en /panel (Basic Auth): crear negocios es del dueño
@@ -542,6 +658,20 @@ export default {
 
     ctx.waitUntil(
       (async () => {
+        // El resembrado va ANTES del vigía, y no al revés: así el vigía evalúa
+        // pedidos frescos, y sus claves de dedupe chocan con las propuestas que
+        // el resembrado acaba de dejar en vez de duplicarlas.
+        if (env.NEGOCIO_DEMO) {
+          try {
+            const demo = await resembrarDemo(env.DB);
+            console.log("demo resembrada", demo);
+          } catch (e) {
+            // La demo es importante, pero no tanto como para que su fallo se
+            // lleve por delante al vigía, que es quien cuida promesas reales.
+            console.error("resembrado falló", e instanceof Error ? e.message : "desconocido");
+          }
+        }
+
         const resumen = await correrVigia(env.DB);
         console.log("vigía", resumen);
 

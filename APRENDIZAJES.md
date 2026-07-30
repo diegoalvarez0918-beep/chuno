@@ -27,6 +27,15 @@ Más recientes arriba. Si una entrada queda obsoleta o la contradice otra más n
 
 <!-- Nuevas entradas arriba de esta línea. -->
 
+- **2026-07-30 — `datetime('now')` de SQLite y `toISOString()` no son el mismo formato, y en D1 las fechas se comparan como texto:** el seed escribía `2026-07-30 17:00:00` (con espacio) y la app escribe `2026-07-30T17:00:00.000Z`. El panel compara `creado_en >= '<fecha>T05:00:00.000Z'`, y como el espacio (0x20) ordena antes que la `T` (0x54), **ninguna fila sembrada superaba nunca el umbral de "hoy"**. La demo mostraba "0 mensajes hoy" y "0 clientes hoy" incluso recién sembrada; lo estábamos atribuyendo a que las fechas relativas habían envejecido.
+  **Por qué importa:** en SQLite/D1 no hay tipo fecha, solo texto — dos formatos válidos en la misma columna producen comparaciones y `ORDER BY` silenciosamente incorrectos. Un solo formato en todo el proyecto, ISO-8601 con `T` y `Z`, y los tiempos de siembra se calculan en TypeScript en vez de delegarlos a SQL. Y ojo con el diagnóstico fácil: "los datos envejecieron" era una explicación plausible que encajaba con los síntomas y era falsa.
+
+- **2026-07-30 — Anclar datos de demo a "hace N horas" los manda al día anterior de madrugada:** los mensajes sembrados como `-2 hours` caen en ayer si alguien abre la demo a la 1 a.m. en Bogotá, y las tarjetas de "hoy" vuelven a cero aunque el formato esté bien.
+  **Por qué importa:** lo que tiene que verse como de hoy se ancla al día de hoy en la zona del negocio —las 9 a.m., o ahora si todavía no son—, no a un desplazamiento desde el instante de ejecución. Vale para cualquier dato de demostración que alimente una métrica diaria.
+
+- **2026-07-30 — Un backtick dentro de un comentario rompe el template literal que lo contiene:** el `<script>` de la landing se arma como template literal, y escribir `` `margin-right` `` en un comentario del guion cerró la cadena. El error de `tsc` apuntaba a una coma esperada, no al backtick.
+  **Por qué importa:** en código incrustado como cadena, los comentarios también son cadena. Nada de backticks ni `${` dentro de CSS o JS embebido, ni siquiera en comentarios.
+
 - **2026-07-30 — Subir por API crea una historia paralela que después hay que reconciliar:** el repo de GitHub se había armado con `GITHUB_COMMIT_MULTIPLE_FILES` de Composio, y quedó con 62 commits titulados todos igual y **sin ancestro común** con el git local. Git los ve como dos proyectos distintos: el push normal se rechaza y solo `--force` los junta.
   **Por qué importa:** antes de forzar, comparar los árboles (`git ls-tree -r origin/main --name-only` contra el local) para confirmar que ningún archivo existe solo en el remoto. Y no volver a mezclar los dos caminos: o se sube por git, o se sube por API, pero no ambos.
 
