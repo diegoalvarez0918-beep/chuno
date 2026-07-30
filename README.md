@@ -81,7 +81,7 @@ Un comando. CHUNO no es un servicio al que te suscribes: es código que corre en
 **tu** cuenta de Cloudflare, con tus datos.
 
 ```bash
-npx github:diegoalvarez0918-beep/chuno init
+npx chuno init
 ```
 
 La entrevista pide el nombre del negocio y tus tres llaves, y se encarga del

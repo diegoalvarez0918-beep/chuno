@@ -25,3 +25,6 @@ dist/
 
 # Design system (se descomprime aparte, no versionado)
 Voz design system.zip
+
+# Tarballs de npm pack: artefactos de construcción, siempre regenerables.
+*.tgz

@@ -167,7 +167,22 @@ function montarPanel(opciones: {
 
   app.get(`${base}/inicio`, async (c) => {
     const d = await datosPanel(c);
-    if (!d) return c.text("Negocio no configurado", 404);
+    if (!d) {
+      /**
+       * Instalación recién hecha: el esquema está aplicado pero no hay ni un
+       * negocio. `NEGOCIO_TELEGRAM` sigue apuntando al nombre que viaja en la
+       * configuración, así que sin esto la primera pantalla que ve alguien que
+       * acaba de instalar es un 404, justo después de que el instalador le dijo
+       * que entrara a crear su asistente. Se lo damos.
+       *
+       * El 404 se conserva para el otro caso, que es distinto: sí hay negocios
+       * pero el `?negocio=` que pidió no existe.
+       */
+      if (!esDemo && (await listarNegocios(c.env.DB)).length === 0) {
+        return c.redirect("/panel/comenzar", 302);
+      }
+      return c.text("Negocio no configurado", 404);
+    }
 
     const [metricas, pedidos] = await Promise.all([
       calcularMetricas(c.env.DB, d.negocioId, d.negocio.zonaHoraria),

@@ -93,7 +93,21 @@ function correrVisible(cmd, args) {
 
 // ───────────────────────────────────────────────────────────────────  pasos ──
 
-const TOTAL = 7;
+const TOTAL = 8;
+
+/**
+ * ¿Corremos desde una copia del repositorio, o desde un paquete que `npx` acaba
+ * de descargar?
+ *
+ * El paquete publicado viaja con el `wrangler.jsonc` de este repositorio, ids
+ * incluidos. Sin esta distinción, `yaInstalado()` vería ese `database_id` y le
+ * diría a cada usuario nuevo que su copia "ya está instalada", exigiéndole
+ * escribir "instalar de nuevo" la primera vez que corre el comando. Un paquete
+ * recién bajado no puede ser la instalación viva de nadie.
+ */
+function esPaqueteDescargado() {
+  return /[\\/](?:_npx|node_modules)[\\/]/.test(RAIZ);
+}
 
 function verificarEntorno() {
   paso(1, TOTAL, "Revisando que tengas todo lo necesario");
@@ -155,6 +169,43 @@ async function crearBase(nombreBase) {
 }
 
 /**
+ * El espacio KV donde viven las fotos del catálogo.
+ *
+ * Sin esto el despliegue falla: `wrangler.jsonc` viaja con el id del namespace
+ * de NUESTRA cuenta, y ese id no existe en la del usuario. Mismo trato que la
+ * base de datos: listar, crear si falta, y reescribir la configuración.
+ */
+async function crearKV(nombreKV) {
+  paso(3, TOTAL, "Creando el espacio para las fotos de tu catálogo");
+
+  const existentes = correr("npx", ["--yes", "wrangler", "kv", "namespace", "list"]);
+  let id = null;
+
+  if (existentes.ok && existentes.salida.includes("[")) {
+    try {
+      const lista = JSON.parse(existentes.salida.slice(existentes.salida.indexOf("[")));
+      // Según la versión, wrangler antepone el nombre del Worker al título.
+      const suyo = lista.find((n) => n.title === nombreKV || n.title?.endsWith(nombreKV));
+      id = suyo?.id ?? null;
+    } catch {
+      /* si el formato cambia, se sigue por el camino de crear */
+    }
+  }
+
+  if (id) {
+    aviso(`el espacio "${nombreKV}" ya existía, lo reutilizo`);
+  } else {
+    const creado = correr("npx", ["--yes", "wrangler", "kv", "namespace", "create", nombreKV]);
+    if (!creado.ok) morir(`No pude crear el espacio para las fotos.\n\n${creado.salida}`);
+    id = creado.salida.match(/[0-9a-f]{32}/)?.[0] ?? null;
+    if (!id) morir(`Creé el espacio pero no encontré su identificador.\n\n${creado.salida}`);
+  }
+
+  ok(`espacio "${nombreKV}" listo ${c.suave(id)}`);
+  return id;
+}
+
+/**
  * ¿Esta copia ya es una instalación viva?
  *
  * Importa mucho: `init` reescribe wrangler.jsonc, y correrlo dentro de un
@@ -162,6 +213,10 @@ async function crearBase(nombreBase) {
  * al negocio hablando con una base vacía. Se detecta y se pregunta.
  */
 function yaInstalado() {
+  // Un paquete recién descargado trae nuestros ids, no los de una instalación
+  // suya. Preguntarle ahí es garantizar una advertencia falsa.
+  if (esPaqueteDescargado()) return null;
+
   const ruta = join(RAIZ, "wrangler.jsonc");
   if (!existsSync(ruta)) return null;
 
@@ -172,8 +227,8 @@ function yaInstalado() {
   return id ? { id, nombre } : null;
 }
 
-function configurarWrangler(nombreBase, idBase, nombreWorker) {
-  paso(3, TOTAL, "Ajustando la configuración del proyecto");
+function configurarWrangler(nombreBase, idBase, idKV, nombreWorker) {
+  paso(4, TOTAL, "Ajustando la configuración del proyecto");
 
   const ruta = join(RAIZ, "wrangler.jsonc");
   let texto = readFileSync(ruta, "utf8");
@@ -182,17 +237,28 @@ function configurarWrangler(nombreBase, idBase, nombreWorker) {
   // archivo original se recupera con un `mv`, no con memoria.
   writeFileSync(`${ruta}.respaldo`, texto);
 
+  // El id del KV se ancla a su binding y no al primer "id" que aparezca: en
+  // este archivo hay varios y el orden puede cambiar.
   texto = texto
     .replace(/("database_name":\s*")[^"]*(")/, `$1${nombreBase}$2`)
     .replace(/("database_id":\s*")[^"]*(")/, `$1${idBase}$2`)
+    .replace(/("binding":\s*"IMAGENES",\s*"id":\s*")[^"]*(")/, `$1${idKV}$2`)
     .replace(/^(\s*"name":\s*")[^"]*(")/m, `$1${nombreWorker}$2`);
 
   writeFileSync(ruta, texto);
+
+  if (!texto.includes(idKV)) {
+    morir(
+      "No pude apuntar la configuración al espacio de fotos que acabo de crear.",
+      "Es un fallo nuestro, no tuyo. Escríbenos con esta salida.",
+    );
+  }
+
   ok(`wrangler.jsonc apunta a "${nombreBase}"`);
 }
 
 function aplicarEsquema(nombreBase) {
-  paso(4, TOTAL, "Creando las tablas");
+  paso(5, TOTAL, "Creando las tablas");
 
   const r = correr("npx", [
     "--yes", "wrangler", "d1", "execute", nombreBase,
@@ -203,7 +269,7 @@ function aplicarEsquema(nombreBase) {
 }
 
 async function cargarSecretos() {
-  paso(5, TOTAL, "Guardando tus llaves");
+  paso(6, TOTAL, "Guardando tus llaves");
   log(c.suave("      Se guardan cifradas en Cloudflare, nunca en un archivo del proyecto."));
   log(c.suave("      Lo que escribas aquí no se ve en pantalla.\n"));
 
@@ -239,7 +305,7 @@ async function cargarSecretos() {
 }
 
 async function desplegar() {
-  paso(6, TOTAL, "Publicando tu asistente");
+  paso(7, TOTAL, "Publicando tu asistente");
   log("");
 
   const bien = await correrVisible("npx", ["--yes", "wrangler", "deploy"]);
@@ -251,7 +317,7 @@ async function desplegar() {
 }
 
 function conectarTelegram(url, token, secreto) {
-  paso(7, TOTAL, "Conectando tu bot de Telegram");
+  paso(8, TOTAL, "Conectando tu bot de Telegram");
 
   if (!url) {
     aviso("no pude deducir la URL del Worker; conecta el bot desde el panel");
@@ -314,7 +380,8 @@ async function init() {
   const nombreWorker = `chuno-${babosa}`;
 
   const idBase = await crearBase(nombreBase);
-  configurarWrangler(nombreBase, idBase, nombreWorker);
+  const idKV = await crearKV(`chuno-imagenes-${babosa}`);
+  configurarWrangler(nombreBase, idBase, idKV, nombreWorker);
   aplicarEsquema(nombreBase);
   const { telegram, secretoWebhook } = await cargarSecretos();
   const url = await desplegar();
