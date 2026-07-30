@@ -108,9 +108,9 @@ function cuerpoPropuesta(propuesta: Propuesta): string {
  * En la demo se esconde "cancelado": es el único movimiento que deja el tablero
  * peor que antes, y ahí nadie puede devolverlo. La ruta lo rechaza igual.
  */
-function botonesPedido(pedido: Pedido, accion: string, soloLectura: boolean): string {
+function botonesPedido(pedido: Pedido, accion: string, esDemo: boolean): string {
   const destinos = transicionesPosibles(pedido.estado).filter(
-    (e) => !(soloLectura && e === "cancelado"),
+    (e) => !(esDemo && e === "cancelado"),
   );
 
   if (destinos.length === 0) return "";
@@ -133,7 +133,7 @@ export function vistaPedidos(
   pedidos: readonly Pedido[],
   hoy: string,
   accion: string,
-  soloLectura: boolean,
+  esDemo: boolean,
 ): string {
   if (pedidos.length === 0) {
     return vacio("Todavía no hay pedidos", "Aparecerán solos a medida que lleguen por el chat.");
@@ -152,7 +152,7 @@ export function vistaPedidos(
             )}</span></td>
         <td>${esc(pedido.fechaComprometida ?? "-")}</td>
         <td>${esc(NOMBRE_ESTADO[pedido.estado] ?? pedido.estado)}
-            ${botonesPedido(pedido, accion, soloLectura)}</td>
+            ${botonesPedido(pedido, accion, esDemo)}</td>
         <td>${esc(pesos(pedido.montoCentavos))}</td>
         <td><span class="chip ${riesgo}">${esc(NOMBRE_RIESGO[riesgo])}</span></td>
       </tr>`,
@@ -180,14 +180,19 @@ export function vistaRegistro(entradas: readonly EntradaAuditoria[]): string {
   const legible: Record<string, string> = {
     pedido_creado: "Creó un pedido automáticamente",
     pedido_movido: "El dueño movió un pedido de estado",
+    lead_movido: "El dueño movió un cliente en el embudo",
     propuesta_creada: "Dejó una decisión en la bandeja",
     propuesta_aprobada: "El dueño aprobó una decisión",
     propuesta_rechazada: "El dueño descartó una decisión",
     aviso_enviado: "Envió un aviso al cliente",
+    escalado_a_humano: "Le pasó una pregunta al dueño",
     vigia_avisos: "El vigía detectó promesas en riesgo",
     extraccion_fallida: "No logró entender un pedido",
     respuesta_fallida: "No pudo responderle al cliente",
+    envio_fallido: "No pudo entregar un mensaje al cliente",
     pedido_descartado: "Descartó un pedido sin datos concretos",
+    negocio_configurado: "Se configuró un asistente nuevo",
+    imagen_cargada: "Le cargó la foto a un producto",
   };
 
   const filas = entradas

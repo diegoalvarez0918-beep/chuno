@@ -34,16 +34,20 @@ function tarjetaLead(
   lead: Lead,
   contacto: Contacto | undefined,
   accion: string,
-  soloLectura: boolean,
+  esDemo: boolean,
 ): string {
   const nombre = contacto?.nombre ?? "Cliente";
 
   // Solo se ofrecen las transiciones que el núcleo acepta. Un botón que lleva a
-  // un error no es una opción: es una trampa. Y en la demo no se ofrece ninguna:
-  // su ruta de mover ni siquiera está registrada.
-  const destinos = soloLectura
-    ? []
-    : ESTADOS_LEAD.filter((e) => transicionLeadValida(lead.estado, e));
+  // un error no es una opción: es una trampa.
+  //
+  // En la demo el embudo SÍ se mueve, porque un tablero que no se toca es una
+  // captura de pantalla con más pasos. Lo único que se quita es "perdido": es
+  // el único destino que deja el embudo peor que antes y ahí no hay quien lo
+  // devuelva hasta el próximo resembrado. La ruta lo rechaza también.
+  const destinos = ESTADOS_LEAD.filter(
+    (e) => transicionLeadValida(lead.estado, e) && !(esDemo && e === "perdido"),
+  );
 
   const mover = destinos
     .map(
@@ -53,7 +57,7 @@ function tarjetaLead(
     )
     .join("");
 
-  return `<article class="trato" ${soloLectura ? "" : 'draggable="true"'} data-lead="${esc(
+  return `<article class="trato" draggable="true" data-lead="${esc(
     lead.id,
   )}" data-estado="${esc(lead.estado)}">
     <div class="trato-cab">
@@ -81,7 +85,7 @@ function columna(
   leads: readonly Lead[],
   porId: Map<string, Contacto>,
   accion: string,
-  soloLectura: boolean,
+  esDemo: boolean,
 ): string {
   const total = leads.reduce((s, l) => s + (l.valorEstimadoCentavos ?? 0), 0);
   const plural = leads.length === 1 ? "oportunidad" : "oportunidades";
@@ -89,7 +93,7 @@ function columna(
   const tarjetas =
     leads.length === 0
       ? `<div class="columna-vacia">Nada aquí</div>`
-      : leads.map((l) => tarjetaLead(l, porId.get(l.contactoId), accion, soloLectura)).join("");
+      : leads.map((l) => tarjetaLead(l, porId.get(l.contactoId), accion, esDemo)).join("");
 
   return `<section class="columna ${estado}" data-estado="${estado}">
     <header class="columna-cab">
@@ -112,7 +116,7 @@ export function vistaClientes(
   contactos: readonly Contacto[],
   leads: readonly Lead[],
   accionMover: string,
-  soloLectura = false,
+  esDemo = false,
 ): string {
   if (contactos.length === 0) {
     return `<div class="tarjeta vacio">
@@ -122,7 +126,7 @@ export function vistaClientes(
   }
 
   const porId = new Map(contactos.map((c) => [c.id, c]));
-  const accion = soloLectura ? "" : accionMover;
+  const accion = accionMover;
 
   const tablero = ESTADOS_LEAD.map((e) =>
     columna(
@@ -130,7 +134,7 @@ export function vistaClientes(
       leads.filter((l) => l.estado === e),
       porId,
       accion,
-      soloLectura,
+      esDemo,
     ),
   ).join("");
 
@@ -160,10 +164,9 @@ export function vistaClientes(
   // El arrastre es una mejora, no el mecanismo: los botones de cada tarjeta
   // hacen lo mismo con un POST normal. Sin JS el tablero sigue siendo usable, y
   // esto se abre desde un teléfono en un mostrador.
-  const arrastre = soloLectura
-    ? ""
-    : `<script>
+  const arrastre = `<script>
 (function () {
+  var vetados = ${JSON.stringify(esDemo ? ["perdido"] : [])};
   var llevando = null;
   document.querySelectorAll('.trato').forEach(function (t) {
     t.addEventListener('dragstart', function (e) {
@@ -182,6 +185,9 @@ export function vistaClientes(
 
       var hacia = col.getAttribute('data-estado');
       if (hacia === llevando.getAttribute('data-estado')) return;
+      // El servidor rechaza estos igual; aquí se evita el viaje y el parpadeo
+      // de recargar para dejar la tarjeta donde estaba.
+      if (vetados.indexOf(hacia) !== -1) return;
 
       var cuerpo = new URLSearchParams();
       cuerpo.set('id', llevando.getAttribute('data-lead'));

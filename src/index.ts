@@ -117,15 +117,23 @@ function montarPanel(opciones: {
   negocioDe: (c: Context<{ Bindings: Env }>) => string;
   conSelector: boolean;
   /**
-   * La demo es pública: sus POST estarían abiertos a internet. Con esto las
-   * rutas de escritura de conocimiento ni siquiera se registran — no existe la
-   * ruta, no hay 403 que sortear. Aprobar decisiones sí se conserva: es la
-   * experiencia de la demo, y el canal `demo` no le manda nada a nadie.
+   * Marca el montaje público. De aquí salen dos políticas distintas y conviene
+   * no confundirlas, porque ya no es "solo lectura":
+   *
+   * - **El conocimiento no se edita.** Sus rutas de escritura ni siquiera se
+   *   registran: no existe la ruta, no hay 403 que sortear. Un desconocido
+   *   borrando el catálogo dejaría la demo vacía media hora.
+   * - **Los tableros sí se mueven.** Es la demo, no un folleto. Lo único que se
+   *   quita son los destinos que la degradan y que nadie puede deshacer hasta
+   *   el próximo resembrado: "cancelado" en pedidos y "perdido" en el embudo.
+   *
+   * Aprobar decisiones también se conserva: es la experiencia central del
+   * producto, y el canal `demo` no le manda nada a nadie.
    */
-  soloLectura?: boolean;
+  esDemo?: boolean;
 }) {
   const { base, negocioDe, conSelector } = opciones;
-  const soloLectura = opciones.soloLectura ?? false;
+  const esDemo = opciones.esDemo ?? false;
   /**
    * Resuelve el negocio de la petición. En /panel el dueño puede tener varios
    * negocios (multi-bot) y elige con ?negocio=; en /demo el negocio es fijo —
@@ -196,7 +204,7 @@ function montarPanel(opciones: {
         negocio: d.negocio.nombre,
         activo: "clientes",
         pendientes,
-        contenido: vistaClientes(contactos, leads, `${base}/clientes/mover${d.consulta}`, soloLectura),
+        contenido: vistaClientes(contactos, leads, `${base}/clientes/mover${d.consulta}`, esDemo),
         base,
         consulta: d.consulta,
         selector: d.selector,
@@ -220,7 +228,7 @@ function montarPanel(opciones: {
         negocio: d.negocio.nombre,
         activo: "conocimiento",
         pendientes,
-        contenido: vistaConocimiento(items, faqs, base, d.consulta, soloLectura),
+        contenido: vistaConocimiento(items, faqs, base, d.consulta, esDemo),
         base,
         consulta: d.consulta,
         selector: d.selector,
@@ -228,13 +236,14 @@ function montarPanel(opciones: {
     );
   });
 
-  if (!soloLectura) {
   /**
    * Mover un lead en el embudo.
    *
    * La transición la valida `avanzarLead` en el núcleo, no esta ruta: qué
    * movimiento es legal vive en `core/crm/embudo.ts`, que es puro y probado.
    * Aquí solo se lee, se pide el movimiento y se guarda lo que salga.
+   *
+   * Se registra también en la demo, por el mismo motivo que la de pedidos.
    */
   app.post(`${base}/clientes/mover`, async (c) => {
     const negocioId = negocioDe(c);
@@ -244,6 +253,12 @@ function montarPanel(opciones: {
     const hacia = String(f.get("hacia") ?? "");
     if (!id || !(ESTADOS_LEAD as readonly string[]).includes(hacia)) {
       return c.text("Petición inválida", 400);
+    }
+
+    // El equivalente de "cancelado" en el embudo: el único destino que empeora
+    // el tablero de la demo sin que nadie pueda devolverlo.
+    if (esDemo && hacia === "perdido") {
+      return c.text("En la demo no se pierden clientes", 403);
     }
 
     const lead = await obtenerLead(c.env.DB, negocioId, id);
@@ -258,6 +273,7 @@ function montarPanel(opciones: {
     return c.redirect(`${base}/clientes${consultaDe(c, negocioId)}`, 303);
   });
 
+  if (!esDemo) {
   app.post(`${base}/conocimiento/catalogo/guardar`, async (c) => {
     const negocioId = negocioDe(c);
     const f = await c.req.formData();
@@ -403,7 +419,7 @@ function montarPanel(opciones: {
           pedidos,
           hoyEnZona(d.negocio.zonaHoraria),
           `${base}/pedidos/mover${d.consulta}`,
-          soloLectura,
+          esDemo,
         ),
         base,
         consulta: d.consulta,
@@ -436,7 +452,7 @@ function montarPanel(opciones: {
     // Cancelar es el único movimiento que deja el tablero peor de lo que estaba,
     // y en la demo no hay quien lo devuelva hasta el siguiente resembrado. Se
     // rechaza aquí y no solo en la vista: un POST se arma a mano.
-    if (soloLectura && hacia === "cancelado") {
+    if (esDemo && hacia === "cancelado") {
       return c.text("En la demo no se cancelan pedidos", 403);
     }
 
@@ -605,7 +621,7 @@ montarPanel({
   base: "/demo",
   negocioDe: (c) => c.env.NEGOCIO_DEMO,
   conSelector: false,
-  soloLectura: true,
+  esDemo: true,
 });
 
 // ─────────────────────────────────────────────────────────────  onboarding  ──
