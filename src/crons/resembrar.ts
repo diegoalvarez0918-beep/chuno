@@ -274,6 +274,23 @@ export async function resembrarDemo(
   const s = (sql: string, ...valores: unknown[]) => db.prepare(sql).bind(...valores);
   const t = (texto: string) => instante(texto, ahora);
 
+  /**
+   * Las fotos del catálogo sobreviven al resembrado.
+   *
+   * Este cron borra y vuelve a escribir la demo cada media hora. Las fotos no
+   * están sembradas en el código —las sube una persona— así que sin esto una
+   * foto cargada duraría hasta el siguiente cuarto de hora, y el objeto en KV
+   * quedaría huérfano para siempre porque nadie volvería a saber su llave.
+   * Los ids del catálogo son fijos, así que la llave se puede volver a colgar
+   * del mismo producto.
+   */
+  const { results: fotos } = await db
+    .prepare(
+      "SELECT id, imagen_clave FROM catalogo WHERE negocio_id = ? AND imagen_clave IS NOT NULL",
+    )
+    .bind(NEGOCIO)
+    .all<{ id: string; imagen_clave: string }>();
+
   const sentencias: D1PreparedStatement[] = [
     ...TABLAS.map((tabla) => s(`DELETE FROM ${tabla} WHERE negocio_id = ?`, NEGOCIO)),
 
@@ -446,7 +463,14 @@ export async function resembrarDemo(
     ),
   ];
 
-  await db.batch(sentencias);
+  // Las fotos se vuelven a colgar DESPUÉS del batch: antes, el INSERT del
+  // catálogo las sobrescribiría con null.
+  const restauradas = fotos.map((f) =>
+    s("UPDATE catalogo SET imagen_clave = ? WHERE negocio_id = ? AND id = ?", f.imagen_clave, NEGOCIO, f.id),
+  );
 
-  return { sentencias: sentencias.length };
+  await db.batch(sentencias);
+  if (restauradas.length > 0) await db.batch(restauradas);
+
+  return { sentencias: sentencias.length + restauradas.length };
 }

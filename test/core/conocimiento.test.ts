@@ -11,6 +11,7 @@ function item(nombre: string, precioCentavos: number | null, diasEntrega: number
     descripcion: null,
     precioCentavos,
     diasEntrega,
+    imagenClave: null,
   };
 }
 

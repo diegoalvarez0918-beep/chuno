@@ -8,9 +8,11 @@ interface FilaCatalogo {
   descripcion: string | null;
   precio_centavos: number | null;
   dias_entrega: number | null;
+  imagen_clave: string | null;
 }
 
-const COLS_CATALOGO = "id, negocio_id, nombre, descripcion, precio_centavos, dias_entrega";
+const COLS_CATALOGO =
+  "id, negocio_id, nombre, descripcion, precio_centavos, dias_entrega, imagen_clave";
 
 function aItem(f: FilaCatalogo): ItemCatalogo {
   const r = ItemCatalogoSchema.safeParse({
@@ -20,6 +22,7 @@ function aItem(f: FilaCatalogo): ItemCatalogo {
     descripcion: f.descripcion,
     precioCentavos: f.precio_centavos,
     diasEntrega: f.dias_entrega,
+    imagenClave: f.imagen_clave,
   });
   if (!r.success) throw new Error(`catálogo ${f.id}: fila inválida`);
   return r.data;
@@ -85,6 +88,40 @@ export async function listarCatalogo(db: D1Database, negocioId: string): Promise
 
 export async function borrarItemCatalogo(db: D1Database, negocioId: string, id: string): Promise<void> {
   await db.prepare("DELETE FROM catalogo WHERE negocio_id = ? AND id = ?").bind(negocioId, id).run();
+}
+
+export async function obtenerItemCatalogo(
+  db: D1Database,
+  negocioId: string,
+  id: string,
+): Promise<ItemCatalogo | null> {
+  const fila = await db
+    .prepare(`SELECT ${COLS_CATALOGO} FROM catalogo WHERE negocio_id = ? AND id = ?`)
+    .bind(negocioId, id)
+    .first<FilaCatalogo>();
+
+  return fila ? aItem(fila) : null;
+}
+
+/**
+ * Apunta un producto a su foto, o se la quita con null.
+ *
+ * Va aparte del upsert de texto a propósito: editar el precio no puede
+ * borrarle la imagen a un producto, y el formulario de texto no manda la
+ * llave. Dos operaciones distintas, dos funciones.
+ */
+export async function fijarImagenCatalogo(
+  db: D1Database,
+  negocioId: string,
+  id: string,
+  clave: string | null,
+): Promise<void> {
+  await db
+    .prepare(
+      "UPDATE catalogo SET imagen_clave = ?, actualizado_en = ? WHERE negocio_id = ? AND id = ?",
+    )
+    .bind(clave, ahoraISO(), negocioId, id)
+    .run();
 }
 
 interface FilaFaq {

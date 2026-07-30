@@ -21,6 +21,12 @@
   // aparte, en una página que se abre desde un mostrador con la señal que haya.
   "assets": { "directory": "./public", "binding": "ASSETS" },
 
+  // Las fotos del catálogo. KV y no R2 porque R2 exige registrar una tarjeta
+  // aunque no se pase del tramo gratuito, y KV viene incluido en el plan de
+  // Workers. La consistencia eventual de KV (hasta un minuto) es irrelevante
+  // para una foto de producto.
+  "kv_namespaces": [{ "binding": "IMAGENES", "id": "12af6afe77424d449473ab1e85834a66" }],
+
   "d1_databases": [
     {
       "binding": "DB",

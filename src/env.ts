@@ -9,6 +9,8 @@ export interface Env {
    * orden ya nos costó un despliegue con la imagen del hero en 404.
    */
   readonly ASSETS: Fetcher;
+  /** Fotos del catálogo. La base guarda la llave; los bytes viven aquí. */
+  readonly IMAGENES: KVNamespace;
 
   // Secretos (wrangler secret put)
   readonly GEMINI_API_KEY: string;

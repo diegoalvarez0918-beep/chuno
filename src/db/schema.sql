@@ -224,6 +224,10 @@ CREATE TABLE IF NOT EXISTS catalogo (
   -- Entero, en centavos. NULL = "precio por confirmar".
   precio_centavos INTEGER,
   dias_entrega    INTEGER,
+  -- Llave del objeto en KV, no la imagen. La foto no vive en la base: cada
+  -- consulta del agente al catálogo se traería los bytes sin necesitarlos, y
+  -- eso se paga en latencia justo mientras un cliente espera respuesta.
+  imagen_clave    TEXT,
   creado_en       TEXT NOT NULL,
   actualizado_en  TEXT NOT NULL
 );

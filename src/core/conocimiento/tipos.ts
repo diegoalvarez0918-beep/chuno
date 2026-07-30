@@ -18,6 +18,12 @@ export const ItemCatalogoSchema = z.object({
   /** Tope de cordura, igual que en la extracción de pedidos. */
   precioCentavos: z.number().int().nonnegative().max(5_000_000_000).nullable(),
   diasEntrega: z.number().int().positive().max(365).nullable(),
+  /**
+   * Llave del objeto en el almacén de imágenes, nunca la imagen.
+   * El núcleo no sabe qué hay detrás de la llave ni le importa: hoy es KV y
+   * mañana puede ser otra cosa sin tocar este contrato.
+   */
+  imagenClave: z.string().trim().min(1).max(200).nullable().default(null),
 });
 
 export type ItemCatalogo = z.infer<typeof ItemCatalogoSchema>;

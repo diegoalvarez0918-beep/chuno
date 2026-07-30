@@ -416,6 +416,31 @@ td .acciones { flex-wrap: nowrap; }
   margin-left: auto; border-bottom-right-radius: 5px;
 }
 
+/* ── Fotos del catálogo ────────────────────────────────────────────────── */
+.miniatura {
+  width: 46px; height: 46px; border-radius: 8px; object-fit: cover;
+  display: block; background: var(--fondo-3); border: 1px solid var(--borde);
+}
+.sin-foto { color: var(--suave); }
+.foto-form { display: flex; align-items: center; gap: 6px; margin: 0; }
+.foto-caja {
+  position: relative; display: block; width: 46px; height: 46px; cursor: pointer;
+  border-radius: 8px; overflow: hidden;
+}
+.foto-caja:hover .miniatura { filter: brightness(.9); }
+.foto-mas {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  border: 1px dashed var(--borde-fuerte); border-radius: 8px;
+  color: var(--suave); font-size: 20px; font-weight: 700; background: var(--fondo-2);
+}
+.foto-caja:hover .foto-mas { border-color: var(--carbon); color: var(--texto); }
+.foto-quitar {
+  font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px;
+  border: 1px solid var(--borde-fuerte); background: var(--fondo-2); color: var(--suave);
+}
+.foto-quitar:hover { background: var(--invertido); color: var(--sobre-invertido); border-color: transparent; }
+.foto-caja.trabajando { opacity: .45; pointer-events: none; }
+
 /* ── El embudo, como tablero ──────────────────────────────────────────────
    Cinco columnas con scroll horizontal. Cada estado lleva su color en la
    cabecera y en el borde superior de la columna: el color es lo que hace que

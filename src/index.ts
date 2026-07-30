@@ -39,7 +39,8 @@ import { listarPedidos } from "./db/repos/pedido";
 import { contarPendientes, listarPendientes } from "./db/repos/propuesta";
 import { auditar, listarAuditoria, purgarMensajesViejos } from "./db/repos/varios";
 import { guardarLead, listarContactos, listarLeads, obtenerLead } from "./db/repos/crm";
-import { borrarFaq, borrarItemCatalogo, guardarFaq, guardarItemCatalogo, listarCatalogo, listarFaq } from "./db/repos/catalogo";
+import { borrarFaq, borrarItemCatalogo, fijarImagenCatalogo, guardarFaq, guardarItemCatalogo, listarCatalogo, listarFaq, obtenerItemCatalogo } from "./db/repos/catalogo";
+import { MAXIMO_BYTES, borrarImagen, claveImagen, guardarImagen, leerImagen, tipoAceptado } from "./db/imagenes";
 import { vistaConocimiento } from "./admin/vistas-conocimiento";
 import { calcularMetricas } from "./db/repos/metricas";
 import { vistaMetricas } from "./admin/vistas-metricas";
@@ -54,6 +55,35 @@ const app = new Hono<{ Bindings: Env }>();
 app.get("/", (c) => c.html(landing()));
 
 app.get("/salud", (c) => c.json({ ok: true, servicio: "chuno" }));
+
+/**
+ * Las fotos del catálogo, públicas.
+ *
+ * Tienen que serlo: cuando el dueño aprueba mandarle la foto de un producto a
+ * un cliente, quien va a descargarla es Telegram o WhatsApp desde sus propios
+ * servidores, no un navegador con la sesión del dueño. Son fotos de producto,
+ * no datos de nadie.
+ *
+ * La versión va en la ruta, así que una llave dada nunca cambia de contenido y
+ * se puede cachear para siempre. Reemplazar la foto genera una llave nueva.
+ */
+app.get("/img/:negocioId/:itemId/:version", async (c) => {
+  const clave = claveImagen(
+    c.req.param("negocioId"),
+    c.req.param("itemId"),
+    Number(c.req.param("version")),
+  );
+
+  const imagen = await leerImagen(c.env, clave);
+  if (!imagen) return c.text("No encontrada", 404);
+
+  return new Response(imagen.bytes, {
+    headers: {
+      "content-type": imagen.tipo,
+      "cache-control": "public, max-age=31536000, immutable",
+    },
+  });
+});
 
 // ─────────────────────────────────────────────────────────────────  el panel ──
 
@@ -248,7 +278,61 @@ function montarPanel(opciones: {
   app.post(`${base}/conocimiento/catalogo/borrar`, async (c) => {
     const negocioId = negocioDe(c);
     const id = String((await c.req.formData()).get("id") ?? "");
-    if (id) await borrarItemCatalogo(c.env.DB, negocioId, id);
+
+    if (id) {
+      // La foto se va con el producto. Si no, queda un objeto en KV que ya no
+      // referencia nadie y que nadie va a salir a buscar nunca.
+      const item = await obtenerItemCatalogo(c.env.DB, negocioId, id);
+      if (item?.imagenClave) await borrarImagen(c.env, item.imagenClave);
+      await borrarItemCatalogo(c.env.DB, negocioId, id);
+    }
+
+    return c.redirect(`${base}/conocimiento${consultaDe(c, negocioId)}`, 303);
+  });
+
+  /**
+   * La foto de un producto.
+   *
+   * El navegador ya la manda recortada, redimensionada y comprimida: aquí solo
+   * se valida y se guarda. Validar igual, aunque el guion del panel ya lo haya
+   * hecho, porque un POST se puede armar a mano y el tamaño y el tipo son la
+   * única defensa contra alguien subiendo un video de 2 GB.
+   */
+  app.post(`${base}/conocimiento/catalogo/imagen`, async (c) => {
+    const negocioId = negocioDe(c);
+    const f = await c.req.formData();
+
+    const id = String(f.get("id") ?? "").trim();
+    if (!id) return c.text("Falta el producto", 400);
+
+    const item = await obtenerItemCatalogo(c.env.DB, negocioId, id);
+    if (!item) return c.text("Ese producto ya no existe", 404);
+
+    const anterior = item.imagenClave;
+
+    // Sin archivo: es el botón de quitar la foto.
+    const archivo = f.get("archivo");
+    if (!(archivo instanceof File) || archivo.size === 0) {
+      await fijarImagenCatalogo(c.env.DB, negocioId, id, null);
+      if (anterior) await borrarImagen(c.env, anterior);
+      return c.redirect(`${base}/conocimiento${consultaDe(c, negocioId)}`, 303);
+    }
+
+    if (!tipoAceptado(archivo.type)) return c.text("Eso no es una imagen", 415);
+    if (archivo.size > MAXIMO_BYTES) return c.text("La imagen pesa demasiado", 413);
+
+    // La versión va en la llave para que reemplazar la foto no obligue a
+    // esperar a que expire la caché del navegador con la vieja.
+    const clave = claveImagen(negocioId, id, Date.now());
+    await guardarImagen(c.env, clave, await archivo.arrayBuffer(), archivo.type);
+    await fijarImagenCatalogo(c.env.DB, negocioId, id, clave);
+
+    // Solo después de que la nueva quedó apuntada. Al revés, un fallo entre
+    // medias dejaría al producto sin foto y con la vieja ya borrada.
+    if (anterior) await borrarImagen(c.env, anterior);
+
+    await auditar(c.env.DB, negocioId, "imagen_cargada", { itemId: id }, "admin");
+
     return c.redirect(`${base}/conocimiento${consultaDe(c, negocioId)}`, 303);
   });
 
