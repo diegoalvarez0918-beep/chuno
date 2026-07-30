@@ -115,7 +115,10 @@ function montarPanel(
     const d = await datosPanel(c);
     if (!d) return c.text("Negocio no configurado", 404);
 
-    const metricas = await calcularMetricas(c.env.DB, d.negocioId, d.negocio.zonaHoraria);
+    const [metricas, pedidos] = await Promise.all([
+      calcularMetricas(c.env.DB, d.negocioId, d.negocio.zonaHoraria),
+      listarPedidos(c.env.DB, d.negocioId),
+    ]);
 
     return c.html(
       pagina({
@@ -123,7 +126,7 @@ function montarPanel(
         negocio: d.negocio.nombre,
         activo: "inicio",
         pendientes: metricas.decisionesPendientes,
-        contenido: vistaMetricas(metricas),
+        contenido: vistaMetricas(metricas, pedidos, hoyEnZona(d.negocio.zonaHoraria)),
         base,
         consulta: d.consulta,
         selector: d.selector,
