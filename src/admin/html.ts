@@ -26,15 +26,23 @@ export function fechaCorta(iso: string): string {
   return iso.slice(0, 16).replace("T", " ");
 }
 
-const CSS = `
 /**
- * Sistema de diseño Voz. Claro, cálido y luminoso — no es un tablero oscuro
- * más. Reglas que se respetan aquí y no se relajan:
+ * Los tokens del sistema de diseño Voz, en un solo lugar.
+ *
+ * Los exporta este módulo —y no un archivo aparte— porque el panel es su
+ * consumidor principal, pero la landing pública los importa desde aquí. Tener
+ * dos copias de la paleta es exactamente lo que produjo que la landing se
+ * quedara oscura y azul mientras el panel ya era crema: el jurado saltaba de
+ * un diseño a otro en el clic que más importa. Una sola fuente no se puede
+ * desincronizar.
+ *
+ * Reglas que se respetan y no se relajan:
  *   · Sobre lima el texto SIEMPRE va oscuro. Nunca lima sobre crema.
  *   · #FF2F00 es exclusivo del CTA principal, uno dominante por pantalla.
  *     Para texto pequeño en rojo se usa #E02900, que sí contrasta.
  *   · Lima y rojo-naranja no van adyacentes con el mismo peso: compiten.
  */
+export const TOKENS_VOZ = `
 :root {
   --fondo: #FCFCFA; --fondo-2: #F5F5F2; --fondo-3: #EFEFEB;
   --tarjeta: #FFFFFF; --tarjeta-alta: #FFFFFF; --borde: #EFEFEB;
@@ -50,7 +58,20 @@ const CSS = `
   /* Alias de compatibilidad con las vistas ya escritas. */
   --acento: var(--carbon); --alerta: var(--accion-texto); --aviso: var(--carbon);
 }
-* { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; }
+`;
+
+/**
+ * Las fuentes, con `display=swap` a propósito: el texto se pinta de inmediato
+ * con la del sistema y cambia cuando llegue. Esto se abre desde el mostrador de
+ * una óptica, con la señal que haya; nunca puede quedarse en blanco esperando
+ * una fuente.
+ */
+export const FUENTES_VOZ = `<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Raleway:wght@600;700;800&family=Nunito+Sans:wght@400;600;700&display=swap">`;
+
+const CSS = `${TOKENS_VOZ}
 body {
   margin: 0; color: var(--texto);
   font-family: var(--cuerpo); font-size: 15px; line-height: 1.6;
@@ -167,6 +188,11 @@ tbody tr:hover { background: var(--fondo-2); }
   font-family: var(--display); font-size: 16px; font-weight: 700;
 }
 .pie { color: var(--suave); font-size: 12.5px; margin-top: 36px; text-align: center; }
+.enlace-pie {
+  font: inherit; background: none; border: none; padding: 0;
+  color: var(--suave); text-decoration: underline; cursor: pointer;
+}
+.enlace-pie:hover { color: var(--texto); }
 .registro {
   font-size: 13.5px; color: var(--suave); display: flex; gap: 12px;
   padding: 10px 0; border-top: 1px solid var(--borde); align-items: baseline;
@@ -274,12 +300,7 @@ export function pagina(opciones: {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>${esc(opciones.titulo)} · CHUNO</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- display=swap: el texto se pinta de inmediato con la fuente del sistema y
-     cambia cuando llegue. El panel se abre desde el mostrador de una óptica,
-     con la señal que haya; nunca puede quedarse en blanco esperando una fuente. -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Raleway:wght@600;700&family=Nunito+Sans:wght@400;600;700&display=swap">
+${FUENTES_VOZ}
 <style>${CSS}</style>
 </head><body><div class="envoltorio">
 <header><h1>CHUNO</h1>${cabecera}</header>
@@ -293,6 +314,10 @@ export function pagina(opciones: {
   ${enlace("/comenzar", "＋ Nuevo asistente", "comenzar")}
 </nav>
 ${opciones.contenido}
-<p class="pie">Los mensajes se borran automáticamente a los 90 días.</p>
+<p class="pie">Los mensajes se borran automáticamente a los 90 días.${
+    opciones.base === "/panel"
+      ? ` · <form method="post" action="/salir" style="display:inline"><button class="enlace-pie">Cerrar sesión</button></form>`
+      : ""
+  }</p>
 </div></body></html>`;
 }

@@ -1,118 +1,565 @@
+import { FUENTES_VOZ, TOKENS_VOZ } from "../admin/html";
+
 /**
  * La página pública.
  *
  * Abre con el problema, no con el producto: es lo que ve un votante que llega
  * frío y le da treinta segundos. La demo está a un clic, sin registro.
+ *
+ * Los tokens de color y tipografía se importan del panel a propósito. Esta
+ * página vivió meses con su propia paleta oscura mientras el panel ya era crema,
+ * y el salto ocurría justo en el clic que más importa. Con una sola fuente de
+ * verdad ese desfase no puede volver a aparecer.
  */
+
+const REPO = "https://github.com/diegoalvarez0918-beep/chuno";
+
+/** El titular del hero, palabra por palabra: cada una entra con su retraso. */
+const TITULAR = "Tu WhatsApp ya es tu sistema operativo. El problema es que no es un sistema.";
+
+/** Lo que se ve debajo: el desorden del que sale el pedido. */
+const BURBUJAS: readonly { texto: string; x: string; y: string; giro: string; mia?: boolean }[] = [
+  { texto: "Hola, ¿ya están listas mis gafas?", x: "4%", y: "8%", giro: "-2.5deg" },
+  { texto: "Le confirmo y le aviso 🙏", x: "46%", y: "2%", giro: "1.8deg", mia: true },
+  { texto: "¿para cuándo era lo mío?", x: "13%", y: "26%", giro: "1.2deg" },
+  { texto: "Buenas, ¿me quedó para el jueves?", x: "52%", y: "22%", giro: "-1.6deg" },
+  { texto: "déjame reviso y te escribo", x: "2%", y: "45%", giro: "2.2deg", mia: true },
+  { texto: "¿el progresivo cuánto se demora?", x: "44%", y: "42%", giro: "-2deg" },
+  { texto: "necesito saber si alcanzo a viajar", x: "20%", y: "60%", giro: "1.4deg" },
+  { texto: "¿alguna novedad?", x: "60%", y: "58%", giro: "-1.1deg" },
+  { texto: "sí señora, mañana le confirmo", x: "6%", y: "76%", giro: "-2.4deg", mia: true },
+  { texto: "llevo una semana esperando 😔", x: "48%", y: "78%", giro: "1.7deg" },
+];
+
+/** Lo que revela el spotlight: lo mismo, pero convertido en estado operativo. */
+const FILAS: readonly { quien: string; que: string; cuando: string; chip: string; riesgo: string }[] = [
+  { quien: "Marta Ruiz", que: "Lentes progresivos con antirreflejo", cuando: "vence hace 4 días", chip: "Vencido", riesgo: "vencida" },
+  { quien: "Sandra Ospina", que: "Gafas monofocales para niña", cuando: "sin fecha acordada", chip: "Sin fecha", riesgo: "sin_fecha" },
+  { quien: "Luisa Gómez", que: "Cambio de lentes con antirreflejo", cuando: "para hoy", chip: "Vence hoy", riesgo: "en_riesgo" },
+  { quien: "Andrés Molina", que: "Gafas de sol formuladas", cuando: "para mañana", chip: "A tiempo", riesgo: "ok" },
+  { quien: "Jorge Rivas", que: "Montura infantil flexible", cuando: "en 6 días", chip: "A tiempo", riesgo: "ok" },
+];
+
+const PASOS: readonly { n: string; titulo: string; texto: string }[] = [
+  {
+    n: "01",
+    titulo: "El cliente escribe, como siempre",
+    texto:
+      "Por WhatsApp o Telegram, en renglones sueltos y sin formato. Nadie cambia de app y nadie llena un formulario.",
+  },
+  {
+    n: "02",
+    titulo: "CHUNO arma el pedido con su fecha",
+    texto:
+      "Lee la conversación y saca quién es, qué encargó, cuánto vale y para cuándo quedó. Si algo no le queda claro, no lo inventa: te lo pregunta.",
+  },
+  {
+    n: "03",
+    titulo: "El vigía levanta la mano a tiempo",
+    texto:
+      "Revisa tus promesas cada media hora. Cuando una se va a caer, te avisa antes de que el cliente reclame — no después.",
+  },
+  {
+    n: "04",
+    titulo: "Tú apruebas. Siempre tú",
+    texto:
+      "Te deja el mensaje escrito y listo para enviar. Lo lees, lo editas si quieres, y sale con un clic. Nunca sin ti.",
+  },
+];
+
+const GARANTIAS: readonly { fuerte: string; resto: string }[] = [
+  { fuerte: "Corre en tu propia nube.", resto: "Tus conversaciones y tus clientes no pasan por servidores nuestros." },
+  { fuerte: "La IA no toca la base de datos.", resto: "Solo propone datos que el sistema valida; si algo no cuadra, va a tu bandeja en vez de escribirse solo." },
+  { fuerte: "Nada sale sin tu visto bueno.", resto: "Es una regla del diseño, no una opción que se pueda apagar." },
+  { fuerte: "Queda registro de todo:", resto: "qué propuso el asistente, qué aprobaste tú y cuándo." },
+  { fuerte: "Los mensajes se borran a los 90 días.", resto: "Tratamiento de datos conforme a la Ley 1581 (Habeas Data)." },
+  { fuerte: "Si le preguntan si es un bot, lo admite.", resto: "Siempre." },
+];
+
+const FLECHA = `<svg width="17" height="17" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M5 13L13 5M13 5H6M13 5V12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+function pill(href: string, texto: string, clase = ""): string {
+  return `<a class="pill ${clase}" href="${href}">
+    <span class="pill-fondo"></span>
+    <span class="pill-texto">${texto}</span>
+    <span class="pill-circulo">${FLECHA}</span>
+  </a>`;
+}
+
+const CSS = `${TOKENS_VOZ}
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--fondo-2); color: var(--texto);
+  font-family: var(--cuerpo); font-size: 16px; line-height: 1.65;
+  overflow-x: hidden; -webkit-font-smoothing: antialiased;
+}
+
+/* ─────────────────────────────────────────────────────────────── cortina ── */
+/* Diez cajas lima que se abren. Es lo primero que ve un jurado, así que dura
+   ~0.8 s en total: intención deliberada, no una espera. */
+.cortina {
+  position: fixed; inset: 0; z-index: 9999; pointer-events: none;
+  overflow: hidden; animation: cortinaFuera .25s ease .62s forwards;
+}
+.cortina-fila { display: flex; width: 100%; height: 50%; }
+.cortina-caja { width: 20%; height: 100%; background: var(--lima); }
+.cortina-fila.arriba .cortina-caja { animation: cortinaArriba .62s cubic-bezier(.96,-.02,.38,1.01) forwards; }
+.cortina-fila.abajo .cortina-caja { animation: cortinaAbajo .62s cubic-bezier(.96,-.02,.38,1.01) forwards; }
+.cortina-caja:nth-child(2) { animation-delay: .035s; }
+.cortina-caja:nth-child(3) { animation-delay: .07s; }
+.cortina-caja:nth-child(4) { animation-delay: .105s; }
+.cortina-caja:nth-child(5) { animation-delay: .14s; }
+@keyframes cortinaArriba { to { transform: translateY(-100%); } }
+@keyframes cortinaAbajo { to { transform: translateY(100%); } }
+@keyframes cortinaFuera { to { opacity: 0; visibility: hidden; } }
+
+/* ────────────────────────────────────────────────────────── navegación ── */
+.marca-fija {
+  position: fixed; top: 26px; left: 22px; z-index: 20;
+  display: inline-flex; align-items: center; gap: 9px;
+  font-family: var(--display); font-weight: 800; font-size: 19px;
+  letter-spacing: 1.5px; color: var(--texto); text-decoration: none;
+}
+.marca-fija::before {
+  content: ""; width: 5px; height: 19px; border-radius: 3px; background: var(--lima);
+}
+@media (min-width: 768px) { .marca-fija { top: 36px; left: 40px; } }
+
+.hamburguesa {
+  position: fixed; top: 20px; right: 20px; z-index: 22;
+  width: 56px; height: 56px; border-radius: 50%; border: 1px solid var(--borde);
+  background: var(--tarjeta); cursor: pointer; box-shadow: var(--sombra);
+  display: flex; flex-direction: column; gap: 5px; align-items: center; justify-content: center;
+  transition: background .35s ease, border-color .35s ease;
+}
+@media (min-width: 768px) { .hamburguesa { top: 30px; right: 40px; } }
+.hamburguesa .barra {
+  display: block; width: 22px; height: 2px; border-radius: 2px;
+  background: var(--texto); transition: transform .3s ease, background .3s ease;
+}
+.hamburguesa:hover { background: var(--invertido); border-color: transparent; }
+.hamburguesa:hover .barra { background: var(--sobre-invertido); }
+.hamburguesa[aria-expanded="true"] { background: var(--invertido); border-color: transparent; }
+.hamburguesa[aria-expanded="true"] .barra { background: var(--sobre-invertido); }
+.hamburguesa[aria-expanded="true"] .barra:first-child { transform: rotate(45deg) translate(3px, 3px); }
+.hamburguesa[aria-expanded="true"] .barra:last-child { transform: rotate(-45deg) translate(3px, -3px); }
+
+.menu {
+  position: fixed; z-index: 21; left: 8px; right: 8px; top: -640px; opacity: 0;
+  pointer-events: none; border-radius: 22px;
+  background: rgba(26,29,20,.96);
+  -webkit-backdrop-filter: blur(26px); backdrop-filter: blur(26px);
+  padding: 96px 30px 30px; display: flex; flex-direction: column; gap: 30px;
+  transition: top .5s cubic-bezier(.25,.46,.45,.94), opacity .35s ease;
+}
+@media (min-width: 768px) { .menu { left: auto; right: 8px; width: 420px; padding: 96px 44px 44px; } }
+.menu.abierto { top: 8px; opacity: 1; pointer-events: auto; }
+.menu nav { display: flex; flex-direction: column; gap: 4px; }
+.menu nav a {
+  font-family: var(--display); font-weight: 700; font-size: 34px; line-height: 1.3;
+  color: var(--sobre-invertido); text-decoration: none; transition: opacity .25s ease;
+}
+@media (min-width: 768px) { .menu nav a { font-size: 40px; } }
+.menu nav a:hover { opacity: .65; }
+.menu .apunte { color: #9A958C; font-size: 14.5px; margin: 0; }
+
+/* ────────────────────────────────────────────────────────────────  hero ── */
+.hero {
+  position: relative; width: 100%; min-height: 100vh; overflow: hidden;
+  background: var(--fondo-2);
+}
+@media (min-width: 768px) { .hero { height: 100vh; min-height: 720px; } }
+
+/* La palabra gigante detrás de todo. Decorativa: no la lee un lector de pantalla. */
+.palabra {
+  position: absolute; bottom: -18px; left: 0; right: 0; z-index: 2;
+  text-align: center; pointer-events: none;
+  transform: translateY(340px); animation: palabraSube 1s cubic-bezier(.16,1,.3,1) .95s forwards;
+}
+@media (min-width: 768px) { .palabra { bottom: -30px; } }
+.palabra span {
+  font-family: var(--display); font-weight: 800; color: var(--fondo-3);
+  font-size: clamp(76px, 19vw, 320px); line-height: .8; letter-spacing: -.04em;
+  white-space: nowrap; display: block;
+}
+@keyframes palabraSube { to { transform: translateY(0); } }
+
+/* En escritorio las capas viven en la mitad derecha: el titular ocupa la
+   izquierda y las burbujas cruzándole encima lo vuelven ilegible. En móvil van
+   debajo del texto, a todo el ancho. */
+.capa { position: absolute; left: 0; right: 0; bottom: 0; top: 46vh; pointer-events: none; }
+@media (min-width: 768px) { .capa { top: 0; left: 41%; } }
+@media (min-width: 1280px) { .capa { left: 37%; } }
+
+/* Debajo: el desorden. Encima y recortada por el spotlight: el orden. */
+.capa-caos { z-index: 5; }
+.capa-orden {
+  z-index: 7;
+  --mx: 50%; --my: 50%;
+  /* Núcleo opaco y caída corta: con un degradado suave el tablero se lee como
+     un fantasma encima del caos en vez de reemplazarlo. */
+  -webkit-mask-image: radial-gradient(circle 320px at var(--mx) var(--my), #000 0 62%, rgba(0,0,0,.85) 78%, rgba(0,0,0,.3) 91%, transparent 100%);
+  mask-image: radial-gradient(circle 320px at var(--mx) var(--my), #000 0 62%, rgba(0,0,0,.85) 78%, rgba(0,0,0,.3) 91%, transparent 100%);
+}
+/* Un teléfono no tiene cursor: sin esto la mitad de los votantes vería solo el
+   problema y nunca la solución. Igual con quien pidió menos movimiento. */
+@media (hover: none), (prefers-reduced-motion: reduce) {
+  .capa-orden { -webkit-mask-image: none; mask-image: none; }
+  .capa-caos { opacity: .25; }
+}
+
+.lienzo { position: relative; width: 100%; height: 100%; max-width: 1100px; margin: 0 auto; }
+
+/* Apagadas a propósito: son el ruido del que el tablero rescata al dueño. Si
+   compiten en contraste con lo que revela el spotlight, no se lee ninguno. */
+.burbuja-caos {
+  position: absolute; max-width: 15rem; padding: 11px 15px; border-radius: 15px;
+  background: #EAEAE5; color: #A6A29A; font-size: 14px; line-height: 1.45;
+  border: 1px solid #E2E2DC; border-bottom-left-radius: 5px;
+}
+.burbuja-caos.mia {
+  background: #E3E3DD; border-bottom-left-radius: 15px; border-bottom-right-radius: 5px;
+}
+@media (max-width: 767px) { .burbuja-caos { font-size: 12.5px; max-width: 11rem; padding: 9px 12px; } }
+
+.tablero {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(560px, 88%); background: var(--tarjeta);
+  border: 1px solid var(--borde-fuerte); border-radius: var(--radio);
+  box-shadow: 0 24px 64px rgba(26,29,20,.20); overflow: hidden;
+}
+.tablero-titulo {
+  font-family: var(--display); font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.5px; color: var(--suave);
+  padding: 15px 18px 11px;
+}
+.tablero-fila {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 18px; border-top: 1px solid var(--borde);
+}
+.tablero-fila .quien { font-weight: 700; font-size: 14.5px; }
+.tablero-fila .que { color: var(--suave); font-size: 12.5px; }
+.tablero-fila .cuando { margin-left: auto; text-align: right; white-space: nowrap; }
+.tablero-fila .cuando small { display: block; color: var(--suave); font-size: 11.5px; margin-top: 3px; }
+.marca-chip {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 700; white-space: nowrap;
+}
+.marca-chip.vencida { background: rgba(255,47,0,.10); color: var(--accion-texto); }
+.marca-chip.en_riesgo { background: var(--lima); color: var(--invertido); }
+.marca-chip.sin_fecha { background: var(--fondo-3); color: var(--suave); }
+.marca-chip.ok { background: rgba(62,155,107,.12); color: var(--bien); }
+@media (max-width: 767px) { .tablero-fila .que { display: none; } }
+
+.hero-texto {
+  position: relative; z-index: 8; max-width: 1180px; margin: 0 auto;
+  padding: 104px 22px 30px; display: flex; flex-direction: column;
+  align-items: flex-start; gap: 26px;
+}
+@media (min-width: 768px) {
+  .hero-texto { position: absolute; inset: 0; justify-content: flex-start; padding: 150px 40px 90px; }
+}
+.hero-titular {
+  font-family: var(--display); font-weight: 700; color: var(--texto);
+  font-size: 25px; line-height: 1.24; letter-spacing: -.02em; max-width: 15ch; margin: 0;
+}
+@media (min-width: 768px) { .hero-titular { font-size: 34px; } }
+.palabra-entra { opacity: 0; display: inline-block; animation: palabraEntra .42s ease forwards; }
+@keyframes palabraEntra {
+  from { opacity: 0; transform: translateY(10px); filter: blur(9px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.hero-cta { opacity: 0; animation: ctaEntra .8s cubic-bezier(.25,.46,.45,.94) .95s forwards; }
+@keyframes ctaEntra {
+  from { opacity: 0; transform: translateY(52px) scale(.5); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ────────────────────────────────────────────────────────────────  pill ── */
+.pill {
+  position: relative; display: inline-flex; align-items: center; gap: 11px;
+  border-radius: 999px; padding: 7px; overflow: hidden; text-decoration: none;
+}
+.pill-fondo {
+  position: absolute; top: 5px; bottom: 5px; left: 7px;
+  width: calc(100% - 7px - 7px - 50px - 11px); border-radius: 999px;
+  background: var(--tarjeta); box-shadow: var(--sombra); z-index: 0;
+  transition: width .4s cubic-bezier(.25,.46,.45,.94);
+}
+.pill:hover .pill-fondo { width: calc(100% - 14px); }
+.pill-texto {
+  position: relative; z-index: 1; color: var(--texto); font-weight: 700;
+  font-size: 15.5px; padding: 13px 30px; white-space: nowrap;
+}
+.pill-circulo {
+  position: relative; z-index: 1; display: flex; align-items: center; justify-content: center;
+  width: 50px; height: 50px; border-radius: 50%; flex-shrink: 0;
+  background: var(--accion); color: #fff;
+  transition: transform .4s cubic-bezier(.25,.46,.45,.94);
+}
+.pill:hover .pill-circulo { transform: translateX(-7px); }
+/* Lima y rojo-naranja no compiten al mismo peso: el secundario no lleva ninguno. */
+.pill.suave .pill-fondo { background: transparent; box-shadow: none; border: 1px solid var(--borde-fuerte); }
+.pill.suave .pill-circulo { background: var(--invertido); }
+.pill.clara .pill-texto { color: var(--texto); }
+.pill.clara .pill-fondo { background: var(--sobre-invertido); }
+
+/* ────────────────────────────────────────────────────────────  secciones ── */
+.seccion-p { max-width: 1000px; margin: 0 auto; padding: 92px 22px; }
+@media (min-width: 768px) { .seccion-p { padding: 116px 40px; } }
+.seccion-p.alterna { background: var(--fondo); }
+.franja { background: var(--fondo); }
+.rotulo {
+  font-family: var(--display); font-size: 11.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.8px; color: var(--suave); margin: 0 0 14px;
+}
+h2 {
+  font-family: var(--display); font-weight: 700; font-size: clamp(27px, 4.2vw, 40px);
+  line-height: 1.15; letter-spacing: -.02em; margin: 0 0 16px; max-width: 20ch;
+}
+.entrada { color: var(--texto-2); font-size: 17px; max-width: 62ch; margin: 0 0 44px; }
+
+.pasos { display: grid; gap: 2px; background: var(--borde); border-radius: var(--radio); overflow: hidden; }
+@media (min-width: 860px) { .pasos { grid-template-columns: repeat(2, 1fr); } }
+.paso { background: var(--tarjeta); padding: 26px 24px; }
+.paso .n {
+  font-family: var(--display); font-size: 12px; font-weight: 700;
+  letter-spacing: 1.6px; color: var(--suave); display: block; margin-bottom: 9px;
+}
+.paso h3 { font-family: var(--display); font-size: 18px; font-weight: 700; margin: 0 0 7px; }
+.paso p { margin: 0; color: var(--texto-2); font-size: 14.8px; }
+
+.comando {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin-top: 26px; padding: 17px 20px; border-radius: var(--radio);
+  background: var(--invertido); color: var(--sobre-invertido);
+}
+.comando code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 15px;
+}
+.comando .prompt { color: var(--lima); }
+.comando button {
+  margin-left: auto; font: inherit; font-size: 13px; font-weight: 700;
+  background: transparent; color: var(--sobre-invertido); cursor: pointer;
+  border: 1px solid rgba(249,249,246,.28); border-radius: 999px; padding: 7px 15px;
+}
+.comando button:hover { background: rgba(249,249,246,.12); }
+
+.garantias { list-style: none; padding: 0; margin: 0; display: grid; gap: 1px; background: var(--borde); }
+.garantias li { background: var(--fondo); padding: 17px 2px; color: var(--texto-2); font-size: 15.5px; }
+.garantias strong { color: var(--texto); }
+
+footer {
+  border-top: 1px solid var(--borde); background: var(--fondo-2);
+  color: var(--suave); font-size: 13.5px;
+}
+footer .adentro {
+  max-width: 1000px; margin: 0 auto; padding: 30px 22px;
+  display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
+}
+footer a { color: var(--suave); }
+footer .der { margin-left: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .cortina { animation: cortinaFuera .01s linear forwards; }
+  .cortina-caja { animation: none !important; }
+  .palabra, .palabra-entra, .hero-cta {
+    animation: none !important; opacity: 1 !important; transform: none !important; filter: none !important;
+  }
+}
+`;
+
+const GUION = `
+(function () {
+  // El titular ya viene escrito en el HTML: si este script no corre, la frase
+  // más importante de la página sigue ahí. Aquí solo se envuelve cada palabra
+  // para que entren una tras otra.
+  //
+  // Los espacios son nodos de texto de verdad, no margin-right: con margen,
+  // copiar el titular o leerlo con un lector de pantalla daba las palabras
+  // pegadas — "TuWhatsAppyaestusistema".
+  var titular = document.getElementById('titular');
+  var palabras = titular.textContent.trim().split(/\\s+/);
+  titular.textContent = '';
+
+  palabras.forEach(function (palabra, i) {
+    var s = document.createElement('span');
+    s.className = 'palabra-entra';
+    s.textContent = palabra;
+    s.style.animationDelay = (0.85 + i * 0.045) + 's';
+    titular.appendChild(s);
+    titular.appendChild(document.createTextNode(' '));
+  });
+
+  var boton = document.getElementById('hamburguesa');
+  var menu = document.getElementById('menu');
+  function cerrar() { boton.setAttribute('aria-expanded', 'false'); menu.classList.remove('abierto'); }
+  boton.addEventListener('click', function () {
+    var abierto = boton.getAttribute('aria-expanded') === 'true';
+    boton.setAttribute('aria-expanded', String(!abierto));
+    menu.classList.toggle('abierto', !abierto);
+  });
+  menu.querySelectorAll('a').forEach(function (a) { a.addEventListener('click', cerrar); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrar(); });
+
+  // Copiar el comando de instalación.
+  var copiar = document.getElementById('copiar');
+  if (copiar && navigator.clipboard) {
+    copiar.addEventListener('click', function () {
+      navigator.clipboard.writeText('npx chuno init').then(function () {
+        copiar.textContent = 'Copiado';
+        setTimeout(function () { copiar.textContent = 'Copiar'; }, 1600);
+      });
+    });
+  }
+
+  // El spotlight.
+  //
+  // Se hace con una máscara de gradiente y dos variables CSS. La versión obvia
+  // —pintar un canvas y pasarlo con toDataURL()— codifica un PNG completo en
+  // CADA cuadro; en un teléfono de gama media eso cae a un dígito de fps.
+  var capa = document.getElementById('orden');
+  var quieto = window.matchMedia('(hover: none), (prefers-reduced-motion: reduce)');
+  if (capa && !quieto.matches) {
+    var destinoX = 0, destinoY = 0, x = 0, y = 0, arrancado = false;
+
+    function centrar() {
+      var r = capa.getBoundingClientRect();
+      if (!arrancado) { destinoX = x = r.width / 2; destinoY = y = r.height / 2; }
+    }
+    centrar();
+    window.addEventListener('resize', centrar);
+
+    window.addEventListener('pointermove', function (e) {
+      var r = capa.getBoundingClientRect();
+      arrancado = true;
+      destinoX = e.clientX - r.left;
+      destinoY = e.clientY - r.top;
+    }, { passive: true });
+
+    (function seguir() {
+      x += (destinoX - x) * 0.12;
+      y += (destinoY - y) * 0.12;
+      capa.style.setProperty('--mx', x.toFixed(1) + 'px');
+      capa.style.setProperty('--my', y.toFixed(1) + 'px');
+      requestAnimationFrame(seguir);
+    })();
+  }
+})();
+`;
+
 export function landing(): string {
+  const cortina = (clase: string) =>
+    `<div class="cortina-fila ${clase}">${'<div class="cortina-caja"></div>'.repeat(5)}</div>`;
+
+  const burbujas = BURBUJAS.map(
+    (b) =>
+      `<div class="burbuja-caos ${b.mia ? "mia" : ""}" style="left:${b.x};top:${b.y};transform:rotate(${b.giro})">${b.texto}</div>`,
+  ).join("");
+
+  const filas = FILAS.map(
+    (f) => `<div class="tablero-fila">
+      <div>
+        <div class="quien">${f.quien}</div>
+        <div class="que">${f.que}</div>
+      </div>
+      <div class="cuando">
+        <span class="marca-chip ${f.riesgo}">${f.chip}</span>
+        <small>${f.cuando}</small>
+      </div>
+    </div>`,
+  ).join("");
+
+  const pasos = PASOS.map(
+    (p) => `<div class="paso">
+      <span class="n">${p.n}</span>
+      <h3>${p.titulo}</h3>
+      <p>${p.texto}</p>
+    </div>`,
+  ).join("");
+
+  const garantias = GARANTIAS.map(
+    (g) => `<li><strong>${g.fuerte}</strong> ${g.resto}</li>`,
+  ).join("");
+
   return `<!doctype html>
 <html lang="es"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CHUNO — el asistente que se acuerda de lo que le prometiste a tu cliente</title>
 <meta name="description" content="En los negocios por encargo el pedido nace en un chat de WhatsApp y muere ahí. CHUNO lo convierte en un pedido con fecha, vigila las promesas en riesgo y nunca le escribe a tu cliente sin tu permiso.">
-<style>
-:root {
-  --fondo:#0d0f14; --tarjeta:#161a22; --borde:#252b38; --texto:#eceef2;
-  --suave:#98a2b3; --acento:#4f8cff; --alerta:#ff6b6b; --bien:#3ecf8e;
-}
-@media (prefers-color-scheme: light) {
-  :root { --fondo:#fbfbfd; --tarjeta:#fff; --borde:#e4e7ee; --texto:#0f1420; --suave:#5c6675; }
-}
-* { box-sizing:border-box; }
-body { margin:0; background:var(--fondo); color:var(--texto);
-  font:16px/1.65 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; }
-.envoltorio { max-width:760px; margin:0 auto; padding:0 20px 80px; }
-.marca { padding:28px 0 0; font-weight:700; letter-spacing:-0.3px; }
-h1 { font-size:clamp(28px,5.4vw,44px); line-height:1.18; letter-spacing:-0.8px; margin:44px 0 0; }
-.entrada { font-size:clamp(17px,2.4vw,19px); color:var(--suave); margin:20px 0 0; max-width:62ch; }
-.acciones { display:flex; gap:12px; flex-wrap:wrap; margin:34px 0 0; }
-.boton { display:inline-block; padding:13px 24px; border-radius:10px; text-decoration:none;
-  font-weight:600; background:var(--acento); color:#fff; }
-.boton.suave { background:transparent; color:var(--texto); border:1px solid var(--borde); }
-.nota { color:var(--suave); font-size:14px; margin:12px 0 0; }
-h2 { font-size:21px; letter-spacing:-0.3px; margin:56px 0 14px; }
-p { max-width:66ch; }
-.cita { border-left:3px solid var(--acento); padding:4px 0 4px 18px; margin:26px 0;
-  color:var(--texto); font-size:18px; }
-.rejilla { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); margin-top:18px; }
-.caja { background:var(--tarjeta); border:1px solid var(--borde); border-radius:12px; padding:18px; }
-.caja h3 { margin:0 0 6px; font-size:15px; }
-.caja p { margin:0; color:var(--suave); font-size:14px; }
-ul { color:var(--suave); max-width:66ch; padding-left:20px; }
-li { margin:7px 0; }
-li strong { color:var(--texto); }
-footer { margin-top:64px; padding-top:22px; border-top:1px solid var(--borde);
-  color:var(--suave); font-size:14px; }
-</style>
-</head><body><div class="envoltorio">
+${FUENTES_VOZ}
+<style>${CSS}</style>
+</head><body>
 
-<div class="marca">CHUNO</div>
+<div class="cortina" aria-hidden="true">${cortina("arriba")}${cortina("abajo")}</div>
 
-<h1>Tu WhatsApp ya es tu sistema operativo.<br>El problema es que no es un sistema.</h1>
+<a class="marca-fija" href="/">CHUNO</a>
 
-<p class="entrada">
-En una óptica, una floristería o un taller, el pedido nace en una conversación
-y muere ahí. La fecha que le prometiste al cliente vive en tu cabeza o en una
-libreta. Cuando el cliente escribe <em>"¿ya está listo?"</em>, te toca buscar
-entre cientos de chats. Y cuando un pedido se va a atrasar, te enteras el día
-que el cliente reclama.
-</p>
+<button class="hamburguesa" id="hamburguesa" aria-expanded="false" aria-controls="menu" aria-label="Abrir menú">
+  <span class="barra"></span><span class="barra"></span>
+</button>
 
-<div class="acciones">
-  <a class="boton" href="/demo">Ver la demo — sin registro</a>
-  <a class="boton suave" href="https://github.com/">Ver el código</a>
-</div>
-<p class="nota">Datos de ejemplo de una óptica. Puedes aprobar decisiones y ver qué pasa.</p>
-
-<h2>Qué hace distinto</h2>
-<p>
-Un chatbot responde mensajes. CHUNO produce <strong>estado operativo</strong>:
-lee la conversación, arma el pedido con su fecha comprometida, y te avisa
-<em>antes</em> de que la promesa se caiga.
-</p>
-
-<div class="cita">
-  Todo el mundo está construyendo bots que contestan.<br>
-  CHUNO es el que se acuerda de lo que prometiste.
+<div class="menu" id="menu">
+  <nav>
+    <a href="#como-funciona">Cómo funciona</a>
+    <a href="#confianza">Por qué confiar</a>
+    <a href="/demo">Ver la demo</a>
+    <a href="${REPO}">El código</a>
+  </nav>
+  <p class="apunte">Se instala en la nube de tu propio negocio. Tus conversaciones no pasan por nosotros.</p>
+  <div>${pill("/entrar", "Entrar al panel", "clara")}</div>
 </div>
 
-<div class="rejilla">
-  <div class="caja">
-    <h3>Convierte chats en pedidos</h3>
-    <p>Cliente, qué encargó, cuánto y para cuándo. Sin que nadie llene un formulario.</p>
+<main class="hero">
+  <div class="palabra" aria-hidden="true"><span>PROMESAS</span></div>
+
+  <!-- Debajo, el problema. Encima y recortado por el spotlight, lo mismo
+       convertido en estado operativo: el cursor destapa el orden. -->
+  <div class="capa capa-caos" aria-hidden="true"><div class="lienzo">${burbujas}</div></div>
+  <div class="capa capa-orden" id="orden" aria-hidden="true">
+    <div class="lienzo">
+      <div class="tablero">
+        <div class="tablero-titulo">Tus promesas, hoy</div>
+        ${filas}
+      </div>
+    </div>
   </div>
-  <div class="caja">
-    <h3>Vigila las promesas</h3>
-    <p>Revisa tus pedidos cada media hora y levanta la mano cuando una fecha está en riesgo.</p>
+
+  <div class="hero-texto">
+    <h1 class="hero-titular" id="titular">${TITULAR}</h1>
+    <div class="hero-cta">${pill("/demo", "Ver la demo — sin registro")}</div>
   </div>
-  <div class="caja">
-    <h3>Te pide permiso</h3>
-    <p>Nunca le escribe a tu cliente sin que tú lo apruebes. Puedes editar el mensaje antes.</p>
-  </div>
+</main>
+
+<div class="franja">
+  <section class="seccion-p" id="como-funciona">
+    <p class="rotulo">Cómo funciona</p>
+    <h2>Un chatbot contesta. CHUNO se acuerda.</h2>
+    <p class="entrada">
+      La diferencia no está en cómo responde, sino en lo que deja atrás: un pedido
+      con fecha comprometida que alguien vigila por ti.
+    </p>
+    <div class="pasos">${pasos}</div>
+    <div class="comando">
+      <code><span class="prompt">❯</span> npx chuno init</code>
+      <button id="copiar" type="button">Copiar</button>
+    </div>
+  </section>
 </div>
 
-<h2>Por qué puedes confiarle tu operación</h2>
-<ul>
-  <li><strong>Corre en tu propia nube.</strong> Tus conversaciones y tus clientes no pasan por servidores nuestros.</li>
-  <li><strong>La IA no toca la base de datos.</strong> Solo propone datos que el sistema valida; si algo no cuadra, va a tu bandeja en vez de escribirse solo.</li>
-  <li><strong>Nada sale sin tu visto bueno.</strong> Es una regla del diseño, no una opción que se pueda apagar.</li>
-  <li><strong>Queda registro de todo:</strong> qué propuso el asistente, qué aprobaste tú y cuándo.</li>
-  <li><strong>Los mensajes se borran a los 90 días.</strong> Tratamiento de datos conforme a la Ley 1581 (Habeas Data).</li>
-  <li><strong>Si le preguntan si es un bot, lo admite.</strong> Siempre.</li>
-</ul>
+<section class="seccion-p" id="confianza">
+  <p class="rotulo">Por qué puedes confiarle tu operación</p>
+  <h2>Le estás dando tu chat a un programa. Estas son las reglas.</h2>
+  <ul class="garantias">${garantias}</ul>
+</section>
 
-<h2>Para quién es</h2>
-<p>
-Negocios donde el pedido se origina en una conversación, hay un proceso interno
-de varios días y se le prometió una fecha al cliente: ópticas, floristerías,
-talleres, veterinarias, laboratorios dentales, imprentas. No es un sector, es una
-forma de operar.
-</p>
+<footer><div class="adentro">
+  <span>CHUNO · Plug Nights 2026 · Carril de optimización de procesos</span>
+  <span class="der"><a href="${REPO}">Código abierto</a> · <a href="/entrar">Entrar al panel</a></span>
+</div></footer>
 
-<footer>
-  CHUNO · Construido para Plug Nights 2026 · Carril de optimización de procesos
-</footer>
-
-</div></body></html>`;
+<script>${GUION}</script>
+</body></html>`;
 }
