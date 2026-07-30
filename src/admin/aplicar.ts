@@ -1,9 +1,7 @@
 import { transicionar } from "../core/pedido/estado";
 import { resolver, type Decision, type PayloadPropuesta, type Propuesta } from "../core/propuesta/tipos";
 import { fallo, ok, type Resultado } from "../core/resultado";
-import { canalDemo } from "../canales/demo";
-import { crearCanalTelegram } from "../canales/telegram";
-import type { Canal } from "../canales/tipos";
+import { canalSaliente } from "../canales/salida";
 import { ahoraISO } from "../db/id";
 import type { Env } from "../env";
 import { guardarMensaje, obtenerConversacion } from "../db/repos/conversacion";
@@ -103,7 +101,7 @@ async function ejecutar(
       const conversacion = await obtenerConversacion(env.DB, negocioId, p.conversacionId);
       if (!conversacion) return fallo("la conversación ya no existe");
 
-      const canal = canalPara(env, conversacion.canal);
+      const canal = await canalSaliente(env, negocioId, conversacion.canal);
       const envio = await canal.enviar(conversacion.canalChatId, p.texto);
       if (!envio.ok) return fallo(`no se pudo enviar: ${envio.error}`);
 
@@ -135,8 +133,4 @@ async function ejecutar(
       return ok("Fecha actualizada");
     }
   }
-}
-
-function canalPara(env: Env, id: string): Canal {
-  return id === "telegram" ? crearCanalTelegram(env.TELEGRAM_BOT_TOKEN) : canalDemo;
 }

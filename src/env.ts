@@ -8,6 +8,8 @@ export interface Env {
   readonly TELEGRAM_BOT_TOKEN: string;
   readonly TELEGRAM_WEBHOOK_SECRET: string;
   readonly PANEL_PASSWORD: string;
+  /** Llave maestra AES-GCM (base64, 32 bytes) para credenciales por negocio en D1. */
+  readonly CLAVE_CIFRADO: string;
 
   // Vars (wrangler.jsonc)
   readonly NOMBRE_BOT: string;

@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { basicAuth } from "hono/basic-auth";
 
 import { hoyEnZona } from "./db/id";
@@ -11,6 +11,7 @@ import { vistaBandeja, vistaPedidos, vistaRegistro } from "./admin/vistas";
 import { landing } from "./publico/landing";
 import { crearCanalTelegram, registrarWebhook, webhookAutentico } from "./canales/telegram";
 import { obtenerNegocio } from "./db/repos/negocio";
+import { leerCredencial } from "./db/repos/credencial";
 import { guardarMensaje, obtenerOCrearConversacion } from "./db/repos/conversacion";
 import { listarPedidos } from "./db/repos/pedido";
 import { contarPendientes, listarPendientes } from "./db/repos/propuesta";
@@ -272,20 +273,21 @@ montarPanel("/demo", (env) => env.NEGOCIO_DEMO);
 
 // ───────────────────────────────────────────────────────────────  Telegram  ──
 
-app.post("/webhook/telegram", async (c) => {
-  // Primero la autenticidad, antes de leer o escribir nada. La URL del Worker es
-  // pública; sin este chequeo cualquiera inyecta mensajes falsos.
-  if (!webhookAutentico(c.req.raw, c.env.TELEGRAM_WEBHOOK_SECRET)) {
-    return c.text("no autorizado", 401);
-  }
-
-  const canal = crearCanalTelegram(c.env.TELEGRAM_BOT_TOKEN);
+/**
+ * Lo que pasa cuando llega un mensaje, sea del bot global o de un bot por
+ * negocio: normalizar, guardar y despertar al Durable Object. La autenticación
+ * ya ocurrió — cada ruta valida SU secreto antes de llamar aquí.
+ */
+async function atenderTelegram(
+  c: Context<{ Bindings: Env }>,
+  negocioId: string,
+  botToken: string,
+): Promise<Response> {
+  const canal = crearCanalTelegram(botToken);
   const entrante = canal.interpretar(await c.req.json());
 
   // Siempre 200: un error nuestro no debe hacer que Telegram reintente en bucle.
   if (!entrante) return c.text("ok");
-
-  const negocioId = c.env.NEGOCIO_TELEGRAM;
 
   const conversacion = await obtenerOCrearConversacion(
     c.env.DB,
@@ -310,6 +312,37 @@ app.post("/webhook/telegram", async (c) => {
   });
 
   return c.text("ok");
+}
+
+app.post("/webhook/telegram", async (c) => {
+  // Primero la autenticidad, antes de leer o escribir nada. La URL del Worker es
+  // pública; sin este chequeo cualquiera inyecta mensajes falsos.
+  if (!webhookAutentico(c.req.raw, c.env.TELEGRAM_WEBHOOK_SECRET)) {
+    return c.text("no autorizado", 401);
+  }
+
+  return atenderTelegram(c, c.env.NEGOCIO_TELEGRAM, c.env.TELEGRAM_BOT_TOKEN);
+});
+
+// Multi-bot: los negocios creados por el onboarding reciben aquí, cada uno con
+// SU secreto. El negocioId de la URL no autentica nada — el secreto sí.
+app.post("/webhook/telegram/:negocioId", async (c) => {
+  const negocioId = c.req.param("negocioId");
+
+  const secreto = await leerCredencial(
+    c.env.DB,
+    negocioId,
+    "telegram_webhook_secret",
+    c.env.CLAVE_CIFRADO,
+  );
+  if (!secreto || !webhookAutentico(c.req.raw, secreto)) {
+    return c.text("no autorizado", 401);
+  }
+
+  const token = await leerCredencial(c.env.DB, negocioId, "telegram_token", c.env.CLAVE_CIFRADO);
+  if (!token) return c.text("ok");
+
+  return atenderTelegram(c, negocioId, token);
 });
 
 /** Le dice a Telegram a dónde mandar los mensajes. Se corre una sola vez. */

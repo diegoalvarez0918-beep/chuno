@@ -101,6 +101,11 @@ input:not([type=hidden]) { font: inherit; background: var(--fondo); color: var(-
 td .acciones { flex-wrap: nowrap; }
 .fila-alta { display: grid; gap: 8px; grid-template-columns: 2fr 2fr 1fr 1fr auto; margin-top: 14px; }
 @media (max-width: 640px) { .fila-alta { grid-template-columns: 1fr 1fr; } }
+.burbuja { max-width: 85%; padding: 10px 14px; border-radius: 14px; margin-bottom: 8px; white-space: pre-wrap; }
+.burbuja.pregunta { background: var(--tarjeta); border: 1px solid var(--borde); }
+.burbuja.respuesta { background: color-mix(in srgb, var(--acento) 14%, transparent); margin-left: auto; }
+select.negocios { font: inherit; background: var(--tarjeta); color: var(--texto);
+  border: 1px solid var(--borde); border-radius: 8px; padding: 5px 8px; }
 `;
 
 export function pagina(opciones: {
@@ -110,11 +115,23 @@ export function pagina(opciones: {
   pendientes: number;
   contenido: string;
   base: string;
+  /** Se agrega a los enlaces de la nav para conservar el negocio elegido. */
+  consulta?: string;
+  /** Si hay más de uno, la cabecera muestra un selector en vez del nombre. */
+  selector?: readonly { url: string; nombre: string; actual: boolean }[];
 }): string {
+  const consulta = opciones.consulta ?? "";
   const enlace = (ruta: string, texto: string, clave: string, globo = 0) =>
-    `<a href="${opciones.base}${ruta}" class="${opciones.activo === clave ? "activo" : ""}">${texto}${
+    `<a href="${opciones.base}${ruta}${consulta}" class="${opciones.activo === clave ? "activo" : ""}">${texto}${
       globo > 0 ? `<span class="globo">${globo}</span>` : ""
     }</a>`;
+
+  const cabecera =
+    opciones.selector && opciones.selector.length > 1
+      ? `<select class="negocios" onchange="location.href=this.value">${opciones.selector
+          .map((o) => `<option value="${esc(o.url)}"${o.actual ? " selected" : ""}>${esc(o.nombre)}</option>`)
+          .join("")}</select>`
+      : `<span class="negocio">${esc(opciones.negocio)}</span>`;
 
   return `<!doctype html>
 <html lang="es"><head>
@@ -124,7 +141,7 @@ export function pagina(opciones: {
 <title>${esc(opciones.titulo)} · CHUNO</title>
 <style>${CSS}</style>
 </head><body><div class="envoltorio">
-<header><h1>CHUNO</h1><span class="negocio">${esc(opciones.negocio)}</span></header>
+<header><h1>CHUNO</h1>${cabecera}</header>
 <nav>
   ${enlace("/inicio", "Inicio", "inicio")}
   ${enlace("/bandeja", "Decisiones", "bandeja", opciones.pendientes)}
@@ -132,6 +149,7 @@ export function pagina(opciones: {
   ${enlace("/clientes", "Clientes", "clientes")}
   ${enlace("/conocimiento", "Conocimiento", "conocimiento")}
   ${enlace("/registro", "Registro", "registro")}
+  ${enlace("/comenzar", "＋ Nuevo asistente", "comenzar")}
 </nav>
 ${opciones.contenido}
 <p class="pie">Los mensajes se borran automáticamente a los 90 días.</p>

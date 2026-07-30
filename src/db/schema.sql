@@ -240,3 +240,28 @@ CREATE TABLE IF NOT EXISTS faq (
 );
 
 CREATE INDEX IF NOT EXISTS idx_faq_negocio ON faq (negocio_id);
+
+-- ────────────────────────────────────────────────────────────  credenciales ───
+-- Credenciales por negocio (token del bot, secreto del webhook), SIEMPRE
+-- cifradas con AES-GCM. La llave maestra vive en secretos de Cloudflare
+-- (CLAVE_CIFRADO): la base sola no alcanza para hablar por los bots.
+
+CREATE TABLE IF NOT EXISTS credenciales (
+  negocio_id     TEXT NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
+  clave          TEXT NOT NULL,
+  valor_cifrado  TEXT NOT NULL,
+  actualizado_en TEXT NOT NULL,
+  PRIMARY KEY (negocio_id, clave)
+);
+
+-- ─────────────────────────────────────────────────────────────  entrevistas ───
+-- El estado de la entrevista de onboarding. El negocio se crea al responder la
+-- primera pregunta (el nombre), así que la fila nace ya con su negocio_id — y
+-- una entrevista por negocio: la clave primaria ES el negocio.
+
+CREATE TABLE IF NOT EXISTS entrevistas (
+  negocio_id     TEXT PRIMARY KEY REFERENCES negocios(id) ON DELETE CASCADE,
+  estado_json    TEXT NOT NULL,
+  creado_en      TEXT NOT NULL,
+  actualizado_en TEXT NOT NULL
+);

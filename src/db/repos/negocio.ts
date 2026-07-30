@@ -7,6 +7,8 @@
  * disciplina de quien llama.
  */
 
+import { ahoraISO } from "../id";
+
 export interface Negocio {
   readonly id: string;
   readonly nombre: string;
@@ -62,4 +64,27 @@ export async function leerSetting(
     .first<{ valor: string }>();
 
   return fila?.valor ?? null;
+}
+
+/** Alta de un negocio. Lo usa el onboarding al responder la primera pregunta. */
+export async function crearNegocio(
+  db: D1Database,
+  negocio: { id: string; nombre: string; giro: string; zonaHoraria: string },
+): Promise<void> {
+  await db
+    .prepare("INSERT INTO negocios (id, nombre, giro, zona_horaria, creado_en) VALUES (?, ?, ?, ?, ?)")
+    .bind(negocio.id, negocio.nombre, negocio.giro, negocio.zonaHoraria, ahoraISO())
+    .run();
+}
+
+export async function escribirSetting(
+  db: D1Database,
+  negocioId: string,
+  clave: string,
+  valor: string,
+): Promise<void> {
+  await db
+    .prepare("INSERT OR REPLACE INTO settings (negocio_id, clave, valor) VALUES (?, ?, ?)")
+    .bind(negocioId, clave, valor)
+    .run();
 }

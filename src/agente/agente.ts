@@ -6,7 +6,7 @@ import {
   validarExtraccion,
   type ExtraccionPedido,
 } from "../core/pedido/extraccion";
-import { crearCanalTelegram } from "../canales/telegram";
+import { canalSaliente } from "../canales/salida";
 import { crearProveedorGemini } from "../llm/gemini";
 import { hoyEnZona } from "../db/id";
 import { modelos, numero, type Env } from "../env";
@@ -103,7 +103,7 @@ export class AgenteConversacion extends DurableObject<Env> {
     if (!ultimoDelCliente) return;
 
     const giro = obtenerGiro(negocio.giro);
-    const canal = crearCanalTelegram(this.env.TELEGRAM_BOT_TOKEN);
+    const canal = await canalSaliente(this.env, negocioId, conversacion.canal);
 
     // El CRM se alimenta aquí: sin pantalla de captura y sin que nadie escriba
     // nada. Un CRM que exige que alguien capture los datos es un CRM que se
@@ -153,6 +153,11 @@ export class AgenteConversacion extends DurableObject<Env> {
       const envio = await canal.enviar(canalChatId, respuesta.valor);
       if (envio.ok) {
         await guardarMensaje(db, negocioId, conversacionId, "agente", respuesta.valor);
+      } else {
+        // Un envío que falla en silencio es lo peor de los dos mundos: el
+        // cliente no recibe nada y el dueño no se entera de que no recibió.
+        // El motivo viene ya saneado del canal — nunca trae texto del mensaje.
+        await auditar(db, negocioId, "envio_fallido", { motivo: envio.error }, "agente");
       }
     } else {
       // Que el cerebro falle no puede dejar al cliente hablando solo.

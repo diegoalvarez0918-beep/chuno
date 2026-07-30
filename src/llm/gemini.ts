@@ -71,10 +71,13 @@ export function crearProveedorGemini(
 
       ultimoError = intento.error;
 
-      // 404 = modelo jubilado. 429 = cuota agotada. En ambos, el siguiente
-      // modelo puede funcionar. Cualquier otro error es nuestro y no lo arregla
-      // cambiar de modelo, así que no seguimos gastando tiempo.
-      if (!intento.error.includes("HTTP 404") && !intento.error.includes("HTTP 429")) break;
+      // 404 = modelo jubilado. 429 = cuota agotada. 503 = ese modelo está
+      // saturado ahora mismo (visto en producción el 2026-07-30, tumbando la
+      // extracción entera). En los tres, el siguiente modelo puede funcionar.
+      // Cualquier otro error es nuestro y no lo arregla cambiar de modelo, así
+      // que no seguimos gastando tiempo.
+      const reintentable = ["HTTP 404", "HTTP 429", "HTTP 503"];
+      if (!reintentable.some((codigo) => intento.error.includes(codigo))) break;
     }
 
     return fallo(ultimoError);

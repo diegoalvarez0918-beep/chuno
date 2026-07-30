@@ -30,20 +30,20 @@ function vacio(titulo: string, detalle: string): string {
  * La bandeja es la pantalla central del producto: el dueño no abre 400 mensajes,
  * abre las decisiones que de verdad necesitan su criterio.
  */
-export function vistaBandeja(propuestas: readonly Propuesta[], base: string): string {
+export function vistaBandeja(propuestas: readonly Propuesta[], accionDecidir: string): string {
   if (propuestas.length === 0) {
     return vacio("Todo al día", "Cuando algo necesite tu criterio, aparece aquí.");
   }
 
-  return propuestas.map((p) => tarjetaPropuesta(p, base)).join("");
+  return propuestas.map((p) => tarjetaPropuesta(p, accionDecidir)).join("");
 }
 
-function tarjetaPropuesta(propuesta: Propuesta, base: string): string {
+function tarjetaPropuesta(propuesta: Propuesta, accionDecidir: string): string {
   const urgente = propuesta.payload.tipo === "enviar_aviso";
 
   return `<div class="tarjeta ${urgente ? "urgente" : ""}">
     <p class="motivo">${esc(propuesta.motivo)}</p>
-    <form method="post" action="${base}/decidir">
+    <form method="post" action="${accionDecidir}">
       <input type="hidden" name="id" value="${esc(propuesta.id)}">
       ${cuerpoPropuesta(propuesta)}
       <div class="acciones">
