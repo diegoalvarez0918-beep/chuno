@@ -205,18 +205,21 @@ body {
 
 /* La palabra gigante detrás de todo. Decorativa: no la lee un lector de pantalla.
    Va MÁS clara que el fondo, no más oscura: así se lee como un relieve y no
-   compite con las burbujas ni con el tablero que van encima. Se desborda por
-   los dos costados a propósito — el hero recorta. */
+   compite con las burbujas ni con el tablero que van encima.
+   Va en SVG con textLength y no en CSS con un tamaño en vw: ocho letras
+   con nowrap se desbordan por los dos costados y se lee "ROMESA". Forzando la
+   longitud, la palabra calza el ancho exacto en cualquier pantalla y sin
+   depender de que Raleway ya haya cargado cuando el navegador mide. */
 .palabra {
-  position: absolute; bottom: -30px; left: 0; right: 0; z-index: 2;
-  text-align: center; pointer-events: none;
+  position: absolute; bottom: -6px; left: 0; right: 0; z-index: 2;
+  pointer-events: none; line-height: 0;
   transform: translateY(330px); animation: palabraSube 1s cubic-bezier(.16,1,.3,1) 1.5s forwards;
 }
-@media (min-width: 768px) { .palabra { bottom: -40px; } }
-.palabra span {
-  font-family: var(--display); font-weight: 800; color: #FFFFFF;
-  font-size: clamp(120px, 26vw, 500px); line-height: .8; letter-spacing: -.04em;
-  white-space: nowrap; display: block;
+@media (min-width: 768px) { .palabra { bottom: -10px; } }
+.palabra svg { display: block; width: 100%; height: auto; }
+.palabra text {
+  font-family: var(--display); font-weight: 800; font-size: 235px;
+  fill: #FFFFFF; letter-spacing: -.02em;
 }
 @keyframes palabraSube { to { transform: translateY(0); } }
 
@@ -233,9 +236,12 @@ body {
   z-index: 7;
   --mx: 50%; --my: 50%;
   /* Núcleo opaco y caída corta: con un degradado suave el tablero se lee como
-     un fantasma encima del caos en vez de reemplazarlo. */
-  -webkit-mask-image: radial-gradient(circle 320px at var(--mx) var(--my), #000 0 62%, rgba(0,0,0,.85) 78%, rgba(0,0,0,.3) 91%, transparent 100%);
-  mask-image: radial-gradient(circle 320px at var(--mx) var(--my), #000 0 62%, rgba(0,0,0,.85) 78%, rgba(0,0,0,.3) 91%, transparent 100%);
+     un fantasma encima del caos en vez de reemplazarlo.
+     El núcleo tiene que cubrir la MEDIA DIAGONAL del tablero (~350 px), no su
+     mitad de ancho: si no, las esquinas se recortan y el bloque oscuro se ve
+     como una mancha circular en vez de una tarjeta. */
+  -webkit-mask-image: radial-gradient(circle 620px at var(--mx) var(--my), #000 0 62%, rgba(0,0,0,.85) 76%, rgba(0,0,0,.3) 90%, transparent 100%);
+  mask-image: radial-gradient(circle 620px at var(--mx) var(--my), #000 0 62%, rgba(0,0,0,.85) 76%, rgba(0,0,0,.3) 90%, transparent 100%);
 }
 /* Un teléfono no tiene cursor: sin esto la mitad de los votantes vería solo el
    problema y nunca la solución. Igual con quien pidió menos movimiento. */
@@ -248,43 +254,52 @@ body {
 
 /* Apagadas a propósito: son el ruido del que el tablero rescata al dueño. Si
    compiten en contraste con lo que revela el spotlight, no se lee ninguno. */
+/* Apagadas, pero no invisibles: con el tablero ya en oscuro, unas burbujas casi
+   del color del fondo dejaban medio hero en gris plano. */
 .burbuja-caos {
   position: absolute; max-width: 15rem; padding: 11px 15px; border-radius: 15px;
-  background: #EAEAE5; color: #A6A29A; font-size: 14px; line-height: 1.45;
-  border: 1px solid #E2E2DC; border-bottom-left-radius: 5px;
+  background: #E6E6DF; color: #8C8880; font-size: 14px; line-height: 1.45;
+  border: 1px solid #DBDBD3; border-bottom-left-radius: 5px;
 }
 .burbuja-caos.mia {
-  background: #E3E3DD; border-bottom-left-radius: 15px; border-bottom-right-radius: 5px;
+  background: #DEDED6; border-bottom-left-radius: 15px; border-bottom-right-radius: 5px;
 }
 @media (max-width: 767px) { .burbuja-caos { font-size: 12.5px; max-width: 11rem; padding: 9px 12px; } }
 
+/* El tablero va invertido, no blanco.
+   Sobre un hero crema, una tarjeta blanca sobre fondo casi blanco no produce
+   ningún contraste: la pantalla entera se lee como un gris plano. El bloque
+   oscuro es el único elemento con masa del hero, y además dice lo que hay que
+   decir — el desorden es pálido, el orden pesa. */
 .tablero {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  width: min(560px, 88%); background: var(--tarjeta);
-  border: 1px solid var(--borde-fuerte); border-radius: var(--radio);
-  box-shadow: 0 24px 64px rgba(26,29,20,.20); overflow: hidden;
+  width: min(560px, 88%); background: var(--invertido); color: var(--sobre-invertido);
+  border-radius: var(--radio);
+  box-shadow: 0 30px 80px rgba(26,29,20,.32); overflow: hidden;
 }
 .tablero-titulo {
   font-family: var(--display); font-size: 11px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 1.5px; color: var(--suave);
-  padding: 15px 18px 11px;
+  text-transform: uppercase; letter-spacing: 1.5px; color: var(--lima);
+  padding: 16px 20px 12px;
 }
 .tablero-fila {
   display: flex; align-items: center; gap: 12px;
-  padding: 11px 18px; border-top: 1px solid var(--borde);
+  padding: 12px 20px; border-top: 1px solid rgba(249,249,246,.10);
 }
 .tablero-fila .quien { font-weight: 700; font-size: 14.5px; }
-.tablero-fila .que { color: var(--suave); font-size: 12.5px; }
+.tablero-fila .que { color: #9A958C; font-size: 12.5px; }
 .tablero-fila .cuando { margin-left: auto; text-align: right; white-space: nowrap; }
-.tablero-fila .cuando small { display: block; color: var(--suave); font-size: 11.5px; margin-top: 3px; }
+.tablero-fila .cuando small { display: block; color: #9A958C; font-size: 11.5px; margin-top: 3px; }
 .marca-chip {
   display: inline-block; padding: 3px 10px; border-radius: 999px;
   font-size: 11.5px; font-weight: 700; white-space: nowrap;
 }
-.marca-chip.vencida { background: rgba(255,47,0,.10); color: var(--accion-texto); }
+/* Sobre el invertido el rojo de marca no contrasta: va el fondo sólido con
+   texto blanco, que es la única combinación accesible de las dos. */
+.marca-chip.vencida { background: var(--accion); color: #fff; }
 .marca-chip.en_riesgo { background: var(--lima); color: var(--invertido); }
-.marca-chip.sin_fecha { background: var(--fondo-3); color: var(--suave); }
-.marca-chip.ok { background: rgba(62,155,107,.12); color: var(--bien); }
+.marca-chip.sin_fecha { background: rgba(249,249,246,.14); color: #CFCBC2; }
+.marca-chip.ok { background: rgba(62,155,107,.24); color: #9EE0BC; }
 @media (max-width: 767px) { .tablero-fila .que { display: none; } }
 
 .hero-texto {
@@ -307,6 +322,18 @@ body {
   to { opacity: 1; transform: translateY(0); filter: blur(0); }
 }
 .hero-cta { opacity: 0; animation: ctaEntra .8s cubic-bezier(.25,.46,.45,.94) 1s forwards; }
+/* Debajo del CTA, no en una sección aparte: es la mitad inferior izquierda del
+   hero, que sin esto queda como un vacío de media pantalla. */
+.hero-apunte {
+  opacity: 0; animation: ctaEntra .8s cubic-bezier(.25,.46,.45,.94) 1.25s forwards;
+  display: flex; gap: 10px 22px; flex-wrap: wrap; margin: 0; max-width: 447px;
+  color: var(--suave); font-size: 14px; font-weight: 600;
+}
+.hero-apunte span { display: inline-flex; align-items: center; gap: 8px; }
+.hero-apunte span::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--lima); flex: none;
+}
 @keyframes ctaEntra {
   from { opacity: 0; transform: translateY(52px) scale(.5); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -604,7 +631,11 @@ ${FUENTES_VOZ}
 </div>
 
 <main class="hero">
-  <div class="palabra" aria-hidden="true"><span>PROMESAS</span></div>
+  <div class="palabra" aria-hidden="true">
+    <svg viewBox="0 0 1000 175" preserveAspectRatio="xMidYMax meet">
+      <text x="0" y="170" textLength="1000" lengthAdjust="spacingAndGlyphs">PROMESAS</text>
+    </svg>
+  </div>
 
   <!-- Debajo, el problema. Encima y recortado por el spotlight, lo mismo
        convertido en estado operativo: el cursor destapa el orden. -->
@@ -621,6 +652,11 @@ ${FUENTES_VOZ}
   <div class="hero-texto">
     <h1 class="hero-titular" id="titular">${TITULAR}</h1>
     <div class="hero-cta">${pill("/demo", "Ver la demo — sin registro")}</div>
+    <p class="hero-apunte">
+      <span>Corre en tu propia nube</span>
+      <span>Telegram y WhatsApp</span>
+      <span>Sin tarjeta</span>
+    </p>
   </div>
 </main>
 
