@@ -14,8 +14,28 @@ import { FUENTES_VOZ, TOKENS_VOZ, onda, topo } from "../admin/html";
 
 const REPO = "https://github.com/diegoalvarez0918-beep/chuno";
 
-/** El titular del hero, palabra por palabra: cada una entra con su retraso. */
-const TITULAR = "Tu WhatsApp ya es tu sistema operativo. El problema es que no es un sistema.";
+/**
+ * El bot está vivo desde la primera fase y hasta hoy no había forma de llegar a
+ * él desde la página. Es lo único del proyecto que un desconocido puede probar
+ * sin creernos nada.
+ *
+ * Ojo con lo que se promete aquí: este bot escribe en `mi-optica`, que vive
+ * detrás de la contraseña del panel. Quien le escriba recibe respuesta real,
+ * pero NO puede ver su propio pedido en la demo, que muestra `demo-optica`.
+ * Apuntarlo a la demo cerraría el lazo y publicaría las conversaciones de unos
+ * visitantes a los otros, que es justo lo que las reglas de privacidad prohíben.
+ */
+const BOT = "https://t.me/Chunnobot";
+
+/**
+ * El titular del hero, palabra por palabra: cada una entra con su retraso.
+ *
+ * Va en forma de pregunta y no de juego de palabras. El titular anterior
+ * ("tu WhatsApp ya es tu sistema operativo, el problema es que no es un
+ * sistema") obligaba a resolver un doble sentido antes de llegar al dolor, y
+ * quien llega frío a esta página le da segundos, no minutos.
+ */
+const TITULAR = "Le prometiste el jueves. ¿A quién, y de qué?";
 
 /** Lo que se ve debajo: el desorden del que sale el pedido. */
 const BURBUJAS: readonly { texto: string; x: string; y: string; giro: string; mia?: boolean }[] = [
@@ -372,7 +392,13 @@ body {
   from { opacity: 0; transform: translateY(10px); filter: blur(10px); }
   to { opacity: 1; transform: translateY(0); filter: blur(0); }
 }
-.hero-cta { opacity: 0; animation: ctaEntra .8s cubic-bezier(.25,.46,.45,.94) 1s forwards; }
+/* Dos destinos, un solo botón dominante. El de Telegram va "suave" porque el
+   rojo de acción es exclusivo del CTA principal: dos círculos rojos lado a lado
+   dejan de señalar cuál es el camino. */
+.hero-cta {
+  opacity: 0; animation: ctaEntra .8s cubic-bezier(.25,.46,.45,.94) 1s forwards;
+  display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap;
+}
 /* Debajo del CTA, no en una sección aparte: es la mitad inferior izquierda del
    hero, que sin esto queda como un vacío de media pantalla. */
 .hero-apunte {
@@ -704,6 +730,7 @@ ${FUENTES_VOZ}
     <a href="#como-funciona">Cómo funciona</a>
     <a href="#confianza">Por qué confiar</a>
     <a href="/demo">Ver la demo</a>
+    <a href="${BOT}">Escríbele al bot</a>
     <a href="${REPO}">El código</a>
   </nav>
   <p class="apunte">Se instala en la nube de tu propio negocio. Tus conversaciones no pasan por nosotros.</p>
@@ -741,10 +768,13 @@ ${FUENTES_VOZ}
 
   <div class="hero-texto">
     <h1 class="hero-titular" id="titular">${TITULAR}</h1>
-    <div class="hero-cta">${pill("/demo", "Ver la demo, sin registro")}</div>
+    <div class="hero-cta">
+      ${pill("/demo", "Ver la demo, sin registro")}
+      ${pill(BOT, "Escríbele al bot", "suave")}
+    </div>
     <p class="hero-apunte">
+      <span>Un bot de verdad, respondiendo ahora</span>
       <span>Corre en tu propia nube</span>
-      <span>Telegram y WhatsApp</span>
       <span>Sin tarjeta</span>
     </p>
   </div>
