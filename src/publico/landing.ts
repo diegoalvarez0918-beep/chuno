@@ -30,12 +30,14 @@ const BOT = "https://t.me/Chunnobot";
 /**
  * El titular del hero, palabra por palabra: cada una entra con su retraso.
  *
- * Va en forma de pregunta y no de juego de palabras. El titular anterior
- * ("tu WhatsApp ya es tu sistema operativo, el problema es que no es un
- * sistema") obligaba a resolver un doble sentido antes de llegar al dolor, y
- * quien llega frío a esta página le da segundos, no minutos.
+ * Dice lo que la plataforma HACE, en positivo y sin juego de palabras. Pasó por
+ * dos versiones que no servían: una que pedía resolver un doble sentido ("tu
+ * WhatsApp ya es tu sistema operativo, el problema es que no es un sistema") y
+ * otra en forma de pregunta que dejaba al visitante en el problema sin ofrecerle
+ * la salida. El dolor ya tiene su sección propia más abajo; el hero es para el
+ * valor.
  */
-const TITULAR = "Le prometiste el jueves. ¿A quién, y de qué?";
+const TITULAR = "Crea asistentes que atienden tu negocio y cumplen tus fechas.";
 
 /** Lo que se ve debajo: el desorden del que sale el pedido. */
 const BURBUJAS: readonly { texto: string; x: string; y: string; giro: string; mia?: boolean }[] = [
@@ -400,16 +402,23 @@ body {
   display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap;
 }
 /* Debajo del CTA, no en una sección aparte: es la mitad inferior izquierda del
-   hero, que sin esto queda como un vacío de media pantalla. */
+   hero, que sin esto queda como un vacío de media pantalla.
+   Era una fila de tres viñetas ("corre en tu propia nube", "sin tarjeta") que
+   se partían en dos renglones, se las comía la ilustración y hablaban de
+   infraestructura en el sitio más caro de la página. Ahora es una frase: cómo
+   se arranca y qué queda funcionando. */
 .hero-apunte {
   opacity: 0; animation: ctaEntra .8s cubic-bezier(.25,.46,.45,.94) 1.25s forwards;
-  display: flex; gap: 10px 22px; flex-wrap: wrap; margin: 0; max-width: 447px;
-  color: var(--suave); font-size: 14px; font-weight: 600;
+  margin: 0; max-width: 447px;
+  color: var(--suave); font-size: 14.5px; line-height: 1.6;
 }
-.hero-apunte span { display: inline-flex; align-items: center; gap: 8px; }
-.hero-apunte span::before {
-  content: ""; width: 7px; height: 7px; border-radius: 50%;
-  background: var(--lima); flex: none;
+/* El comando en caja clara y no en lima: el círculo rojo del CTA queda justo
+   encima, y lima y rojo-naranja al mismo peso compiten. */
+.hero-apunte code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px; font-weight: 700; color: var(--texto);
+  background: var(--fondo-3); border: 1px solid var(--borde-fuerte);
+  padding: 2px 7px; border-radius: 5px; white-space: nowrap;
 }
 @keyframes ctaEntra {
   from { opacity: 0; transform: translateY(52px) scale(.5); }
@@ -773,9 +782,8 @@ ${FUENTES_VOZ}
       ${pill(BOT, "Escríbele al bot", "suave")}
     </div>
     <p class="hero-apunte">
-      <span>Un bot de verdad, respondiendo ahora</span>
-      <span>Corre en tu propia nube</span>
-      <span>Sin tarjeta</span>
+      Todo arranca con <code>npx chuno init</code>. Respondes siete preguntas y tu
+      asistente queda atendiendo, uno por cada negocio o sucursal.
     </p>
   </div>
 </main>
