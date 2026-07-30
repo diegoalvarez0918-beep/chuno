@@ -34,7 +34,7 @@ export function avanzarLead(lead: Lead, hacia: EstadoLead, ahora: string): Resul
       posibles.length === 0
         ? `"${lead.estado}" ya cerró el embudo`
         : `desde "${lead.estado}" solo se puede pasar a: ${posibles.join(", ")}`;
-    return fallo(`transición inválida a "${hacia}" — ${detalle}`);
+    return fallo(`transición inválida a "${hacia}": ${detalle}`);
   }
 
   return ok({ ...lead, estado: hacia, actualizadoEn: ahora });

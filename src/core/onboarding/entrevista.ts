@@ -80,7 +80,7 @@ export function interpretar(paso: Paso, texto: string): Resultado<RespuestaPaso,
       const items = parsearCatalogo(limpio);
       if (items.length === 0 && !esSaltar(limpio)) {
         return fallo(
-          'No logré leer la lista. Escribe un producto por línea — por ejemplo "Lentes monofocales - $180.000" — o escribe "saltar".',
+          'No logré leer la lista. Escribe un producto por línea, por ejemplo "Lentes monofocales - $180.000", o escribe "saltar".',
         );
       }
       return ok({ paso, items });
@@ -97,7 +97,7 @@ export function interpretar(paso: Paso, texto: string): Resultado<RespuestaPaso,
     case "tono": {
       if (esSaltar(limpio)) return ok({ paso, tono: null });
       if (limpio.length < 3) {
-        return fallo('Descríbelo en pocas palabras — por ejemplo "cercano y breve" — o escribe "saltar".');
+        return fallo('Descríbelo en pocas palabras, por ejemplo "cercano y breve", o escribe "saltar".');
       }
       return ok({ paso, tono: limpio.slice(0, 300) });
     }

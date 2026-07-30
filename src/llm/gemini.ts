@@ -109,7 +109,7 @@ export function crearProveedorGemini(
 
       if (!respuesta.ok) {
         const detalle = datos.error?.message?.slice(0, 120) ?? "";
-        return fallo(`gemini/${modelo}: HTTP ${respuesta.status}${detalle ? ` — ${detalle}` : ""}`);
+        return fallo(`gemini/${modelo}: HTTP ${respuesta.status}${detalle ? `: ${detalle}` : ""}`);
       }
 
       const candidato = datos.candidates?.[0];

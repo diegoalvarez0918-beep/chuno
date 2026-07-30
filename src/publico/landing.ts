@@ -220,7 +220,7 @@ body {
 @media (min-width: 768px) { .palabra { bottom: -10px; } }
 .palabra svg { display: block; width: 100%; height: auto; }
 /* Más oscura que el fondo, no más clara. En blanco sobre crema la palabra
-   apenas se insinuaba; con la marca detrás del hero eso no sirve — tiene que
+   apenas se insinuaba; con la marca detrás del hero eso no sirve: tiene que
    leerse. Sigue por debajo del texto y del tablero en peso, que es lo que la
    mantiene de fondo y no de titular. */
 .palabra text {
@@ -263,14 +263,14 @@ body {
    está, la página se queda con las burbujas y el tablero en vez de mostrar un
    hero vacío: un despliegue no puede depender de que alguien se acordara de
    subir un PNG.
-   El spotlight no necesita dos imágenes — la de abajo va en gris y la de
+   El spotlight no necesita dos imágenes. La de abajo va en gris y la de
    arriba a color, recortada por la misma máscara. Es el mismo archivo. */
 /* El modo multiply es lo que hace desaparecer el fondo blanco de la foto sobre
    el crema del hero, sin recortarla ni exigir un PNG con transparencia: blanco
    por cualquier color da ese color. El verde del personaje queda intacto.
    Va en el CONTENEDOR y no en la imagen: la capa tiene z-index, o sea que
    es su propio contexto de apilamiento, y una imagen que se mezcla ahí adentro
-   lo hace contra un fondo transparente — es decir, contra nada. */
+   lo hace contra un fondo transparente, es decir, contra nada. */
 .capa-foto {
   z-index: 6; display: none;
   mix-blend-mode: multiply;
@@ -282,7 +282,7 @@ body {
 .hero.con-foto .capa-caos, .hero.con-foto .capa-orden { display: none; }
 /* El JPEG no deja el fondo en 255 exacto y bajo multiply eso pinta un rectángulo
    tenue alrededor del personaje. Un empujón mínimo de brillo y contraste lleva
-   ese casi-blanco a blanco puro —que bajo multiply es invisible— sin que el
+   ese casi-blanco a blanco puro (que bajo multiply es invisible) sin que el
    verde ni las llamas se noten alterados. */
 .capa-foto img {
   position: absolute; inset: 0; width: 100%; height: 100%;
@@ -295,7 +295,7 @@ body {
 @media (max-width: 767px) { .capa-foto img { object-position: center bottom; } }
 .capa-foto.gris img { filter: grayscale(1) brightness(1.08) contrast(1.05) opacity(.5); }
 /* La foto va a color y sin recortar, siempre.
-   La versión de dos capas —gris abajo, color revelada por el spotlight— se
+   La versión de dos capas (gris abajo, color revelada por el spotlight) se
    probó y falla en reposo: el puntero arranca en el centro, así que quien
    entra y no mueve el mouse ve un personaje gris. En una página que tiene
    treinta segundos para convencer, el estado por defecto no puede ser el
@@ -321,7 +321,7 @@ body {
    Sobre un hero crema, una tarjeta blanca sobre fondo casi blanco no produce
    ningún contraste: la pantalla entera se lee como un gris plano. El bloque
    oscuro es el único elemento con masa del hero, y además dice lo que hay que
-   decir — el desorden es pálido, el orden pesa. */
+   decir: el desorden es pálido, el orden pesa. */
 .tablero {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   width: min(560px, 88%); background: var(--invertido); color: var(--sobre-invertido);
@@ -684,7 +684,7 @@ export function landing(): string {
 <html lang="es"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CHUNO — el asistente que se acuerda de lo que le prometiste a tu cliente</title>
+<title>CHUNO: el asistente que se acuerda de lo que le prometiste a tu cliente</title>
 <meta name="description" content="En los negocios por encargo el pedido nace en un chat de WhatsApp y muere ahí. CHUNO lo convierte en un pedido con fecha, vigila las promesas en riesgo y nunca le escribe a tu cliente sin tu permiso.">
 ${FUENTES_VOZ}
 <style>${CSS}</style>
@@ -741,7 +741,7 @@ ${FUENTES_VOZ}
 
   <div class="hero-texto">
     <h1 class="hero-titular" id="titular">${TITULAR}</h1>
-    <div class="hero-cta">${pill("/demo", "Ver la demo — sin registro")}</div>
+    <div class="hero-cta">${pill("/demo", "Ver la demo, sin registro")}</div>
     <p class="hero-apunte">
       <span>Corre en tu propia nube</span>
       <span>Telegram y WhatsApp</span>

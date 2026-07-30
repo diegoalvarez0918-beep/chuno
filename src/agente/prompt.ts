@@ -12,7 +12,7 @@ import type { MensajeLLM } from "../llm/tipos";
 
 function bloqueConocimiento(conocimiento: readonly string[]): string {
   if (conocimiento.length === 0) {
-    return "INFORMACIÓN DEL NEGOCIO:\n(no hay información cargada — no inventes nada)";
+    return "INFORMACIÓN DEL NEGOCIO:\n(no hay información cargada. No inventes nada)";
   }
   return `INFORMACIÓN DEL NEGOCIO:\n${conocimiento.map((c) => `- ${c}`).join("\n")}`;
 }
@@ -54,12 +54,12 @@ export function promptExtraccion(giro: Giro, negocio: ContextoNegocio): string {
     "7. necesitaHumano = true cuando el cliente preguntó algo que NO se puede",
     "   responder con la información del negocio NI con el catálogo de arriba.",
     "   Si el precio o el producto SÍ está en el catálogo, necesitaHumano es",
-    "   false SIEMPRE — aunque en la conversación todavía no le hayan",
+    "   false SIEMPRE, aunque en la conversación todavía no le hayan",
     "   contestado: el asistente responde con el catálogo, no necesita ayuda.",
     "   En caso contrario escribe en",
     "   preguntaPendiente qué fue lo que preguntó, en una línea.",
     "   Si el asistente le dijo al cliente que iba a confirmar algo, entonces",
-    "   necesitaHumano es true — sin excepción. Prometer y no avisarle a nadie",
+    "   necesitaHumano es true, sin excepción. Prometer y no avisarle a nadie",
     "   deja al cliente esperando.",
     "8. Si el cliente encarga algo que está en el catálogo con precio, usa ese",
     "   precio como montoCentavos. En el bloque aparece en pesos con formato",

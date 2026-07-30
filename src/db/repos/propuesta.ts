@@ -42,7 +42,7 @@ function aPropuesta(f: FilaPropuesta): Propuesta {
   });
 
   if (!r.success) {
-    throw new Error(`propuesta ${f.id}: fila inválida — ${r.error.issues[0]?.message ?? "?"}`);
+    throw new Error(`propuesta ${f.id}: fila inválida: ${r.error.issues[0]?.message ?? "?"}`);
   }
 
   return r.data;

@@ -50,7 +50,7 @@ function aPedido(f: FilaPedido): Pedido {
   });
 
   if (!r.success) {
-    throw new Error(`pedido ${f.id}: fila inválida — ${r.error.issues[0]?.message ?? "?"}`);
+    throw new Error(`pedido ${f.id}: fila inválida: ${r.error.issues[0]?.message ?? "?"}`);
   }
 
   return r.data;

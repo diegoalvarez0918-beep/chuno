@@ -106,7 +106,7 @@ export function validarExtraccion(crudo: unknown): Resultado<ExtraccionPedido, s
     .map((i) => `${i.path.join(".") || "raíz"}: ${i.message}`)
     .join("; ");
 
-  return fallo(`extracción inválida — ${detalle}`);
+  return fallo(`extracción inválida: ${detalle}`);
 }
 
 /** Por debajo de esto, no se actúa sin un humano. */

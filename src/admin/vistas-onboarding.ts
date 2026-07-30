@@ -115,7 +115,7 @@ export function vistaEntrevistaDemo(): string {
   }
 
   return `<div class="tarjeta"><p class="motivo">Así se crea un asistente nuevo: una entrevista de
-    7 preguntas y el negocio queda configurado y respondiendo — sin tocar código. Esta es una
+    7 preguntas y el negocio queda configurado y respondiendo, sin tocar código. Esta es una
     repetición con un negocio de ejemplo; en tu instalación la respondes tú.</p></div>
   ${burbujas.join("\n")}
   ${resumenFinal(estado.datos)}

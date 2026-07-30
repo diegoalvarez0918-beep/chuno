@@ -256,7 +256,7 @@ export class AgenteConversacion extends DurableObject<Env> {
         pedidoId: null,
         texto: `Hola ${primerNombre}, sobre lo que me preguntaste: `,
       },
-      motivo: `${clienteNombre} preguntó: "${pregunta}". No está en la información que tienes cargada — escríbele la respuesta y yo se la envío.`,
+      motivo: `${clienteNombre} preguntó: "${pregunta}". No está en la información que tienes cargada. Escríbele la respuesta y yo se la envío.`,
       confianza: null,
       // La misma pregunta no vuelve a la bandeja; una distinta sí.
       claveDedupe: `pregunta:${conversacionId}:${pregunta.slice(0, 60)}`,

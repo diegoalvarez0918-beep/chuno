@@ -23,7 +23,7 @@ export function bloqueCatalogo(items: readonly ItemCatalogo[]): string {
     if (i.diasEntrega !== null) {
       partes.push(`entrega en ${i.diasEntrega} ${i.diasEntrega === 1 ? "día" : "días"}`);
     }
-    return `- ${partes.join(" — ")}`;
+    return `- ${partes.join(" · ")}`;
   });
 
   return `CATÁLOGO Y PRECIOS (puedes citarlos tal cual):\n${lineas.join("\n")}`;

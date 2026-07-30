@@ -72,7 +72,7 @@ function cuerpoPropuesta(propuesta: Propuesta): string {
 
   if (p.tipo === "enviar_aviso") {
     return `<div class="propuesto">
-      <div class="etiqueta">Mensaje que se le enviará al cliente — puedes editarlo</div>
+      <div class="etiqueta">Mensaje que se le enviará al cliente. Puedes editarlo</div>
       <textarea name="texto" maxlength="1000">${esc(p.texto)}</textarea>
     </div>`;
   }
@@ -81,7 +81,7 @@ function cuerpoPropuesta(propuesta: Propuesta): string {
     const que = p.items.map((i) => `${i.cantidad} × ${i.descripcion}`).join(", ");
     return `<div class="propuesto">
       <div class="etiqueta">Pedido detectado en la conversación</div>
-      <div><strong>${esc(p.clienteNombre)}</strong> — ${esc(que)}</div>
+      <div><strong>${esc(p.clienteNombre)}</strong>: ${esc(que)}</div>
       <div style="color:var(--suave);font-size:14px;margin-top:4px">Valor: ${esc(
         pesos(p.montoCentavos),
       )}</div>
@@ -112,7 +112,7 @@ export function vistaPedidos(pedidos: readonly Pedido[], hoy: string): string {
             <span style="color:var(--suave)">${esc(
               pedido.items.map((i) => i.descripcion).join(", "),
             )}</span></td>
-        <td>${esc(pedido.fechaComprometida ?? "—")}</td>
+        <td>${esc(pedido.fechaComprometida ?? "-")}</td>
         <td>${esc(NOMBRE_ESTADO[pedido.estado] ?? pedido.estado)}</td>
         <td>${esc(pesos(pedido.montoCentavos))}</td>
         <td><span class="chip ${riesgo}">${esc(NOMBRE_RIESGO[riesgo])}</span></td>

@@ -44,9 +44,9 @@ function seccionCatalogo(
       if (soloLectura) {
         return `<tr>
           <td><strong>${esc(i.nombre)}</strong></td>
-          <td style="color:var(--suave)">${esc(i.descripcion ?? "—")}</td>
+          <td style="color:var(--suave)">${esc(i.descripcion ?? "-")}</td>
           <td>${esc(pesos(i.precioCentavos))}</td>
-          <td>${i.diasEntrega === null ? "—" : esc(String(i.diasEntrega))}</td>
+          <td>${i.diasEntrega === null ? "-" : esc(String(i.diasEntrega))}</td>
         </tr>`;
       }
 
@@ -55,8 +55,8 @@ function seccionCatalogo(
       return `<tr>
         <td><input form="${fg}" name="nombre" value="${esc(i.nombre)}" required maxlength="120"></td>
         <td><input form="${fg}" name="descripcion" value="${esc(i.descripcion ?? "")}" maxlength="300"></td>
-        <td><input form="${fg}" name="precio" inputmode="numeric" value="${i.precioCentavos === null ? "" : Math.round(i.precioCentavos / 100)}" placeholder="—"></td>
-        <td><input form="${fg}" name="dias" inputmode="numeric" value="${i.diasEntrega ?? ""}" placeholder="—"></td>
+        <td><input form="${fg}" name="precio" inputmode="numeric" value="${i.precioCentavos === null ? "" : Math.round(i.precioCentavos / 100)}" placeholder="-"></td>
+        <td><input form="${fg}" name="dias" inputmode="numeric" value="${i.diasEntrega ?? ""}" placeholder="-"></td>
         <td class="acciones">
           <button form="${fg}" class="primario">Guardar</button>
           <button form="${fb}">Borrar</button>
@@ -93,7 +93,7 @@ function seccionCatalogo(
       </form>`;
 
   return `<div class="tarjeta">
-    <div class="etiqueta">Catálogo y precios — lo que el asistente puede citar sin preguntarte</div>
+    <div class="etiqueta">Catálogo y precios: lo que el asistente puede citar sin preguntarte</div>
     ${tabla}
     ${alta}
   </div>
@@ -157,7 +157,7 @@ function seccionFaq(
       </form>`;
 
   return `<div class="tarjeta">
-    <div class="etiqueta">Preguntas frecuentes — el asistente responde con esto cuando aplique</div>
+    <div class="etiqueta">Preguntas frecuentes: el asistente responde con esto cuando aplique</div>
     ${tabla}
     ${alta}
   </div>

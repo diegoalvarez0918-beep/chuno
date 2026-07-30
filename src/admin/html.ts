@@ -17,7 +17,7 @@ export function esc(valor: unknown): string {
 }
 
 export function pesos(centavos: number | null): string {
-  if (centavos === null) return "—";
+  if (centavos === null) return "-";
   const valor = Math.round(centavos / 100);
   return `$${valor.toLocaleString("es-CO")}`;
 }
@@ -420,7 +420,7 @@ td .acciones { flex-wrap: nowrap; }
    Cinco columnas con scroll horizontal. Cada estado lleva su color en la
    cabecera y en el borde superior de la columna: el color es lo que hace que
    "dónde está cada cliente" se lea de un vistazo y no leyendo etiquetas.
-   Se respeta la gramática de Voz — sobre lima el texto va oscuro, y el rojo
+   Se respeta la gramática de Voz: sobre lima el texto va oscuro, y el rojo
    pequeño es #E02900, no #FF2F00. */
 .embudo {
   display: grid; grid-auto-flow: column; grid-auto-columns: minmax(252px, 1fr);

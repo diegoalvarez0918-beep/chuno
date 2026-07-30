@@ -49,7 +49,7 @@ export function transicionar(
     const desde = esTerminal(pedido.estado)
       ? `"${pedido.estado}" es un estado terminal`
       : `desde "${pedido.estado}" solo se puede pasar a: ${posibles.join(", ")}`;
-    return fallo(`transición inválida a "${hacia}" — ${desde}`);
+    return fallo(`transición inválida a "${hacia}": ${desde}`);
   }
 
   return ok({ ...pedido, estado: hacia, actualizadoEn: ahora });

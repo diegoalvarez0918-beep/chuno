@@ -230,10 +230,37 @@ const CATALOGO: readonly [string, string, string | null, number | null, number |
   ["cat-d5", "Lentes de contacto por encargo", null, 24000000, 5],
 ];
 
+/**
+ * Las preguntas frecuentes de la óptica de la demo.
+ *
+ * La lista de temas sale de mirar el centro de ayuda de una óptica colombiana
+ * real (pagos, facturación, fórmula, tallas, tiendas, envíos, devoluciones,
+ * garantía): son las preguntas que de verdad llegan por chat, y con tres FAQ
+ * la demo no alcanzaba a mostrar que el asistente responde solo lo que tiene
+ * cargado. Las respuestas son propias de este negocio ficticio; copiar las de
+ * otra empresa habría metido su correo y sus políticas en nuestra demo.
+ */
 const FAQS = [
-  ["faq-d1", "¿Puedo pagar con Nequi?", "Sí: Nequi, Daviplata, efectivo y tarjeta. Con tarjeta se puede diferir a 3 cuotas sin interés."],
-  ["faq-d2", "¿Necesito cita para el examen?", "Sí, el examen de optometría se atiende con cita. Escríbenos y te agendamos."],
-  ["faq-d3", "¿Tienen garantía?", "Un año en montura por defectos de fábrica y 6 meses en el tratamiento antirreflejo."],
+  ["faq-d1", "¿Qué formas de pago aceptan?",
+   "Nequi, Daviplata, efectivo y tarjeta. Con tarjeta puedes diferir a 3 cuotas sin interés."],
+  ["faq-d2", "¿Pueden facturar mi compra?",
+   "Sí. Cuando confirmemos el pago te llega la factura electrónica al correo. Si necesitas datos de empresa, dínoslos antes de facturar."],
+  ["faq-d3", "¿Necesito cita para el examen?",
+   "Sí, el examen de optometría se atiende con cita. Escríbenos y te agendamos."],
+  ["faq-d4", "¿Sirve la fórmula de otro optómetra?",
+   "Sí, siempre que tenga menos de un año. Mándanos la foto y la revisamos antes de montar los lentes."],
+  ["faq-d5", "¿Cuánto se demoran los lentes?",
+   "Monofocales, 3 días hábiles. Progresivos, 5 a 7 días hábiles. Si el laboratorio se atrasa te avisamos antes de la fecha, no después."],
+  ["faq-d6", "¿Cómo sé qué talla de montura me sirve?",
+   "Si ya tienes unas gafas cómodas, mira los números impresos en la varilla y mándanoslos. Si no, pásate por la tienda y te medimos."],
+  ["faq-d7", "¿Hacen envíos?",
+   "Sí, a toda Colombia. En Bogotá llega en 1 a 2 días hábiles; al resto del país, entre 3 y 5. El envío va incluido en compras sobre $250.000."],
+  ["faq-d8", "¿Puedo devolver o cambiar unas gafas?",
+   "Tienes 30 días para cambiar la montura si no te acomodó. Los lentes formulados no tienen devolución porque se tallan para tu fórmula, pero si la graduación quedó mal la corregimos sin costo."],
+  ["faq-d9", "¿Tienen garantía?",
+   "Un año en montura por defectos de fábrica y 6 meses en el tratamiento antirreflejo. No cubre golpes ni rayones por uso."],
+  ["faq-d10", "¿Dónde quedan y a qué horas abren?",
+   "Calle 85 #13-40, Bogotá. Lunes a viernes de 9 a 7 y sábados de 10 a 4."],
 ] as const;
 
 export interface ResumenResiembra {
