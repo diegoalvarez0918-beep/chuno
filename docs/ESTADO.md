@@ -1,7 +1,8 @@
 # Estado del proyecto
 
 > Traspaso entre sesiones. Léelo después de `CLAUDE.md` y antes de tocar nada.
-> Última actualización: 2026-07-30, tras cerrar Fases 2 y 3, el CLI y el rediseño.
+> Última actualización: 2026-07-30 (madrugada), tras la landing con login, el
+> blindaje de la demo y su resembrado. Todo desplegado y subido.
 
 ---
 
@@ -46,12 +47,14 @@ Cloudflare está autenticado por OAuth en `~/.wrangler`. GitHub **no** tiene cre
 | 3 | Onboarding conversacional (`/comenzar`) | ✅ cerrada |
 | 4 | Ingesta multicanal — familia Meta (WhatsApp, Instagram, Messenger) | pendiente · bloqueado por trámite de Meta |
 | 5 | Marca blanca | pendiente |
-| 6 | Entrega del concurso: video, links, votos | pendiente |
+| 6 | Entrega del concurso: video, links, votos | los dos links, listos y desplegados · faltan video y votos |
 | 7-8 | Herramientas con escritura, RAG con embeddings | después del concurso |
 | 9 | CLI instalador | ✅ adelantada — `npx chuno init` |
+| — | Landing pública con login, demo blindada y resembrada | ✅ cerrada 2026-07-30 |
 
 Spec completo: `docs/superpowers/specs/2026-07-29-chuno-plataforma-design.md`
 Planes ejecutados: `docs/superpowers/plans/2026-07-29-fase-1-crm-y-metricas.md` y `docs/superpowers/plans/2026-07-29-fase-2-3-conocimiento-y-onboarding.md`
+Spec de la landing: `docs/superpowers/specs/2026-07-30-landing-y-login-design.md`
 
 **Fases 2 y 3 fueron juntas.** La entrevista del onboarding *produce* el catálogo y las preguntas frecuentes estructuradas: separarlas habría obligado a construir dos veces la misma forma de datos.
 
@@ -60,9 +63,23 @@ El motor de la entrevista es una máquina de estados pura en `src/core/onboardin
 ## Cómo verificar que todo sigue en pie
 
 ```bash
-npm test          # 106 tests deterministas, sin red ni LLM
+npm test          # 115 tests deterministas, sin red ni LLM
 npm run typecheck # limpio, sin any ni @ts-ignore
 curl -s -o /dev/null -w '%{http_code}\n' https://chuno.vozdigital-ai.workers.dev/demo/inicio
+```
+
+Landing, sesión y blindaje de la demo, todo contra el servidor. **Verifica con
+`curl` y `grep` de algo que solo exista en la versión nueva antes de mirar el
+navegador** — una captura cacheada ya casi provocó un diagnóstico falso:
+
+```bash
+B=https://chuno.vozdigital-ai.workers.dev
+PASS=$(grep '^PANEL_PASSWORD=' .dev.vars | cut -d= -f2-)
+curl -s $B/ | grep -c 'PROMESAS'                                   # 1 = landing nueva
+curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' $B/panel/inicio   # 302 → /entrar
+curl -s -o /dev/null -w '%{http_code}\n' -u "admin:$PASS" $B/panel/inicio  # 200, Basic Auth vive
+curl -s -o /dev/null -w '%{http_code}\n' -X POST $B/demo/conocimiento/faq/borrar -d 'id=faq-d1'  # 404
+curl -s $B/demo/inicio | grep -B1 'Mensajes hoy'                   # > 0 si el resembrado corrió
 ```
 
 Verificación de extremo a extremo sin escribirle a una persona real — webhook sintético con un chat inexistente:
@@ -112,14 +129,21 @@ Están en `APRENDIZAJES.md` con más detalle. Los que muerden más rápido:
 
 ## Lo que le falta de verdad a la plataforma
 
-Revisión del 2026-07-30. Ninguno se ve en la demo sembrada; los cuatro muerden con uso real.
+Revisión del 2026-07-30. Ninguno se ve en la demo sembrada; todos muerden con
+uso real. **Este es el punto de partida de la próxima sesión**, por delante de
+las Fases 4, 5 y 7-8 del spec: agregarle superficie a un producto cuyo lazo
+operativo no cierra es construir sobre algo que todavía se cae.
 
 1. **Los pedidos se duplican.** El agente re-extrae el hilo completo en cada ráfaga y la propuesta `crear_pedido` se crea sin `claveDedupe` (`agente.ts`). Un cliente que escribe tres veces produce tres pedidos. `listarPedidosDeConversacion` ya existe y no la llama nadie.
 2. **El pedido nunca avanza de estado.** `borrador → … → entregado` está implementado y probado, pero no hay ruta ni botón: los payloads `cambiar_estado` y `cambiar_fecha` se ejecutan en `aplicar.ts` y nadie los crea. El tablero es de solo lectura y nada llega nunca a "listo".
 3. **El vigía avisa una sola vez por pedido, para siempre.** `idx_prop_dedupe` es único sobre `(negocio_id, clave_dedupe)` sin filtrar por estado: descartar un aviso lo silencia definitivamente.
 4. **No hay bandeja de conversaciones.** El dueño aprueba mensajes hacia su cliente sin poder leer lo que el cliente escribió, y `pausarConversacion` —tomar el control del chat— es código que nadie llama. `listarConversaciones` y `listarTicketsAbiertos`, igual.
 
+5. **`seed.sql` borra `mi-optica`, el negocio real.** Sus `DELETE` cubren los dos negocios. Hoy es inofensivo porque `mi-optica` solo ha tenido conversaciones de prueba, pero con un cliente conectado un `npm run seed:remote` distraído le borra el historial. Se arregla acotando sus `DELETE` a `demo-optica` y sembrando lo de `mi-optica` por separado.
+
 También: el `conocimiento` libre (horario, dirección, garantía) y el `tono` solo los escribe el onboarding y no son editables después.
+
+**Cabo suelto sin resolver:** el 2026-07-30 `mi-optica` apareció sin conversaciones ni mensajes, conservando su auditoría y su `uso_llm` del webhook sintético de las 03:07 UTC. El resembrado queda descartado como causa —borra esas dos tablas también, y sobrevivieron—, pero no se pudo fechar la pérdida porque no se midió antes de desplegar. El único código que borra `conversaciones` es `seed.sql`, que se corre a mano.
 
 ## Identidad visual — sistema Voz
 
