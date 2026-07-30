@@ -69,11 +69,39 @@ Cuando el modelo se equivoca, el modo de falla es **molestar a un humano**, no e
 
 ## Alcance de esta versión
 
-**Funciona:** conversación → pedido con fecha · tablero con lo vencido primero · vigía de promesas · bandeja de decisiones con aprobar, editar y descartar · auditoría · canal de Telegram · demo pública.
+**Funciona:** conversación → pedido con fecha · tablero con lo vencido primero · vigía de promesas · bandeja de decisiones con aprobar, editar y descartar · catálogo y preguntas frecuentes que el asistente cita sin escalar · onboarding conversacional de 7 preguntas · varios bots en una instalación, con su token cifrado · CRM que se llena solo · auditoría · instalador `npx chuno init` · demo pública.
 
-**Todavía no:** WhatsApp Business API, instalador de línea de comandos, panel de control multi-negocio, pagos, inventario, facturación electrónica.
+**Todavía no:** WhatsApp Business API, herramientas de escritura hacia fuera (inventario, agenda, cobros), búsqueda semántica con embeddings, marca blanca por dominio propio.
 
 La demo pública corre sobre datos sembrados y **no llama al modelo en vivo**, a propósito: así un pico de visitas no agota la cuota gratuita y la demo no se puede romper.
+
+## Instalarlo en tu propia nube
+
+Un comando. CHUNO no es un servicio al que te suscribes: es código que corre en
+**tu** cuenta de Cloudflare, con tus datos.
+
+```bash
+npx github:diegoalvarez0918-beep/chuno init
+```
+
+La entrevista pide el nombre del negocio y tus tres llaves, y se encarga del
+resto: crea la base de datos, aplica el esquema, guarda los secretos cifrados
+del lado de Cloudflare, despliega el Worker y conecta el bot de Telegram.
+
+Antes de correrlo necesitas tres cosas, todas gratuitas:
+
+| Qué | Dónde | Para qué |
+|---|---|---|
+| Cuenta de Cloudflare | `npx wrangler login` | Donde vive tu asistente |
+| Llave de Gemini | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | El cerebro |
+| Bot de Telegram | [@BotFather](https://t.me/BotFather) → `/newbot` | El canal |
+
+¿Quieres comprobar que tienes todo antes de instalar? `npx chuno revisar` no
+crea ni despliega nada, solo revisa.
+
+Al terminar, entra a tu panel y dale a **＋ Nuevo asistente**: siete preguntas
+—qué vendes, tu horario, tu lista de precios, tu tono— y el asistente queda
+configurado con tu catálogo, sin tocar código.
 
 ## Correrlo localmente
 
@@ -110,6 +138,8 @@ src/canales/    Telegram, demo (WhatsApp entra por la misma interfaz)
 src/giros/      contrato de vertical
 src/db/         esquema y acceso a datos
 src/admin/      panel del dueño
+src/onboarding/ materializa la entrevista en filas y conecta el bot
+cli/            npx chuno init — el instalador
 test/core/      lo único que se prueba con vitest, y a propósito
 ```
 
