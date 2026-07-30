@@ -1,7 +1,9 @@
 import { Hono, type Context } from "hono";
 import { basicAuth } from "hono/basic-auth";
 
-import { hoyEnZona, nuevoId } from "./db/id";
+import { ahoraISO, hoyEnZona, nuevoId } from "./db/id";
+import { avanzarLead } from "./core/crm/embudo";
+import { ESTADOS_LEAD, type EstadoLead } from "./core/crm/tipos";
 import { modelos, numero, type Env } from "./env";
 import { AgenteConversacion, idDeConversacion } from "./agente/agente";
 import { correrVigia } from "./crons/vigia";
@@ -35,8 +37,8 @@ import { vistaEntrevista, vistaEntrevistaDemo } from "./admin/vistas-onboarding"
 import { guardarMensaje, obtenerOCrearConversacion } from "./db/repos/conversacion";
 import { listarPedidos } from "./db/repos/pedido";
 import { contarPendientes, listarPendientes } from "./db/repos/propuesta";
-import { listarAuditoria, purgarMensajesViejos } from "./db/repos/varios";
-import { listarContactos, listarLeads } from "./db/repos/crm";
+import { auditar, listarAuditoria, purgarMensajesViejos } from "./db/repos/varios";
+import { guardarLead, listarContactos, listarLeads, obtenerLead } from "./db/repos/crm";
 import { borrarFaq, borrarItemCatalogo, guardarFaq, guardarItemCatalogo, listarCatalogo, listarFaq } from "./db/repos/catalogo";
 import { vistaConocimiento } from "./admin/vistas-conocimiento";
 import { calcularMetricas } from "./db/repos/metricas";
@@ -162,7 +164,7 @@ function montarPanel(opciones: {
         negocio: d.negocio.nombre,
         activo: "clientes",
         pendientes,
-        contenido: vistaClientes(contactos, leads),
+        contenido: vistaClientes(contactos, leads, `${base}/clientes/mover${d.consulta}`, soloLectura),
         base,
         consulta: d.consulta,
         selector: d.selector,
@@ -195,6 +197,35 @@ function montarPanel(opciones: {
   });
 
   if (!soloLectura) {
+  /**
+   * Mover un lead en el embudo.
+   *
+   * La transición la valida `avanzarLead` en el núcleo, no esta ruta: qué
+   * movimiento es legal vive en `core/crm/embudo.ts`, que es puro y probado.
+   * Aquí solo se lee, se pide el movimiento y se guarda lo que salga.
+   */
+  app.post(`${base}/clientes/mover`, async (c) => {
+    const negocioId = negocioDe(c);
+    const f = await c.req.formData();
+
+    const id = String(f.get("id") ?? "");
+    const hacia = String(f.get("hacia") ?? "");
+    if (!id || !(ESTADOS_LEAD as readonly string[]).includes(hacia)) {
+      return c.text("Petición inválida", 400);
+    }
+
+    const lead = await obtenerLead(c.env.DB, negocioId, id);
+    if (!lead) return c.text("Ese cliente ya no existe", 404);
+
+    const movido = avanzarLead(lead, hacia as EstadoLead, ahoraISO());
+    if (!movido.ok) return c.text(movido.error, 409);
+
+    await guardarLead(c.env.DB, movido.valor);
+    await auditar(c.env.DB, negocioId, "lead_movido", { hacia }, "admin");
+
+    return c.redirect(`${base}/clientes${consultaDe(c, negocioId)}`, 303);
+  });
+
   app.post(`${base}/conocimiento/catalogo/guardar`, async (c) => {
     const negocioId = negocioDe(c);
     const f = await c.req.formData();

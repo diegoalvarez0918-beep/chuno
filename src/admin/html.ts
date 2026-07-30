@@ -416,6 +416,88 @@ td .acciones { flex-wrap: nowrap; }
   margin-left: auto; border-bottom-right-radius: 5px;
 }
 
+/* ── El embudo, como tablero ──────────────────────────────────────────────
+   Cinco columnas con scroll horizontal. Cada estado lleva su color en la
+   cabecera y en el borde superior de la columna: el color es lo que hace que
+   "dónde está cada cliente" se lea de un vistazo y no leyendo etiquetas.
+   Se respeta la gramática de Voz — sobre lima el texto va oscuro, y el rojo
+   pequeño es #E02900, no #FF2F00. */
+.embudo {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(252px, 1fr);
+  gap: 12px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 26px;
+  align-items: start;
+}
+.columna {
+  background: var(--fondo-2); border: 1px solid var(--borde);
+  border-radius: var(--radio); overflow: hidden; min-height: 140px;
+  transition: background .15s, border-color .15s;
+}
+.columna.encima { background: var(--fondo-3); border-color: var(--carbon); }
+.columna-cab { padding: 14px 15px 12px; border-top: 3px solid var(--suave); background: var(--tarjeta); }
+.columna-cab h3 {
+  font-family: var(--display); font-size: 15px; font-weight: 700; margin: 0;
+  display: flex; align-items: center; gap: 8px;
+}
+.columna-cab h3::before {
+  content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--suave); flex: none;
+}
+.columna-cifras {
+  margin: 5px 0 0; font-size: 12.5px; font-weight: 700; color: var(--texto-2);
+  font-variant-numeric: tabular-nums;
+}
+.columna-ayuda { margin: 6px 0 0; font-size: 11.5px; color: var(--suave); line-height: 1.45; }
+.columna-cuerpo { padding: 10px; display: grid; gap: 9px; }
+.columna-vacia {
+  color: var(--suave); font-size: 12.5px; text-align: center; padding: 18px 8px;
+  border: 1px dashed var(--borde-fuerte); border-radius: var(--radio-s);
+}
+
+/* Un color por etapa. Neutro al entrar, lima cuando ya dijo que sí, verde si
+   compró, rojo accesible si se perdió. */
+.columna.nuevo      .columna-cab { border-top-color: var(--borde-fuerte); }
+.columna.nuevo      .columna-cab h3::before { background: var(--borde-fuerte); }
+.columna.contactado .columna-cab { border-top-color: var(--carbon); }
+.columna.contactado .columna-cab h3::before { background: var(--carbon); }
+.columna.interesado .columna-cab { border-top-color: var(--lima); }
+.columna.interesado .columna-cab h3::before { background: var(--lima); }
+.columna.cliente    .columna-cab { border-top-color: var(--bien); }
+.columna.cliente    .columna-cab h3::before { background: var(--bien); }
+.columna.perdido    .columna-cab { border-top-color: var(--accion-texto); }
+.columna.perdido    .columna-cab h3::before { background: var(--accion-texto); }
+
+.trato {
+  background: var(--tarjeta); border: 1px solid var(--borde);
+  border-radius: var(--radio-s); padding: 12px; box-shadow: var(--sombra);
+  cursor: grab;
+}
+.trato.llevando { opacity: .45; cursor: grabbing; }
+.trato-cab { display: flex; align-items: center; gap: 9px; font-size: 14.5px; }
+.avatar {
+  width: 26px; height: 26px; border-radius: 50%; flex: none;
+  background: var(--fondo-3); color: var(--texto-2);
+  font-size: 10.5px; font-weight: 700; letter-spacing: .3px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.trato-interes {
+  margin: 8px 0 0; font-size: 12.8px; color: var(--suave); line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.trato-pie {
+  margin-top: 10px; display: flex; align-items: center; gap: 9px;
+  font-size: 13px; font-variant-numeric: tabular-nums;
+}
+.trato-pie .valor { font-weight: 700; }
+.trato-pie .canal {
+  margin-left: auto; font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .8px; color: var(--suave);
+}
+.trato-mover { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 10px; }
+.trato-mover .mover {
+  font-size: 11.5px; font-weight: 700; padding: 4px 9px; border-radius: 999px;
+  border: 1px solid var(--borde-fuerte); background: var(--fondo-2); color: var(--suave);
+}
+.trato-mover .mover:hover { background: var(--invertido); color: var(--sobre-invertido); border-color: transparent; }
+
 /* Lo que necesita atención hoy, en la pantalla de inicio. */
 .atencion { display: grid; gap: 10px; }
 .riesgo {

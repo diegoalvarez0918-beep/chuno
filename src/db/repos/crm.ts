@@ -195,6 +195,43 @@ export async function listarLeads(db: D1Database, negocioId: string): Promise<Le
   return results.map(aLead);
 }
 
+export async function obtenerLead(
+  db: D1Database,
+  negocioId: string,
+  leadId: string,
+): Promise<Lead | null> {
+  const fila = await db
+    .prepare(`SELECT ${COLS_LEAD} FROM leads WHERE negocio_id = ? AND id = ?`)
+    .bind(negocioId, leadId)
+    .first<FilaLead>();
+
+  return fila ? aLead(fila) : null;
+}
+
+/**
+ * Persiste un lead ya movido por el núcleo.
+ *
+ * Como en pedidos, no recibe "campos a cambiar" sino el lead completo que
+ * devolvió `avanzarLead`. Qué transición es válida se decide en `core/crm`, que
+ * es puro y está probado; aquí solo se escribe.
+ */
+export async function guardarLead(db: D1Database, lead: Lead): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE leads SET estado = ?, interes = ?, valor_estimado_centavos = ?, actualizado_en = ?
+        WHERE negocio_id = ? AND id = ?`,
+    )
+    .bind(
+      lead.estado,
+      lead.interes,
+      lead.valorEstimadoCentavos,
+      lead.actualizadoEn,
+      lead.negocioId,
+      lead.id,
+    )
+    .run();
+}
+
 /** Los que todavía pueden convertirse: ni ganados ni descartados. */
 export async function contarLeadsAbiertos(db: D1Database, negocioId: string): Promise<number> {
   const fila = await db
