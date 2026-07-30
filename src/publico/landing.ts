@@ -537,7 +537,7 @@ const GUION = `
   //
   // Los espacios son nodos de texto de verdad, no margin-right: con margen,
   // copiar el titular o leerlo con un lector de pantalla daba las palabras
-  // pegadas — "TuWhatsAppyaestusistema".
+  // pegadas: "TuWhatsAppyaestusistema".
   var titular = document.getElementById('titular');
   var palabras = titular.textContent.trim().split(/\\s+/);
   titular.textContent = '';
@@ -577,7 +577,7 @@ const GUION = `
   // la foto misma cuando sí la hay.
   //
   // El spotlight se hace con una máscara de gradiente y dos variables CSS. La
-  // versión obvia —pintar un canvas y pasarlo con toDataURL()— codifica un PNG
+  // versión obvia (pintar un canvas y pasarlo con toDataURL) codifica un PNG
   // completo en CADA cuadro; en un teléfono de gama media eso cae a un dígito
   // de fps.
   //
