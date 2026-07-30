@@ -27,24 +27,28 @@ export function fechaCorta(iso: string): string {
 }
 
 const CSS = `
+/**
+ * Sistema de diseño Voz. Claro, cálido y luminoso — no es un tablero oscuro
+ * más. Reglas que se respetan aquí y no se relajan:
+ *   · Sobre lima el texto SIEMPRE va oscuro. Nunca lima sobre crema.
+ *   · #FF2F00 es exclusivo del CTA principal, uno dominante por pantalla.
+ *     Para texto pequeño en rojo se usa #E02900, que sí contrasta.
+ *   · Lima y rojo-naranja no van adyacentes con el mismo peso: compiten.
+ */
 :root {
-  --fondo: #0b0d12; --fondo-2: #11141b;
-  --tarjeta: #151922; --tarjeta-alta: #1b202b; --borde: #252b38;
-  --texto: #eef1f6; --suave: #98a2b6;
-  --acento: #5b8dff; --acento-suave: #93b4ff;
-  --alerta: #ff6b6b; --aviso: #ffb648; --bien: #3ecf8e;
+  --fondo: #FCFCFA; --fondo-2: #F5F5F2; --fondo-3: #EFEFEB;
+  --tarjeta: #FFFFFF; --tarjeta-alta: #FFFFFF; --borde: #EFEFEB;
+  --borde-fuerte: #E2E2DC;
+  --texto: #1A1D14; --texto-2: #3D403A; --suave: #747069;
+  --carbon: #33382C; --invertido: #282C20; --sobre-invertido: #F9F9F6;
+  --lima: #D2FF00; --accion: #FF2F00; --accion-texto: #E02900;
+  --bien: #3E9B6B;
   --radio: 14px; --radio-s: 10px;
-  --sombra: 0 1px 2px rgba(0,0,0,.28), 0 8px 24px rgba(0,0,0,.22);
+  --sombra: 0 1px 2px rgba(26,29,20,.04), 0 6px 20px rgba(26,29,20,.06);
   --display: "Raleway", ui-sans-serif, system-ui, sans-serif;
   --cuerpo: "Nunito Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
-}
-@media (prefers-color-scheme: light) {
-  :root {
-    --fondo: #f5f7fb; --fondo-2: #eef1f7;
-    --tarjeta: #ffffff; --tarjeta-alta: #ffffff; --borde: #e2e7f0;
-    --texto: #121722; --suave: #5d6880;
-    --sombra: 0 1px 2px rgba(16,24,40,.05), 0 8px 24px rgba(16,24,40,.06);
-  }
+  /* Alias de compatibilidad con las vistas ya escritas. */
+  --acento: var(--carbon); --alerta: var(--accion-texto); --aviso: var(--carbon);
 }
 * { box-sizing: border-box; }
 body {
@@ -52,8 +56,8 @@ body {
   font-family: var(--cuerpo); font-size: 15px; line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   background:
-    radial-gradient(900px 420px at 50% -160px, color-mix(in srgb, var(--acento) 13%, transparent), transparent 70%),
-    linear-gradient(var(--fondo-2), var(--fondo) 320px);
+    radial-gradient(1100px 380px at 50% -200px, color-mix(in srgb, var(--lima) 22%, transparent), transparent 72%),
+    var(--fondo);
   background-color: var(--fondo);
   background-attachment: fixed;
   min-height: 100vh;
@@ -62,8 +66,14 @@ body {
 
 header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 h1 {
-  font-family: var(--display); font-size: 21px; font-weight: 700;
-  margin: 0; letter-spacing: 1.4px;
+  font-family: var(--display); font-size: 21px; font-weight: 800;
+  margin: 0; letter-spacing: 1.4px; color: var(--carbon);
+  display: inline-flex; align-items: center; gap: 9px;
+}
+/* La onda de marca, reducida a su gesto mínimo: una barra lima. */
+h1::before {
+  content: ""; width: 5px; height: 20px; border-radius: 3px;
+  background: var(--lima);
 }
 .negocio {
   color: var(--suave); font-size: 14px; font-weight: 600;
@@ -74,20 +84,20 @@ nav { display: flex; gap: 7px; margin: 22px 0 26px; flex-wrap: wrap; }
 nav a {
   padding: 8px 15px; border-radius: 999px; text-decoration: none;
   color: var(--suave); border: 1px solid var(--borde); font-size: 14px;
-  font-weight: 600; background: color-mix(in srgb, var(--tarjeta) 60%, transparent);
+  font-weight: 600; background: var(--tarjeta);
   transition: color .15s, border-color .15s, background .15s;
 }
-nav a:hover { color: var(--texto); border-color: color-mix(in srgb, var(--acento) 45%, var(--borde)); }
+nav a:hover { color: var(--texto); border-color: var(--carbon); }
 nav a.activo {
-  color: #fff; border-color: transparent;
-  background: linear-gradient(180deg, var(--acento), color-mix(in srgb, var(--acento) 78%, #000));
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--acento) 32%, transparent);
+  color: var(--sobre-invertido); border-color: transparent;
+  background: var(--invertido);
+  box-shadow: 0 4px 14px rgba(40,44,32,.18);
 }
 nav .globo {
-  background: var(--alerta); color: #fff; border-radius: 999px;
+  background: var(--accion); color: #fff; border-radius: 999px;
   padding: 1px 8px; font-size: 12px; font-weight: 700; margin-left: 7px;
 }
-nav a.activo .globo { background: rgba(255,255,255,.25); }
+nav a.activo .globo { background: var(--lima); color: var(--invertido); }
 
 .seccion {
   font-family: var(--display); font-size: 12px; font-weight: 700;
@@ -101,10 +111,10 @@ nav a.activo .globo { background: rgba(255,255,255,.25); }
   border-radius: var(--radio); padding: 18px; margin-bottom: 14px;
   box-shadow: var(--sombra);
 }
-.tarjeta.urgente { border-left: 3px solid var(--alerta); }
+.tarjeta.urgente { border-left: 3px solid var(--accion); }
 .motivo { font-size: 15.5px; margin: 0 0 12px; line-height: 1.55; }
 .propuesto {
-  background: color-mix(in srgb, var(--fondo) 70%, transparent);
+  background: var(--fondo-2);
   border: 1px solid var(--borde); border-radius: var(--radio-s);
   padding: 14px; margin-bottom: 14px;
 }
@@ -126,11 +136,11 @@ button {
   transition: filter .15s, transform .08s;
 }
 button.primario {
-  background: linear-gradient(180deg, var(--acento), color-mix(in srgb, var(--acento) 78%, #000));
-  border-color: transparent; color: #fff;
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--acento) 32%, transparent);
+  background: var(--accion); border-color: transparent; color: #fff;
+  box-shadow: 0 4px 14px rgba(255,47,0,.24);
 }
-button:hover { filter: brightness(1.1); }
+button.primario:hover { background: var(--accion-texto); filter: none; }
+button:hover { filter: brightness(.98); }
 button:active { transform: translateY(1px); }
 
 table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
@@ -140,16 +150,16 @@ th {
   letter-spacing: 1.2px; padding: 0 10px 10px;
 }
 td { padding: 13px 10px; border-top: 1px solid var(--borde); vertical-align: top; }
-tbody tr:hover { background: color-mix(in srgb, var(--acento) 5%, transparent); }
+tbody tr:hover { background: var(--fondo-2); }
 
 .chip {
   display: inline-block; padding: 3px 10px; border-radius: 999px;
   font-size: 12px; font-weight: 700; white-space: nowrap;
 }
-.chip.vencida { background: color-mix(in srgb, var(--alerta) 18%, transparent); color: var(--alerta); }
-.chip.en_riesgo { background: color-mix(in srgb, var(--aviso) 18%, transparent); color: var(--aviso); }
-.chip.sin_fecha { background: color-mix(in srgb, var(--suave) 18%, transparent); color: var(--suave); }
-.chip.ok { background: color-mix(in srgb, var(--bien) 16%, transparent); color: var(--bien); }
+.chip.vencida { background: rgba(255,47,0,.10); color: var(--accion-texto); }
+.chip.en_riesgo { background: var(--lima); color: var(--invertido); }
+.chip.sin_fecha { background: var(--fondo-3); color: var(--suave); }
+.chip.ok { background: rgba(62,155,107,.12); color: var(--bien); }
 
 .vacio { color: var(--suave); text-align: center; padding: 44px 16px; }
 .vacio strong {
@@ -166,36 +176,36 @@ tbody tr:hover { background: color-mix(in srgb, var(--acento) 5%, transparent); 
 
 .metricas { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); margin-bottom: 14px; }
 .metrica {
-  background: linear-gradient(180deg, var(--tarjeta-alta), var(--tarjeta));
+  background: var(--tarjeta);
   border: 1px solid var(--borde); border-radius: var(--radio);
   padding: 20px; box-shadow: var(--sombra); position: relative; overflow: hidden;
 }
 .metrica::after {
   content: ""; position: absolute; inset: 0 0 auto 0; height: 1px;
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--acento) 40%, transparent), transparent);
+  background: linear-gradient(90deg, transparent, var(--lima), transparent);
 }
 .metrica .cifra {
   font-family: var(--display); font-size: 40px; font-weight: 700;
   letter-spacing: -1.5px; line-height: 1; font-variant-numeric: tabular-nums;
 }
 .metrica .rotulo { color: var(--suave); font-size: 13.5px; font-weight: 600; margin-top: 8px; }
-.metrica.alerta .cifra { color: var(--alerta); }
-.metrica.alerta::after { background: linear-gradient(90deg, transparent, var(--alerta), transparent); }
+.metrica.alerta .cifra { color: var(--accion-texto); }
+.metrica.alerta::after { background: linear-gradient(90deg, transparent, var(--accion), transparent); }
 .salud {
   display: inline-flex; align-items: center; gap: 9px;
   font-family: var(--display); font-size: 22px; font-weight: 700; line-height: 1.2;
 }
 .punto { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
-.punto.bien { background: var(--bien); box-shadow: 0 0 0 4px color-mix(in srgb, var(--bien) 18%, transparent); }
-.punto.atencion { background: var(--aviso); box-shadow: 0 0 0 4px color-mix(in srgb, var(--aviso) 18%, transparent); }
-.punto.critico { background: var(--alerta); box-shadow: 0 0 0 4px color-mix(in srgb, var(--alerta) 18%, transparent); }
+.punto.bien { background: var(--bien); box-shadow: 0 0 0 4px rgba(62,155,107,.16); }
+.punto.atencion { background: var(--lima); box-shadow: 0 0 0 4px rgba(210,255,0,.35); }
+.punto.critico { background: var(--accion); box-shadow: 0 0 0 4px rgba(255,47,0,.16); }
 
 input:not([type=hidden]) {
-  font: inherit; background: color-mix(in srgb, var(--fondo) 70%, transparent);
-  color: var(--texto); border: 1px solid var(--borde);
+  font: inherit; background: var(--fondo-2);
+  color: var(--texto); border: 1px solid var(--borde-fuerte);
   border-radius: var(--radio-s); padding: 9px 11px; width: 100%; min-width: 60px;
 }
-input:focus { outline: none; border-color: var(--acento); }
+input:focus { outline: none; border-color: var(--carbon); }
 td .acciones { flex-wrap: nowrap; }
 .fila-alta { display: grid; gap: 9px; grid-template-columns: 2fr 2fr 1fr 1fr auto; margin-top: 16px; }
 @media (max-width: 640px) { .fila-alta { grid-template-columns: 1fr 1fr; } }
@@ -206,8 +216,8 @@ td .acciones { flex-wrap: nowrap; }
 }
 .burbuja.pregunta { background: var(--tarjeta); border: 1px solid var(--borde); border-bottom-left-radius: 5px; }
 .burbuja.respuesta {
-  background: linear-gradient(180deg, var(--acento), color-mix(in srgb, var(--acento) 82%, #000));
-  color: #fff; margin-left: auto; border-bottom-right-radius: 5px;
+  background: var(--invertido); color: var(--sobre-invertido);
+  margin-left: auto; border-bottom-right-radius: 5px;
 }
 select.negocios {
   font: inherit; font-weight: 600; background: var(--tarjeta); color: var(--texto);
@@ -222,8 +232,8 @@ select.negocios {
   border-left: 3px solid var(--suave); border-radius: var(--radio-s);
   padding: 13px 16px; box-shadow: var(--sombra);
 }
-.riesgo.vencida { border-left-color: var(--alerta); }
-.riesgo.en_riesgo { border-left-color: var(--aviso); }
+.riesgo.vencida { border-left-color: var(--accion); }
+.riesgo.en_riesgo { border-left-color: var(--lima); }
 .riesgo .quien { font-weight: 700; }
 .riesgo .que { color: var(--suave); font-size: 13.5px; }
 .riesgo .cuando { margin-left: auto; text-align: right; white-space: nowrap; }

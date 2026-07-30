@@ -22,3 +22,6 @@ dist/
 .DS_Store
 .idea/
 .vscode/
+
+# Design system (se descomprime aparte, no versionado)
+Voz design system.zip
