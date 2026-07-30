@@ -27,6 +27,18 @@ Más recientes arriba. Si una entrada queda obsoleta o la contradice otra más n
 
 <!-- Nuevas entradas arriba de esta línea. -->
 
+- **2026-07-30 — Subir por API crea una historia paralela que después hay que reconciliar:** el repo de GitHub se había armado con `GITHUB_COMMIT_MULTIPLE_FILES` de Composio, y quedó con 62 commits titulados todos igual y **sin ancestro común** con el git local. Git los ve como dos proyectos distintos: el push normal se rechaza y solo `--force` los junta.
+  **Por qué importa:** antes de forzar, comparar los árboles (`git ls-tree -r origin/main --name-only` contra el local) para confirmar que ningún archivo existe solo en el remoto. Y no volver a mezclar los dos caminos: o se sube por git, o se sube por API, pero no ambos.
+
+- **2026-07-30 — El navegador miente al verificar un despliegue:** tras desplegar un rediseño completo, la captura mostraba la versión anterior. No era el despliegue: era caché. Estuve a punto de diagnosticar un problema que no existía.
+  **Por qué importa:** verificar contra el servidor con `curl` y un `grep` de algo que solo exista en la versión nueva, ANTES de mirar el navegador. Si hay que mirarlo, con la URL cambiada (`?v=2`) o recarga dura.
+
+- **2026-07-30 — Un instalador que reescribe su propia configuración no se puede probar donde vive:** `chuno init` modifica `wrangler.jsonc`, así que correrlo dentro de una instalación viva la repunta a una base vacía y el negocio deja de ver sus pedidos. Eso lo vuelve imposible de probar de punta a punta en el propio repo.
+  **Por qué importa:** dos cosas lo arreglan y ambas valen para cualquier instalador — una guarda que detecte la instalación existente y exija confirmación escrita, y un subcomando de solo lectura (`revisar`) que ejercite las comprobaciones sin crear nada. Lo segundo además da algo demostrable en video sin riesgo.
+
+- **2026-07-30 — Un tablero que termina en cifras no le dice a nadie qué hacer:** la pantalla de inicio mostraba seis números y media pantalla vacía. "5 esperando tu decisión" no es accionable; "Marta Ruiz · lentes progresivos · vencido hace 4 días · $680.000" sí.
+  **Por qué importa:** cuando una métrica cuenta cosas que tienen nombre, la lista de esas cosas va justo debajo. El número es el titular, no el contenido.
+
 - **2026-07-30 — Un `if (exito)` sin `else` es un fallo invisible:** el agente solo guardaba su respuesta cuando el envío a Telegram salía bien. Si `sendMessage` fallaba, no quedaba ni mensaje ni rastro: el cliente no recibía nada y el dueño no podía enterarse. Me costó dos diagnósticos creer que el agente no había corrido, cuando sí había corrido.
   **Por qué importa:** en todo camino donde algo sale hacia el cliente, la rama de fallo necesita su propia entrada de auditoría — no basta con no hacer nada. La regla del proyecto ("la auditoría guarda el motivo, no solo el hecho") aplica también a los motivos que nadie escribió todavía.
 

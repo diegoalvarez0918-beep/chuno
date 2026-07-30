@@ -1,7 +1,7 @@
 # Estado del proyecto
 
 > Traspaso entre sesiones. Léelo después de `CLAUDE.md` y antes de tocar nada.
-> Última actualización: 2026-07-30, tras cerrar las Fases 2 y 3.
+> Última actualización: 2026-07-30, tras cerrar Fases 2 y 3, el CLI y el rediseño.
 
 ---
 
@@ -16,6 +16,7 @@
 | Entrevista de onboarding | `/panel/comenzar` | 7 preguntas → negocio nuevo configurado |
 | Repetición de la entrevista | `/demo/comenzar` | Pública, determinista, sin LLM y sin escribir |
 | Webhook multi-bot | `/webhook/telegram/:negocioId` | Un bot por negocio, con secreto propio |
+| Instalador | `npx chuno init` · `cli/chuno.mjs` | Crea D1, despliega y conecta el bot |
 | Repositorio público | https://github.com/diegoalvarez0918-beep/chuno | Entregable #1 |
 | Bot de Telegram | `@Chunnobot` | Escribe al negocio `mi-optica` |
 | Base de datos D1 | `chuno` · `50f72126-740e-4813-8c9c-355ca32a8698` | 16 tablas |
@@ -41,10 +42,11 @@ Cloudflare está autenticado por OAuth en `~/.wrangler`. GitHub **no** tiene cre
 | 1 | CRM autoalimentado y panel de métricas | ✅ cerrada |
 | 2 | Conocimiento estructurado: catálogo y preguntas frecuentes | ✅ cerrada |
 | 3 | Onboarding conversacional (`/comenzar`) | ✅ cerrada |
-| 4 | Ingesta multicanal — familia Meta (WhatsApp, Instagram, Messenger) | ⏭️ **siguiente** |
+| 4 | Ingesta multicanal — familia Meta (WhatsApp, Instagram, Messenger) | pendiente · bloqueado por trámite de Meta |
 | 5 | Marca blanca | pendiente |
 | 6 | Entrega del concurso: video, links, votos | pendiente |
-| 7-9 | Herramientas con escritura, RAG con embeddings, CLI instalador | después del concurso |
+| 7-8 | Herramientas con escritura, RAG con embeddings | después del concurso |
+| 9 | CLI instalador | ✅ adelantada — `npx chuno init` |
 
 Spec completo: `docs/superpowers/specs/2026-07-29-chuno-plataforma-design.md`
 Planes ejecutados: `docs/superpowers/plans/2026-07-29-fase-1-crm-y-metricas.md` y `docs/superpowers/plans/2026-07-29-fase-2-3-conocimiento-y-onboarding.md`
@@ -103,6 +105,43 @@ Están en `APRENDIZAJES.md` con más detalle. Los que muerden más rápido:
 - **Los modelos de Gemini se jubilan sin aviso** y el listado de la API los sigue mostrando. Por eso `MODELOS_LLM` es una var con lista de respaldo y el proveedor cae al siguiente ante 404, 429 o 503. El 503 se agregó el 2026-07-30: `gemini-3.6-flash` empezó a devolverlo por saturación y tumbaba la extracción entera, porque el proveedor no reintentaba con otro modelo.
 - **Un envío fallido a Telegram no guarda mensaje del agente.** Si `sendMessage` falla, no hay fila en `mensajes` — solo la acción `envio_fallido` en `auditoria`. Buscar la respuesta en `mensajes` y no encontrarla no significa que el agente no haya funcionado.
 - **La auditoría es la herramienta de diagnóstico.** Cuando algo falle, consulta `auditoria` antes de reproducir nada: guarda el motivo, no solo el hecho.
+
+## Identidad visual — sistema Voz
+
+El panel sigue el sistema de diseño de **Voz**, la marca de Diego. Está en
+`Voz design system.zip` en la raíz (ignorado por git; se descomprime aparte).
+El documento corto es `uploads/Identidad-Visual-Voz.md`.
+
+Lo que hay que respetar y no relajar, porque son reglas del sistema, no gustos:
+
+- **Claro y cálido**, no oscuro. Fondo crema `#FCFCFA`, alternando con
+  `#F5F5F2` y `#EFEFEB`. Texto `#1A1D14`, atenuado `#747069`.
+- **Raleway** en títulos, **Nunito Sans** en cuerpo. Cargan con `display=swap`
+  a propósito: el panel se abre desde un mostrador con la señal que haya.
+- **Sobre lima `#D2FF00` el texto va SIEMPRE oscuro.** Nunca lima sobre crema.
+- **`#FF2F00` es exclusivo del CTA principal**, uno dominante por pantalla.
+  Para texto pequeño en rojo va `#E02900`, que sí contrasta.
+- **Lima y rojo-naranja no van adyacentes al mismo peso**: compiten.
+
+Los chips de riesgo ya usan esa gramática: vencido en rojo accesible, "vence
+hoy" en lima con texto carbón.
+
+## Git y GitHub
+
+Ya no hace falta Composio para subir código:
+
+- Identidad configurada: `Diego Alvarez <diego.alvarez0918@gmail.com>`.
+- Autenticación por **llave SSH** (`~/.ssh/id_ed25519`), registrada en GitHub.
+  El remoto es `git@github.com:diegoalvarez0918-beep/chuno.git`.
+- Subir es `git push`, sin contraseñas.
+
+**El historial remoto se reemplazó por el local** el 2026-07-30. Antes tenía 62
+commits generados por Composio, todos con el mismo título; ahora tiene los
+commits reales. No volver a subir por API: crearía otra historia paralela.
+
+**Ojo con el clasificador de permisos de Claude Code:** bloquea `git checkout`,
+`git merge` y editar `.claude/settings.local.json`. `git push` sí lo permite.
+Las fusiones de rama las corre Diego a mano.
 
 ## Lo que está bloqueado en el humano
 
