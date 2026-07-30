@@ -197,7 +197,14 @@ async function crearKV(nombreKV) {
   } else {
     const creado = correr("npx", ["--yes", "wrangler", "kv", "namespace", "create", nombreKV]);
     if (!creado.ok) morir(`No pude crear el espacio para las fotos.\n\n${creado.salida}`);
-    id = creado.salida.match(/[0-9a-f]{32}/)?.[0] ?? null;
+
+    // Primero el id rotulado, y solo si no está, el primer hexadecimal suelto.
+    // Al revés, cualquier otro hash que wrangler imprima antes se llevaría el
+    // puesto y el despliegue apuntaría a un espacio que no es.
+    id =
+      creado.salida.match(/\bid\s*[:=]\s*"?([0-9a-f]{32})"?/i)?.[1] ??
+      creado.salida.match(/[0-9a-f]{32}/)?.[0] ??
+      null;
     if (!id) morir(`Creé el espacio pero no encontré su identificador.\n\n${creado.salida}`);
   }
 
