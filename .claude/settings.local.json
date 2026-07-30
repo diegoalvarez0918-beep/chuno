@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls -lt ~/Downloads ~/Desktop ~/Documents 2>/dev/null | head -60)"
+      "Bash(ls -lt ~/Downloads ~/Desktop ~/Documents 2>/dev/null | head -60)",
+      "Bash(npx wrangler *)",
+      "Bash(python3 -c \"import json,sys; print\\(json.load\\(sys.stdin\\)[0]['results'][0]\\)\")"
     ]
   }
 }

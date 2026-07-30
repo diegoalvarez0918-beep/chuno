@@ -206,10 +206,12 @@ body {
 /* La palabra gigante detrás de todo. Decorativa: no la lee un lector de pantalla.
    Va MÁS clara que el fondo, no más oscura: así se lee como un relieve y no
    compite con las burbujas ni con el tablero que van encima.
-   Va en SVG con textLength y no en CSS con un tamaño en vw: ocho letras
-   con nowrap se desbordan por los dos costados y se lee "ROMESA". Forzando la
-   longitud, la palabra calza el ancho exacto en cualquier pantalla y sin
-   depender de que Raleway ya haya cargado cuando el navegador mide. */
+   Va en SVG con textLength y no en CSS con un tamaño en vw: con nowrap la
+   palabra se desborda por los dos costados y se lee solo el trozo del medio.
+   Forzando la longitud calza el ancho exacto en cualquier pantalla, y sin
+   depender de que Raleway ya haya cargado cuando el navegador mide.
+   lengthAdjust va en "spacing" y no en "spacingAndGlyphs": con cinco letras,
+   estirar los glifos deforma la marca; separarlas, no. */
 .palabra {
   position: absolute; bottom: -6px; left: 0; right: 0; z-index: 2;
   pointer-events: none; line-height: 0;
@@ -217,9 +219,13 @@ body {
 }
 @media (min-width: 768px) { .palabra { bottom: -10px; } }
 .palabra svg { display: block; width: 100%; height: auto; }
+/* Más oscura que el fondo, no más clara. En blanco sobre crema la palabra
+   apenas se insinuaba; con la marca detrás del hero eso no sirve — tiene que
+   leerse. Sigue por debajo del texto y del tablero en peso, que es lo que la
+   mantiene de fondo y no de titular. */
 .palabra text {
   font-family: var(--display); font-weight: 800; font-size: 235px;
-  fill: #FFFFFF; letter-spacing: -.02em;
+  fill: #D5D5CC;
 }
 @keyframes palabraSube { to { transform: translateY(0); } }
 
@@ -251,6 +257,31 @@ body {
 }
 
 .lienzo { position: relative; width: 100%; height: 100%; max-width: 1100px; margin: 0 auto; }
+
+/* ── La foto del hero ─────────────────────────────────────────────────────
+   Arranca oculta y solo entra si /hero.png carga de verdad. Si el archivo no
+   está, la página se queda con las burbujas y el tablero en vez de mostrar un
+   hero vacío: un despliegue no puede depender de que alguien se acordara de
+   subir un PNG.
+   El spotlight no necesita dos imágenes — la de abajo va en gris y la de
+   arriba a color, recortada por la misma máscara. Es el mismo archivo. */
+.capa-foto { z-index: 6; display: none; }
+.hero.con-foto .capa-foto { display: block; }
+.hero.con-foto .capa-caos, .hero.con-foto .capa-orden { display: none; }
+.capa-foto img {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: contain; object-position: center bottom;
+}
+.capa-foto.gris img { filter: grayscale(1) contrast(.85) opacity(.42); }
+.capa-foto.color {
+  z-index: 7;
+  -webkit-mask-image: radial-gradient(circle 620px at var(--mx) var(--my), #000 0 62%, rgba(0,0,0,.85) 76%, rgba(0,0,0,.3) 90%, transparent 100%);
+  mask-image: radial-gradient(circle 620px at var(--mx) var(--my), #000 0 62%, rgba(0,0,0,.85) 76%, rgba(0,0,0,.3) 90%, transparent 100%);
+}
+@media (hover: none), (prefers-reduced-motion: reduce) {
+  .capa-foto.color { -webkit-mask-image: none; mask-image: none; }
+  .capa-foto.gris { display: none; }
+}
 
 /* Apagadas a propósito: son el ruido del que el tablero rescata al dueño. Si
    compiten en contraste con lo que revela el spotlight, no se lee ninguno. */
@@ -527,7 +558,11 @@ const GUION = `
   // Se hace con una máscara de gradiente y dos variables CSS. La versión obvia
   // —pintar un canvas y pasarlo con toDataURL()— codifica un PNG completo en
   // CADA cuadro; en un teléfono de gama media eso cae a un dígito de fps.
-  var capa = document.getElementById('orden');
+  // Las dos capas recortadas siguen el mismo puntero: el tablero cuando no hay
+  // foto, la versión a color cuando sí la hay. Solo una está visible a la vez.
+  var capas = [document.getElementById('orden'), document.getElementById('foto-color')]
+    .filter(Boolean);
+  var capa = capas[0];
   var quieto = window.matchMedia('(hover: none), (prefers-reduced-motion: reduce)');
   if (capa && !quieto.matches) {
     var destinoX = 0, destinoY = 0, x = 0, y = 0, arrancado = false;
@@ -549,8 +584,10 @@ const GUION = `
     (function seguir() {
       x += (destinoX - x) * 0.12;
       y += (destinoY - y) * 0.12;
-      capa.style.setProperty('--mx', x.toFixed(1) + 'px');
-      capa.style.setProperty('--my', y.toFixed(1) + 'px');
+      capas.forEach(function (c) {
+        c.style.setProperty('--mx', x.toFixed(1) + 'px');
+        c.style.setProperty('--my', y.toFixed(1) + 'px');
+      });
       requestAnimationFrame(seguir);
     })();
   }
@@ -633,12 +670,22 @@ ${FUENTES_VOZ}
 <main class="hero">
   <div class="palabra" aria-hidden="true">
     <svg viewBox="0 0 1000 175" preserveAspectRatio="xMidYMax meet">
-      <text x="0" y="170" textLength="1000" lengthAdjust="spacingAndGlyphs">PROMESAS</text>
+      <text x="0" y="170" textLength="1000" lengthAdjust="spacing">CHUNO</text>
     </svg>
   </div>
 
   <!-- Debajo, el problema. Encima y recortado por el spotlight, lo mismo
        convertido en estado operativo: el cursor destapa el orden. -->
+  <!-- La foto manda si existe; si no carga, no se activa y quedan las capas de
+       abajo. El onload va inline porque tiene que dispararse antes de que el
+       guion del final del documento corra. -->
+  <div class="capa capa-foto gris" aria-hidden="true">
+    <img src="/hero.png" alt="" onload="document.querySelector('.hero').classList.add('con-foto')">
+  </div>
+  <div class="capa capa-foto color" id="foto-color" aria-hidden="true">
+    <img src="/hero.png" alt="">
+  </div>
+
   <div class="capa capa-caos" aria-hidden="true"><div class="lienzo">${burbujas}</div></div>
   <div class="capa capa-orden" id="orden" aria-hidden="true">
     <div class="lienzo">

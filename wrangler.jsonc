@@ -14,6 +14,13 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["AgenteConversacion"] }],
 
+  // Archivos estáticos (la imagen del hero, y mañana los logos de marca blanca).
+  // Los sirve la CDN de Cloudflare antes de despertar al Worker, así que no
+  // cuestan invocación y no hay que meterlos en base64 dentro del HTML — un PNG
+  // de 1 MB incrustado son ~1.4 MB de HTML que el navegador no puede cachear
+  // aparte, en una página que se abre desde un mostrador con la señal que haya.
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+
   "d1_databases": [
     {
       "binding": "DB",
