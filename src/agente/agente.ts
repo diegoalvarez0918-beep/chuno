@@ -21,8 +21,9 @@ import {
   leerHilo,
   obtenerConversacion,
 } from "../db/repos/conversacion";
-import { crearPedido } from "../db/repos/pedido";
-import { crearPropuesta } from "../db/repos/propuesta";
+import { yaHayEncargoVivo } from "../core/pedido/dedupe";
+import { crearPedido, listarPedidosDeConversacion } from "../db/repos/pedido";
+import { crearPropuesta, listarPendientes } from "../db/repos/propuesta";
 import { auditar, buscarConocimiento, crearTicket } from "../db/repos/varios";
 import { registrarContacto, registrarLead } from "../db/repos/crm";
 import { registrarUso } from "../db/repos/uso";
@@ -293,6 +294,33 @@ export class AgenteConversacion extends DurableObject<Env> {
         negocioId,
         "pedido_descartado",
         { motivo: "sin items", confianza: extraccion.confianza },
+        "agente",
+      );
+      return true;
+    }
+
+    // Antes de registrar nada: ¿este encargo ya está registrado?
+    //
+    // El agente re-lee el hilo completo en cada ráfaga, así que tres mensajes
+    // seguidos del mismo cliente son tres extracciones del mismo encargo. Hay
+    // que preguntar por los dos caminos a la vez, porque el de alta confianza
+    // deja una fila en `pedidos` y el de baja confianza deja una propuesta sin
+    // decidir: mirar solo uno deja pasar el duplicado por el otro.
+    const [previos, pendientes] = await Promise.all([
+      listarPedidosDeConversacion(db, negocioId, conversacionId),
+      listarPendientes(db, negocioId),
+    ]);
+
+    const hayPropuestaDePedido = pendientes.some(
+      (p) => p.payload.tipo === "crear_pedido" && p.payload.conversacionId === conversacionId,
+    );
+
+    if (yaHayEncargoVivo(previos.map((p) => p.estado), hayPropuestaDePedido)) {
+      await auditar(
+        db,
+        negocioId,
+        "pedido_duplicado_evitado",
+        { conversacionId, previos: previos.length },
         "agente",
       );
       return true;

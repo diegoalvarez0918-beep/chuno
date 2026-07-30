@@ -191,6 +191,7 @@ export function vistaRegistro(entradas: readonly EntradaAuditoria[]): string {
     respuesta_fallida: "No pudo responderle al cliente",
     envio_fallido: "No pudo entregar un mensaje al cliente",
     pedido_descartado: "Descartó un pedido sin datos concretos",
+    pedido_duplicado_evitado: "Reconoció un encargo que ya estaba registrado",
     negocio_configurado: "Se configuró un asistente nuevo",
     imagen_cargada: "Le cargó la foto a un producto",
   };
