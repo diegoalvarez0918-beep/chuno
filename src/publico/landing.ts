@@ -785,7 +785,7 @@ ${FUENTES_VOZ}
 </section>
 
 <footer><div class="adentro">
-  <span>CHUNO · Plug Nights 2026 · Carril de optimización de procesos</span>
+  <span>CHUNO · Se instala en la nube de tu propio negocio</span>
   <span class="der"><a href="${REPO}">Código abierto</a> · <a href="/entrar">Entrar al panel</a></span>
 </div></footer>
 

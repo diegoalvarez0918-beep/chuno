@@ -129,8 +129,9 @@ export function vistaPedidos(pedidos: readonly Pedido[], hoy: string): string {
 // ──────────────────────────────────────────────────────────────────  registro ──
 
 /**
- * Auditoría. Es criterio de evaluación explícito del concurso, pero antes que eso
- * es lo que un dueño necesita para soltarle su operación a un asistente.
+ * Auditoría. Es lo que un dueño necesita para soltarle su operación a un
+ * asistente: sin registro de qué propuso el agente y qué aprobó él, delegar es
+ * un acto de fe.
  */
 export function vistaRegistro(entradas: readonly EntradaAuditoria[]): string {
   if (entradas.length === 0) {

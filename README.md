@@ -145,4 +145,4 @@ test/core/      lo único que se prueba con vitest, y a propósito
 
 ---
 
-Construido para **Plug Nights 2026** · carril de optimización de procesos.
+**CHUNO** — el asistente que se acuerda de lo que le prometiste a tu cliente.
