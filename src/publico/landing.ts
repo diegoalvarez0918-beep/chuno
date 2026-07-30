@@ -1,4 +1,4 @@
-import { FUENTES_VOZ, TOKENS_VOZ } from "../admin/html";
+import { FUENTES_VOZ, TOKENS_VOZ, onda, topo } from "../admin/html";
 
 /**
  * La página pública.
@@ -67,6 +67,36 @@ const PASOS: readonly { n: string; titulo: string; texto: string }[] = [
   },
 ];
 
+/**
+ * La comparación que la página no tenía y que era su hueco más grande.
+ *
+ * Un votante que llega frío ve "asistente para WhatsApp" y lo archiva mentalmente
+ * como un chatbot más. La diferencia de CHUNO no es cómo contesta —es lo que
+ * queda escrito después—, y eso hay que ponerlo lado a lado o no se ve.
+ */
+const CONTRASTE: readonly { bot: string; chuno: string }[] = [
+  {
+    bot: "Contesta el mensaje y lo olvida.",
+    chuno: "Convierte la conversación en un pedido con fecha comprometida.",
+  },
+  {
+    bot: "Al otro día nadie sabe qué se le prometió a quién.",
+    chuno: "Un tablero con qué venció, qué vence hoy y qué va a tiempo.",
+  },
+  {
+    bot: "Te enteras de que incumpliste cuando el cliente reclama.",
+    chuno: "Revisa tus promesas cada media hora y te avisa antes de que reclame.",
+  },
+  {
+    bot: "Le escribe a tu cliente por su cuenta.",
+    chuno: "Te deja el mensaje redactado. Sale solo cuando tú lo apruebas.",
+  },
+  {
+    bot: "Tus conversaciones viven en el servidor de otro.",
+    chuno: "Corre en la nube de tu propio negocio, con tus datos y sin telemetría.",
+  },
+];
+
 const GARANTIAS: readonly { fuerte: string; resto: string }[] = [
   { fuerte: "Corre en tu propia nube.", resto: "Tus conversaciones y tus clientes no pasan por servidores nuestros." },
   { fuerte: "La IA no toca la base de datos.", resto: "Solo propone datos que el sistema valida; si algo no cuadra, va a tu bandeja en vez de escribirse solo." },
@@ -95,91 +125,97 @@ body {
 }
 
 /* ─────────────────────────────────────────────────────────────── cortina ── */
-/* Diez cajas lima que se abren. Es lo primero que ve un jurado, así que dura
-   ~0.8 s en total: intención deliberada, no una espera. */
+/* Diez cajas lima que se abren en abanico. Es lo primero que ve un jurado: el
+   gesto tarda ~1.35 s en total, que es intención deliberada y no una espera. */
 .cortina {
   position: fixed; inset: 0; z-index: 9999; pointer-events: none;
-  overflow: hidden; animation: cortinaFuera .25s ease .62s forwards;
+  overflow: hidden; animation: cortinaFuera .3s ease 1.35s forwards;
 }
 .cortina-fila { display: flex; width: 100%; height: 50%; }
 .cortina-caja { width: 20%; height: 100%; background: var(--lima); }
-.cortina-fila.arriba .cortina-caja { animation: cortinaArriba .62s cubic-bezier(.96,-.02,.38,1.01) forwards; }
-.cortina-fila.abajo .cortina-caja { animation: cortinaAbajo .62s cubic-bezier(.96,-.02,.38,1.01) forwards; }
-.cortina-caja:nth-child(2) { animation-delay: .035s; }
-.cortina-caja:nth-child(3) { animation-delay: .07s; }
-.cortina-caja:nth-child(4) { animation-delay: .105s; }
-.cortina-caja:nth-child(5) { animation-delay: .14s; }
+.cortina-fila.arriba .cortina-caja { animation: cortinaArriba 1s cubic-bezier(.96,-.02,.38,1.01) forwards; }
+.cortina-fila.abajo .cortina-caja { animation: cortinaAbajo 1s cubic-bezier(.96,-.02,.38,1.01) forwards; }
+.cortina-caja:nth-child(2) { animation-delay: .05s; }
+.cortina-caja:nth-child(3) { animation-delay: .1s; }
+.cortina-caja:nth-child(4) { animation-delay: .15s; }
+.cortina-caja:nth-child(5) { animation-delay: .2s; }
 @keyframes cortinaArriba { to { transform: translateY(-100%); } }
 @keyframes cortinaAbajo { to { transform: translateY(100%); } }
 @keyframes cortinaFuera { to { opacity: 0; visibility: hidden; } }
 
 /* ────────────────────────────────────────────────────────── navegación ── */
+/* La marca va en modo diferencia: se lee oscura sobre el crema del hero y
+   clara si algo oscuro pasa por debajo, sin necesidad de dos versiones del
+   logo ni de saber qué hay detrás en cada scroll. */
 .marca-fija {
-  position: fixed; top: 26px; left: 22px; z-index: 20;
-  display: inline-flex; align-items: center; gap: 9px;
-  font-family: var(--display); font-weight: 800; font-size: 19px;
-  letter-spacing: 1.5px; color: var(--texto); text-decoration: none;
+  position: fixed; top: 30px; left: 20px; z-index: 20;
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: var(--display); font-weight: 800; font-size: 21px;
+  letter-spacing: 1.6px; color: #F4F1E8; text-decoration: none;
+  mix-blend-mode: difference;
 }
-.marca-fija::before {
-  content: ""; width: 5px; height: 19px; border-radius: 3px; background: var(--lima);
-}
-@media (min-width: 768px) { .marca-fija { top: 36px; left: 40px; } }
+.marca-fija .onda { display: block; }
+@media (min-width: 768px) { .marca-fija { top: 40px; left: 40px; } }
 
 .hamburguesa {
-  position: fixed; top: 20px; right: 20px; z-index: 22;
-  width: 56px; height: 56px; border-radius: 50%; border: 1px solid var(--borde);
-  background: var(--tarjeta); cursor: pointer; box-shadow: var(--sombra);
-  display: flex; flex-direction: column; gap: 5px; align-items: center; justify-content: center;
-  transition: background .35s ease, border-color .35s ease;
+  position: fixed; top: 16px; right: 20px; z-index: 22;
+  width: 59px; height: 59px; border-radius: 50%; border: none;
+  background: var(--sobre-invertido); cursor: pointer; box-shadow: var(--sombra);
+  display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: center;
+  transition: background .4s ease;
 }
-@media (min-width: 768px) { .hamburguesa { top: 30px; right: 40px; } }
+@media (min-width: 768px) { .hamburguesa { top: 27px; right: 40px; } }
 .hamburguesa .barra {
-  display: block; width: 22px; height: 2px; border-radius: 2px;
+  display: block; width: 24px; height: 2px; border-radius: 2px;
   background: var(--texto); transition: transform .3s ease, background .3s ease;
 }
-.hamburguesa:hover { background: var(--invertido); border-color: transparent; }
+.hamburguesa:hover { background: var(--invertido); }
 .hamburguesa:hover .barra { background: var(--sobre-invertido); }
-.hamburguesa[aria-expanded="true"] { background: var(--invertido); border-color: transparent; }
+.hamburguesa[aria-expanded="true"] { background: var(--invertido); }
 .hamburguesa[aria-expanded="true"] .barra { background: var(--sobre-invertido); }
-.hamburguesa[aria-expanded="true"] .barra:first-child { transform: rotate(45deg) translate(3px, 3px); }
-.hamburguesa[aria-expanded="true"] .barra:last-child { transform: rotate(-45deg) translate(3px, -3px); }
+.hamburguesa[aria-expanded="true"] .barra:first-child { transform: rotate(45deg) translate(2px, 2px); }
+.hamburguesa[aria-expanded="true"] .barra:last-child { transform: rotate(-45deg) translate(2px, -2px); }
 
 .menu {
   position: fixed; z-index: 21; left: 8px; right: 8px; top: -640px; opacity: 0;
-  pointer-events: none; border-radius: 22px;
-  background: rgba(26,29,20,.96);
+  pointer-events: none; border-radius: 20px;
+  background: rgba(26,29,20,.95);
   -webkit-backdrop-filter: blur(26px); backdrop-filter: blur(26px);
-  padding: 96px 30px 30px; display: flex; flex-direction: column; gap: 30px;
-  transition: top .5s cubic-bezier(.25,.46,.45,.94), opacity .35s ease;
+  padding: 90px 32px 32px; display: flex; flex-direction: column; justify-content: space-between; gap: 32px;
+  transition: top .5s cubic-bezier(.25,.46,.45,.94), opacity .4s ease;
 }
-@media (min-width: 768px) { .menu { left: auto; right: 8px; width: 420px; padding: 96px 44px 44px; } }
+@media (min-width: 768px) { .menu { left: auto; right: 7px; width: 420px; padding: 60px; padding-top: 108px; } }
 .menu.abierto { top: 8px; opacity: 1; pointer-events: auto; }
-.menu nav { display: flex; flex-direction: column; gap: 4px; }
+@media (min-width: 768px) { .menu.abierto { top: 7px; } }
+.menu nav { display: flex; flex-direction: column; gap: 8px; }
 .menu nav a {
-  font-family: var(--display); font-weight: 700; font-size: 34px; line-height: 1.3;
-  color: var(--sobre-invertido); text-decoration: none; transition: opacity .25s ease;
+  font-family: var(--display); font-weight: 700; font-size: 36px; line-height: 1.3;
+  color: var(--sobre-invertido); text-decoration: none; transition: opacity .3s ease;
 }
-@media (min-width: 768px) { .menu nav a { font-size: 40px; } }
-.menu nav a:hover { opacity: .65; }
-.menu .apunte { color: #9A958C; font-size: 14.5px; margin: 0; }
+@media (min-width: 768px) { .menu nav a { font-size: 42px; } }
+.menu nav a:hover { opacity: .7; }
+.menu .apunte { color: #9A958C; font-size: 15px; margin: 0; }
 
 /* ────────────────────────────────────────────────────────────────  hero ── */
 .hero {
   position: relative; width: 100%; min-height: 100vh; overflow: hidden;
   background: var(--fondo-2);
 }
-@media (min-width: 768px) { .hero { height: 100vh; min-height: 720px; } }
+@media (min-width: 768px) { .hero { height: 100vh; min-height: 800px; } }
 
-/* La palabra gigante detrás de todo. Decorativa: no la lee un lector de pantalla. */
+/* La palabra gigante detrás de todo. Decorativa: no la lee un lector de pantalla.
+   Va MÁS clara que el fondo, no más oscura: así se lee como un relieve y no
+   compite con las burbujas ni con el tablero que van encima. Se desborda por
+   los dos costados a propósito — el hero recorta. */
 .palabra {
-  position: absolute; bottom: -18px; left: 0; right: 0; z-index: 2;
+  position: absolute; bottom: -30px; left: 0; right: 0; z-index: 2;
   text-align: center; pointer-events: none;
-  transform: translateY(340px); animation: palabraSube 1s cubic-bezier(.16,1,.3,1) .95s forwards;
+  transform: translateY(330px); animation: palabraSube 1s cubic-bezier(.16,1,.3,1) 1.5s forwards;
 }
-@media (min-width: 768px) { .palabra { bottom: -30px; } }
+@media (min-width: 768px) { .palabra { bottom: -40px; } }
 .palabra span {
-  font-family: var(--display); font-weight: 800; color: var(--fondo-3);
-  font-size: clamp(76px, 19vw, 320px); line-height: .8; letter-spacing: -.04em;
+  font-family: var(--display); font-weight: 800; color: #FFFFFF;
+  font-size: clamp(120px, 26vw, 500px); line-height: .8; letter-spacing: -.04em;
   white-space: nowrap; display: block;
 }
 @keyframes palabraSube { to { transform: translateY(0); } }
@@ -252,24 +288,25 @@ body {
 @media (max-width: 767px) { .tablero-fila .que { display: none; } }
 
 .hero-texto {
-  position: relative; z-index: 8; max-width: 1180px; margin: 0 auto;
-  padding: 104px 22px 30px; display: flex; flex-direction: column;
-  align-items: flex-start; gap: 26px;
+  position: relative; z-index: 8; max-width: 1600px; margin: 0 auto;
+  padding: 110px 16px 24px; display: flex; flex-direction: column;
+  align-items: flex-start; gap: 30px; pointer-events: none;
 }
 @media (min-width: 768px) {
-  .hero-texto { position: absolute; inset: 0; justify-content: flex-start; padding: 150px 40px 90px; }
+  .hero-texto { position: absolute; inset: 0; justify-content: flex-start; padding: 160px 40px 100px; }
 }
+.hero-texto > * { pointer-events: auto; }
 .hero-titular {
   font-family: var(--display); font-weight: 700; color: var(--texto);
-  font-size: 25px; line-height: 1.24; letter-spacing: -.02em; max-width: 15ch; margin: 0;
+  font-size: 22px; line-height: 1.2; letter-spacing: -.02em; max-width: 447px; margin: 0;
 }
-@media (min-width: 768px) { .hero-titular { font-size: 34px; } }
-.palabra-entra { opacity: 0; display: inline-block; animation: palabraEntra .42s ease forwards; }
+@media (min-width: 768px) { .hero-titular { font-size: 28px; } }
+.palabra-entra { opacity: 0; display: inline-block; animation: palabraEntra .4s ease forwards; }
 @keyframes palabraEntra {
-  from { opacity: 0; transform: translateY(10px); filter: blur(9px); }
+  from { opacity: 0; transform: translateY(10px); filter: blur(10px); }
   to { opacity: 1; transform: translateY(0); filter: blur(0); }
 }
-.hero-cta { opacity: 0; animation: ctaEntra .8s cubic-bezier(.25,.46,.45,.94) .95s forwards; }
+.hero-cta { opacity: 0; animation: ctaEntra .8s cubic-bezier(.25,.46,.45,.94) 1s forwards; }
 @keyframes ctaEntra {
   from { opacity: 0; transform: translateY(52px) scale(.5); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -277,26 +314,29 @@ body {
 
 /* ────────────────────────────────────────────────────────────────  pill ── */
 .pill {
-  position: relative; display: inline-flex; align-items: center; gap: 11px;
-  border-radius: 999px; padding: 7px; overflow: hidden; text-decoration: none;
+  position: relative; display: inline-flex; align-items: center; gap: 12px;
+  border-radius: 999px; padding: 8px; overflow: hidden; text-decoration: none;
 }
 .pill-fondo {
-  position: absolute; top: 5px; bottom: 5px; left: 7px;
-  width: calc(100% - 7px - 7px - 50px - 11px); border-radius: 999px;
+  position: absolute; top: 5px; bottom: 5px; left: 8px;
+  width: calc(100% - 8px - 8px - 48px - 12px); border-radius: 999px;
   background: var(--tarjeta); box-shadow: var(--sombra); z-index: 0;
   transition: width .4s cubic-bezier(.25,.46,.45,.94);
 }
-.pill:hover .pill-fondo { width: calc(100% - 14px); }
+@media (min-width: 768px) { .pill-fondo { width: calc(100% - 8px - 8px - 54px - 12px); } }
+.pill:hover .pill-fondo { width: calc(100% - 16px); }
 .pill-texto {
   position: relative; z-index: 1; color: var(--texto); font-weight: 700;
-  font-size: 15.5px; padding: 13px 30px; white-space: nowrap;
+  font-size: 16px; padding: 12px 32px; white-space: nowrap;
 }
+@media (min-width: 768px) { .pill-texto { font-size: 18px; padding: 16px 40px; } }
 .pill-circulo {
   position: relative; z-index: 1; display: flex; align-items: center; justify-content: center;
-  width: 50px; height: 50px; border-radius: 50%; flex-shrink: 0;
+  width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0;
   background: var(--accion); color: #fff;
   transition: transform .4s cubic-bezier(.25,.46,.45,.94);
 }
+@media (min-width: 768px) { .pill-circulo { width: 54px; height: 54px; } }
 .pill:hover .pill-circulo { transform: translateX(-7px); }
 /* Lima y rojo-naranja no compiten al mismo peso: el secundario no lleva ninguno. */
 .pill.suave .pill-fondo { background: transparent; box-shadow: none; border: 1px solid var(--borde-fuerte); }
@@ -305,13 +345,54 @@ body {
 .pill.clara .pill-fondo { background: var(--sobre-invertido); }
 
 /* ────────────────────────────────────────────────────────────  secciones ── */
-.seccion-p { max-width: 1000px; margin: 0 auto; padding: 92px 22px; }
+.seccion-p { position: relative; z-index: 1; max-width: 1000px; margin: 0 auto; padding: 92px 22px; }
 @media (min-width: 768px) { .seccion-p { padding: 116px 40px; } }
 .seccion-p.alterna { background: var(--fondo); }
-.franja { background: var(--fondo); }
+.franja { position: relative; overflow: hidden; background: var(--fondo); }
+/* La textura topográfica del brandbook de Voz: da fondo sin robar atención. */
+.franja .topo-fondo, .con-topo .topo-fondo {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 0;
+}
+.con-topo { position: relative; overflow: hidden; }
+/* Un absoluto con z-index 0 pinta ENCIMA de los bloques estáticos hermanos, no
+   debajo. Sin esto la textura queda sobre el texto en vez de detrás. */
+.con-topo > *:not(svg) { position: relative; z-index: 1; }
 .rotulo {
   font-family: var(--display); font-size: 11.5px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 1.8px; color: var(--suave); margin: 0 0 14px;
+  text-transform: uppercase; letter-spacing: 1.8px; color: var(--suave);
+  margin: 0 0 14px; display: flex; align-items: center; gap: 10px;
+}
+.rotulo .onda { color: var(--lima); flex: none; }
+
+/* ── El contraste: un bot cualquiera contra CHUNO, lado a lado ───────────── */
+.contraste {
+  display: grid; gap: 1px; background: var(--borde);
+  border: 1px solid var(--borde); border-radius: var(--radio); overflow: hidden;
+}
+@media (min-width: 820px) { .contraste { grid-template-columns: 1fr 1fr; } }
+.contraste .cab {
+  font-family: var(--display); font-size: 12px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.5px;
+  padding: 15px 22px; background: var(--fondo-3); color: var(--suave);
+}
+.contraste .cab.nuestra { background: var(--invertido); color: var(--lima); }
+.contraste .celda { padding: 17px 22px; font-size: 15.2px; line-height: 1.5; }
+.contraste .celda.bot { background: var(--fondo-2); color: var(--suave); }
+.contraste .celda.bot::before {
+  content: "×"; color: var(--suave); font-weight: 700; margin-right: 9px;
+}
+.contraste .celda.nuestra { background: var(--tarjeta); color: var(--texto); font-weight: 600; }
+.contraste .celda.nuestra::before {
+  content: "✓"; color: var(--invertido); font-weight: 700; margin-right: 9px;
+  background: var(--lima); border-radius: 50%; display: inline-block;
+  width: 20px; height: 20px; text-align: center; font-size: 12px; line-height: 20px;
+  vertical-align: 1px;
+}
+@media (max-width: 819px) {
+  .contraste .cab { display: none; }
+  .contraste .celda.bot { padding-bottom: 10px; }
+  .contraste .celda.nuestra { padding-top: 10px; }
 }
 h2 {
   font-family: var(--display); font-weight: 700; font-size: clamp(27px, 4.2vw, 40px);
@@ -387,7 +468,7 @@ const GUION = `
     var s = document.createElement('span');
     s.className = 'palabra-entra';
     s.textContent = palabra;
-    s.style.animationDelay = (0.85 + i * 0.045) + 's';
+    s.style.animationDelay = (1 + i * 0.05) + 's';
     titular.appendChild(s);
     titular.appendChild(document.createTextNode(' '));
   });
@@ -483,6 +564,15 @@ export function landing(): string {
     (g) => `<li><strong>${g.fuerte}</strong> ${g.resto}</li>`,
   ).join("");
 
+  const contraste = [
+    `<div class="cab">Un bot que solo contesta</div>`,
+    `<div class="cab nuestra">CHUNO</div>`,
+    ...CONTRASTE.flatMap((c) => [
+      `<div class="celda bot">${c.bot}</div>`,
+      `<div class="celda nuestra">${c.chuno}</div>`,
+    ]),
+  ].join("");
+
   return `<!doctype html>
 <html lang="es"><head>
 <meta charset="utf-8">
@@ -495,7 +585,7 @@ ${FUENTES_VOZ}
 
 <div class="cortina" aria-hidden="true">${cortina("arriba")}${cortina("abajo")}</div>
 
-<a class="marca-fija" href="/">CHUNO</a>
+<a class="marca-fija" href="/">${onda(21)}<span>CHUNO</span></a>
 
 <button class="hamburguesa" id="hamburguesa" aria-expanded="false" aria-controls="menu" aria-label="Abrir menú">
   <span class="barra"></span><span class="barra"></span>
@@ -503,6 +593,7 @@ ${FUENTES_VOZ}
 
 <div class="menu" id="menu">
   <nav>
+    <a href="#diferencia">En qué se diferencia</a>
     <a href="#como-funciona">Cómo funciona</a>
     <a href="#confianza">Por qué confiar</a>
     <a href="/demo">Ver la demo</a>
@@ -533,9 +624,21 @@ ${FUENTES_VOZ}
   </div>
 </main>
 
+<section class="seccion-p con-topo" id="diferencia">
+  ${topo("topo-fondo")}
+  <p class="rotulo">${onda(14)}En qué se diferencia</p>
+  <h2>Todo el mundo está haciendo bots que contestan.</h2>
+  <p class="entrada">
+    El tuyo ya contesta: eres tú, a las once de la noche. El problema nunca fue
+    responder — fue acordarse. Esta es la diferencia, renglón por renglón.
+  </p>
+  <div class="contraste">${contraste}</div>
+</section>
+
 <div class="franja">
+  ${topo("topo-fondo")}
   <section class="seccion-p" id="como-funciona">
-    <p class="rotulo">Cómo funciona</p>
+    <p class="rotulo">${onda(14)}Cómo funciona</p>
     <h2>Un chatbot contesta. CHUNO se acuerda.</h2>
     <p class="entrada">
       La diferencia no está en cómo responde, sino en lo que deja atrás: un pedido
@@ -550,7 +653,7 @@ ${FUENTES_VOZ}
 </div>
 
 <section class="seccion-p" id="confianza">
-  <p class="rotulo">Por qué puedes confiarle tu operación</p>
+  <p class="rotulo">${onda(14)}Por qué puedes confiarle tu operación</p>
   <h2>Le estás dando tu chat a un programa. Estas son las reglas.</h2>
   <ul class="garantias">${garantias}</ul>
 </section>

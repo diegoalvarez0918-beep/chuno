@@ -71,61 +71,237 @@ export const FUENTES_VOZ = `<link rel="preconnect" href="https://fonts.googleapi
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Raleway:wght@600;700;800&family=Nunito+Sans:wght@400;600;700&display=swap">`;
 
+/**
+ * La textura topográfica del sistema Voz (`assets/topo-light.svg` del brandbook).
+ *
+ * Va como elemento SVG y no como `background-image` con data URI: codificar el
+ * SVG dentro de una cadena CSS que a su vez vive en un template literal deja
+ * tres niveles de escapado donde un `#` mal encodeado rompe en silencio y no lo
+ * atrapa ningún test. Un elemento con `aria-hidden` no tiene ese problema.
+ */
+export function topo(clase: string, color = "#33382C", opacidad = ".06"): string {
+  const anillo = (cx: number, cy: number, rx: number, ry: number) =>
+    `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"/>`;
+
+  const foco = (cx: number, cy: number, escalas: readonly number[]) =>
+    escalas.map((r) => anillo(cx, cy, r, Math.round(r * 0.76))).join("");
+
+  return `<svg class="${clase}" viewBox="0 0 1000 1000" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid slice">
+    <g fill="none" stroke="${color}" stroke-width="1.4" opacity="${opacidad}">
+      ${foco(270, 300, [50, 95, 145, 200, 260, 325])}
+      ${foco(740, 700, [60, 115, 175, 240, 310, 385])}
+      ${foco(860, 150, [40, 80, 125, 175])}
+    </g>
+  </svg>`;
+}
+
+/** La onda de Voz: el indicador de sección del sistema, en lima. */
+export function onda(alto = 16): string {
+  const barras = [0.35, 0.62, 1, 0.78, 0.45, 0.9, 0.55];
+  const cuerpo = barras
+    .map((f, i) => {
+      const h = Math.round(alto * f);
+      return `<rect x="${i * 6}" y="${Math.round((alto - h) / 2)}" width="3" height="${h}" rx="1.5"/>`;
+    })
+    .join("");
+
+  return `<svg class="onda" width="${barras.length * 6 - 3}" height="${alto}" viewBox="0 0 ${
+    barras.length * 6 - 3
+  } ${alto}" fill="currentColor" aria-hidden="true">${cuerpo}</svg>`;
+}
+
+/** Iconografía Voz: lineal, minimalista, trazos con extremos redondeados. */
+const ICONOS: Record<string, string> = {
+  inicio: '<path d="M3 9.5 10 3l7 6.5V16a1 1 0 0 1-1 1h-4v-5H8v5H4a1 1 0 0 1-1-1z"/>',
+  bandeja: '<path d="M2.5 11.5h4l1.5 2.5h4l1.5-2.5h4M2.5 11.5 5 4h10l2.5 7.5v4a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1z"/>',
+  pedidos: '<path d="M6.5 3.5h7a1 1 0 0 1 1 1v12l-4.5-2.5L5.5 16.5v-12a1 1 0 0 1 1-1z"/><path d="M8 7.5h4"/>',
+  clientes:
+    '<circle cx="8" cy="7" r="2.8"/><path d="M2.8 16.5c0-2.9 2.3-5.2 5.2-5.2s5.2 2.3 5.2 5.2"/><path d="M13.5 4.6a2.8 2.8 0 0 1 0 5.3M15 16.5c0-1.6-.5-3-1.4-4.1"/>',
+  conocimiento:
+    '<path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H16v11.5H5.5A1.5 1.5 0 0 0 4 16z"/><path d="M4 16a1.5 1.5 0 0 1 1.5-1.5H16V17H5.5A1.5 1.5 0 0 1 4 15.5z"/><path d="M7 7h6M7 10h4"/>',
+  registro:
+    '<circle cx="10" cy="10" r="7"/><path d="M10 6v4.2l2.8 1.8"/>',
+  comenzar: '<path d="M10 4v12M4 10h12"/>',
+};
+
+function icono(clave: string): string {
+  return `<svg class="ico" width="20" height="20" viewBox="0 0 20 20" fill="none"
+    stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+    aria-hidden="true">${ICONOS[clave] ?? ""}</svg>`;
+}
+
+/**
+ * Qué resuelve cada pantalla, en una línea y en lenguaje de dueño.
+ *
+ * No es decoración. Un panel con seis pestañas rotuladas "Inicio / Decisiones /
+ * Pedidos" se lee como cualquier otro tablero: lo que lo distingue de un chatbot
+ * es *por qué* existe cada pantalla, y eso hay que decirlo en la pantalla, no en
+ * la landing que el dueño ya no va a volver a leer.
+ */
+const PROPOSITO: Record<string, string> = {
+  inicio: "Lo que tienes que atender hoy, antes de que un cliente reclame.",
+  bandeja: "Nada sale hacia un cliente sin que tú lo apruebes. Esto espera tu criterio.",
+  pedidos: "Cada promesa que hiciste, con su fecha y su riesgo.",
+  clientes: "Se llenó solo con lo que la gente escribió en el chat. Nadie capturó nada.",
+  conocimiento: "Lo que el asistente sabe de tu negocio. Si no está aquí, no lo dice.",
+  registro: "Qué propuso el asistente, qué aprobaste tú y cuándo.",
+  comenzar: "Siete preguntas y queda un asistente configurado con tu catálogo.",
+};
+
+const GRUPOS: readonly { rotulo: string; items: readonly { ruta: string; texto: string; clave: string }[] }[] = [
+  {
+    rotulo: "Tu día",
+    items: [
+      { ruta: "/inicio", texto: "Inicio", clave: "inicio" },
+      { ruta: "/bandeja", texto: "Decisiones", clave: "bandeja" },
+      { ruta: "/pedidos", texto: "Pedidos", clave: "pedidos" },
+    ],
+  },
+  {
+    rotulo: "Tu negocio",
+    items: [
+      { ruta: "/clientes", texto: "Clientes", clave: "clientes" },
+      { ruta: "/conocimiento", texto: "Conocimiento", clave: "conocimiento" },
+    ],
+  },
+  {
+    rotulo: "Confianza",
+    items: [{ ruta: "/registro", texto: "Registro", clave: "registro" }],
+  },
+];
+
 const CSS = `${TOKENS_VOZ}
 body {
   margin: 0; color: var(--texto);
   font-family: var(--cuerpo); font-size: 15px; line-height: 1.6;
   -webkit-font-smoothing: antialiased;
-  background:
-    radial-gradient(1100px 380px at 50% -200px, color-mix(in srgb, var(--lima) 22%, transparent), transparent 72%),
-    var(--fondo);
-  background-color: var(--fondo);
-  background-attachment: fixed;
+  background: var(--fondo);
   min-height: 100vh;
 }
-.envoltorio { max-width: 1000px; margin: 0 auto; padding: 28px 20px 72px; }
 
-header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-h1 {
-  font-family: var(--display); font-size: 21px; font-weight: 800;
-  margin: 0; letter-spacing: 1.4px; color: var(--carbon);
-  display: inline-flex; align-items: center; gap: 9px;
+/* ───────────────────────────────────────────────────── armazón lateral ── */
+/* Barra fija a la izquierda, contenido a la derecha. El dueño no navega: mira
+   una sola columna de trabajo y siempre sabe dónde está parado. */
+.armazon { display: grid; grid-template-columns: 252px 1fr; min-height: 100vh; }
+
+.lateral {
+  position: sticky; top: 0; align-self: start; height: 100vh;
+  background: var(--invertido); color: var(--sobre-invertido);
+  display: flex; flex-direction: column; overflow: hidden;
 }
-/* La onda de marca, reducida a su gesto mínimo: una barra lima. */
-h1::before {
-  content: ""; width: 5px; height: 20px; border-radius: 3px;
-  background: var(--lima);
+.lateral .topo-fondo {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none;
 }
-.negocio {
-  color: var(--suave); font-size: 14px; font-weight: 600;
-  padding-left: 14px; border-left: 1px solid var(--borde);
+.lateral > * { position: relative; z-index: 1; }
+
+.marca {
+  display: flex; align-items: center; gap: 10px; text-decoration: none;
+  padding: 24px 22px 18px; color: var(--sobre-invertido);
+}
+.marca .nombre {
+  font-family: var(--display); font-size: 20px; font-weight: 800;
+  letter-spacing: 1.6px; line-height: 1;
+}
+.marca .onda { color: var(--lima); display: block; }
+
+.quien {
+  margin: 0 16px 6px; padding: 11px 13px; border-radius: var(--radio-s);
+  background: rgba(249,249,246,.06); border: 1px solid rgba(249,249,246,.09);
+}
+.quien .rotulo-mini {
+  font-family: var(--display); font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.4px; color: #9A958C; display: block;
+}
+.quien .nombre-negocio {
+  font-weight: 700; font-size: 14.5px; margin-top: 3px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+select.negocios {
+  font: inherit; font-weight: 700; font-size: 14.5px; margin-top: 3px;
+  width: 100%; background: transparent; color: var(--sobre-invertido);
+  border: none; padding: 0; cursor: pointer;
+}
+select.negocios option { color: var(--texto); }
+
+.lateral nav { padding: 14px 16px 10px; overflow-y: auto; flex: 1; }
+.grupo {
+  font-family: var(--display); font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.5px; color: #8E897F;
+  margin: 16px 0 7px 13px;
+}
+.grupo:first-child { margin-top: 0; }
+.lateral nav a {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 13px; border-radius: var(--radio-s); margin-bottom: 2px;
+  text-decoration: none; color: #CFCBC2; font-size: 14.5px; font-weight: 600;
+  transition: background .15s, color .15s;
+}
+.lateral nav a .ico { flex: none; opacity: .78; }
+.lateral nav a:hover { background: rgba(249,249,246,.07); color: var(--sobre-invertido); }
+.lateral nav a.activo { background: var(--lima); color: var(--invertido); font-weight: 700; }
+.lateral nav a.activo .ico { opacity: 1; }
+.globo {
+  margin-left: auto; background: var(--accion); color: #fff; border-radius: 999px;
+  padding: 1px 8px; font-size: 12px; font-weight: 700; line-height: 1.5;
+}
+.lateral nav a.activo .globo { background: var(--invertido); color: var(--lima); }
+
+.lateral-pie { padding: 14px 16px 20px; border-top: 1px solid rgba(249,249,246,.09); }
+.lateral-pie a.nuevo {
+  display: flex; align-items: center; gap: 10px; padding: 9px 13px;
+  border-radius: var(--radio-s); text-decoration: none; font-size: 14px;
+  font-weight: 700; color: var(--sobre-invertido);
+  border: 1px dashed rgba(249,249,246,.28);
+}
+.lateral-pie a.nuevo:hover { border-color: var(--lima); color: var(--lima); }
+.lateral-pie .nota { color: #8E897F; font-size: 11.5px; margin: 12px 0 0; line-height: 1.5; }
+.enlace-pie {
+  font: inherit; font-size: 11.5px; background: none; border: none; padding: 0;
+  color: #8E897F; text-decoration: underline; cursor: pointer;
+}
+.enlace-pie:hover { color: var(--lima); }
+
+/* ────────────────────────────────────────────────────────── contenido ── */
+.principal { min-width: 0; }
+.encabezado {
+  padding: 34px 40px 22px; border-bottom: 1px solid var(--borde);
+  background:
+    radial-gradient(760px 220px at 12% -140px, rgba(210,255,0,.30), transparent 70%),
+    var(--fondo);
+}
+.encabezado h1 {
+  font-family: var(--display); font-size: 27px; font-weight: 700;
+  letter-spacing: -.02em; margin: 0; color: var(--texto);
+}
+.encabezado .proposito {
+  color: var(--suave); font-size: 15px; margin: 6px 0 0; max-width: 62ch;
+}
+.lienzo-panel { padding: 26px 40px 72px; max-width: 1120px; }
+
+@media (max-width: 900px) {
+  .armazon { grid-template-columns: 1fr; }
+  .lateral { position: static; height: auto; flex-direction: column; }
+  .lateral nav { display: flex; gap: 6px; overflow-x: auto; padding: 4px 14px 14px; }
+  .lateral nav a { white-space: nowrap; margin-bottom: 0; }
+  .grupo { display: none; }
+  .lateral-pie { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .lateral-pie .nota { margin: 0; }
+  .encabezado { padding: 24px 20px 18px; }
+  .encabezado h1 { font-size: 23px; }
+  .lienzo-panel { padding: 20px 20px 64px; }
 }
 
-nav { display: flex; gap: 7px; margin: 22px 0 26px; flex-wrap: wrap; }
-nav a {
-  padding: 8px 15px; border-radius: 999px; text-decoration: none;
-  color: var(--suave); border: 1px solid var(--borde); font-size: 14px;
-  font-weight: 600; background: var(--tarjeta);
-  transition: color .15s, border-color .15s, background .15s;
-}
-nav a:hover { color: var(--texto); border-color: var(--carbon); }
-nav a.activo {
-  color: var(--sobre-invertido); border-color: transparent;
-  background: var(--invertido);
-  box-shadow: 0 4px 14px rgba(40,44,32,.18);
-}
-nav .globo {
-  background: var(--accion); color: #fff; border-radius: 999px;
-  padding: 1px 8px; font-size: 12px; font-weight: 700; margin-left: 7px;
-}
-nav a.activo .globo { background: var(--lima); color: var(--invertido); }
-
+/* ────────────────────────────────────────────── componentes de vista ── */
 .seccion {
   font-family: var(--display); font-size: 12px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 1.6px; color: var(--suave);
-  margin: 30px 0 12px;
+  margin: 30px 0 12px; display: flex; align-items: center; gap: 9px;
 }
 .seccion:first-child { margin-top: 0; }
+.seccion::before {
+  content: ""; width: 4px; height: 13px; border-radius: 2px; background: var(--lima);
+}
 
 .tarjeta {
   background: var(--tarjeta); border: 1px solid var(--borde);
@@ -187,12 +363,6 @@ tbody tr:hover { background: var(--fondo-2); }
   display: block; color: var(--texto); margin-bottom: 6px;
   font-family: var(--display); font-size: 16px; font-weight: 700;
 }
-.pie { color: var(--suave); font-size: 12.5px; margin-top: 36px; text-align: center; }
-.enlace-pie {
-  font: inherit; background: none; border: none; padding: 0;
-  color: var(--suave); text-decoration: underline; cursor: pointer;
-}
-.enlace-pie:hover { color: var(--texto); }
 .registro {
   font-size: 13.5px; color: var(--suave); display: flex; gap: 12px;
   padding: 10px 0; border-top: 1px solid var(--borde); align-items: baseline;
@@ -245,10 +415,6 @@ td .acciones { flex-wrap: nowrap; }
   background: var(--invertido); color: var(--sobre-invertido);
   margin-left: auto; border-bottom-right-radius: 5px;
 }
-select.negocios {
-  font: inherit; font-weight: 600; background: var(--tarjeta); color: var(--texto);
-  border: 1px solid var(--borde); border-radius: var(--radio-s); padding: 7px 10px;
-}
 
 /* Lo que necesita atención hoy, en la pantalla de inicio. */
 .atencion { display: grid; gap: 10px; }
@@ -282,17 +448,34 @@ export function pagina(opciones: {
   selector?: readonly { url: string; nombre: string; actual: boolean }[];
 }): string {
   const consulta = opciones.consulta ?? "";
+
   const enlace = (ruta: string, texto: string, clave: string, globo = 0) =>
-    `<a href="${opciones.base}${ruta}${consulta}" class="${opciones.activo === clave ? "activo" : ""}">${texto}${
+    `<a href="${opciones.base}${ruta}${consulta}" class="${
+      opciones.activo === clave ? "activo" : ""
+    }">${icono(clave)}<span>${texto}</span>${
       globo > 0 ? `<span class="globo">${globo}</span>` : ""
     }</a>`;
 
-  const cabecera =
+  const navegacion = GRUPOS.map(
+    (g) => `<div class="grupo">${g.rotulo}</div>${g.items
+      .map((i) => enlace(i.ruta, i.texto, i.clave, i.clave === "bandeja" ? opciones.pendientes : 0))
+      .join("")}`,
+  ).join("");
+
+  const identidad =
     opciones.selector && opciones.selector.length > 1
       ? `<select class="negocios" onchange="location.href=this.value">${opciones.selector
-          .map((o) => `<option value="${esc(o.url)}"${o.actual ? " selected" : ""}>${esc(o.nombre)}</option>`)
+          .map(
+            (o) =>
+              `<option value="${esc(o.url)}"${o.actual ? " selected" : ""}>${esc(o.nombre)}</option>`,
+          )
           .join("")}</select>`
-      : `<span class="negocio">${esc(opciones.negocio)}</span>`;
+      : `<div class="nombre-negocio">${esc(opciones.negocio)}</div>`;
+
+  const salir =
+    opciones.base === "/panel"
+      ? `<form method="post" action="/salir" style="display:inline"><button class="enlace-pie">Cerrar sesión</button></form>`
+      : "";
 
   return `<!doctype html>
 <html lang="es"><head>
@@ -302,22 +485,35 @@ export function pagina(opciones: {
 <title>${esc(opciones.titulo)} · CHUNO</title>
 ${FUENTES_VOZ}
 <style>${CSS}</style>
-</head><body><div class="envoltorio">
-<header><h1>CHUNO</h1>${cabecera}</header>
-<nav>
-  ${enlace("/inicio", "Inicio", "inicio")}
-  ${enlace("/bandeja", "Decisiones", "bandeja", opciones.pendientes)}
-  ${enlace("/pedidos", "Pedidos", "pedidos")}
-  ${enlace("/clientes", "Clientes", "clientes")}
-  ${enlace("/conocimiento", "Conocimiento", "conocimiento")}
-  ${enlace("/registro", "Registro", "registro")}
-  ${enlace("/comenzar", "＋ Nuevo asistente", "comenzar")}
-</nav>
-${opciones.contenido}
-<p class="pie">Los mensajes se borran automáticamente a los 90 días.${
-    opciones.base === "/panel"
-      ? ` · <form method="post" action="/salir" style="display:inline"><button class="enlace-pie">Cerrar sesión</button></form>`
-      : ""
-  }</p>
+</head><body>
+<div class="armazon">
+
+  <aside class="lateral">
+    ${topo("topo-fondo", "#F9F9F6", ".07")}
+    <a class="marca" href="${opciones.base}/inicio${consulta}">
+      ${onda(20)}<span class="nombre">CHUNO</span>
+    </a>
+
+    <div class="quien">
+      <span class="rotulo-mini">Negocio</span>
+      ${identidad}
+    </div>
+
+    <nav>${navegacion}</nav>
+
+    <div class="lateral-pie">
+      <a class="nuevo" href="${opciones.base}/comenzar">${icono("comenzar")}<span>Nuevo asistente</span></a>
+      <p class="nota">Los mensajes se borran a los 90 días. ${salir}</p>
+    </div>
+  </aside>
+
+  <main class="principal">
+    <div class="encabezado">
+      <h1>${esc(opciones.titulo)}</h1>
+      <p class="proposito">${esc(PROPOSITO[opciones.activo] ?? "")}</p>
+    </div>
+    <div class="lienzo-panel">${opciones.contenido}</div>
+  </main>
+
 </div></body></html>`;
 }
