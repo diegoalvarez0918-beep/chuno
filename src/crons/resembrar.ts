@@ -204,6 +204,10 @@ const LEADS: readonly [string, string, string, string, number | null, string][] 
   ["ld-marta", "ct-marta", "cliente", "Lentes progresivos con antirreflejo", 68000000, "-9 days"],
   ["ld-luisa", "ct-luisa", "cliente", "Cambio de lentes con antirreflejo", 32000000, "-6 days"],
   ["ld-paola", "ct-paola", "cliente", "Lentes progresivos premium", 89000000, "-20 days"],
+  // Una en "perdido" a propósito: en un tablero, una columna vacía se lee como
+  // una etapa que no existe. Y "perdido" no es terminal en el embudo —si Diana
+  // vuelve a escribir se reactiva—, que es justo lo que hay que poder mostrar.
+  ["ld-diana", "ct-diana", "perdido", "Montura de titanio, se fue a comparar", 43000000, "-3 days"],
 ];
 
 /** Con esto el panel muestra salud y gasto reales en vez de un guion. */
