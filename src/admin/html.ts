@@ -516,12 +516,16 @@ td .acciones { flex-wrap: nowrap; }
   margin-left: auto; font-size: 11px; font-weight: 700; text-transform: uppercase;
   letter-spacing: .8px; color: var(--suave);
 }
-.trato-mover { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 10px; }
-.trato-mover .mover {
+/* El mismo botón para las dos cosas que se mueven en el panel: el lead por el
+   embudo y el pedido por su máquina de estados. Son el mismo gesto y tienen que
+   verse igual. */
+.trato-mover, .fila-mover { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 10px; }
+.fila-mover { margin-top: 8px; }
+.mover {
   font-size: 11.5px; font-weight: 700; padding: 4px 9px; border-radius: 999px;
   border: 1px solid var(--borde-fuerte); background: var(--fondo-2); color: var(--suave);
 }
-.trato-mover .mover:hover { background: var(--invertido); color: var(--sobre-invertido); border-color: transparent; }
+.mover:hover { background: var(--invertido); color: var(--sobre-invertido); border-color: transparent; }
 
 /* Lo que necesita atención hoy, en la pantalla de inicio. */
 .atencion { display: grid; gap: 10px; }

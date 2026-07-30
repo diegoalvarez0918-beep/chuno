@@ -1,5 +1,6 @@
 import type { Pedido } from "../core/pedido/tipos";
 import type { Propuesta } from "../core/propuesta/tipos";
+import { transicionesPosibles } from "../core/pedido/estado";
 import { evaluarPromesa, prioridad, type Riesgo } from "../core/vigia/reglas";
 import type { EntradaAuditoria } from "../db/repos/varios";
 import { esc, fechaCorta, pesos } from "./html";
@@ -96,7 +97,44 @@ function cuerpoPropuesta(propuesta: Propuesta): string {
 
 // ───────────────────────────────────────────────────────────────────  pedidos ──
 
-export function vistaPedidos(pedidos: readonly Pedido[], hoy: string): string {
+/**
+ * Los botones que mueven un pedido por su máquina de estados.
+ *
+ * Solo se ofrecen los destinos que `transicionesPosibles` acepta: un botón que
+ * lleva a un error no es una opción, es una trampa. Es la misma regla del
+ * embudo de clientes, y el mismo motivo por el que la lista sale del núcleo y
+ * no de una constante escrita a mano en la vista.
+ *
+ * En la demo se esconde "cancelado": es el único movimiento que deja el tablero
+ * peor que antes, y ahí nadie puede devolverlo. La ruta lo rechaza igual.
+ */
+function botonesPedido(pedido: Pedido, accion: string, soloLectura: boolean): string {
+  const destinos = transicionesPosibles(pedido.estado).filter(
+    (e) => !(soloLectura && e === "cancelado"),
+  );
+
+  if (destinos.length === 0) return "";
+
+  const botones = destinos
+    .map(
+      (e) => `<button name="hacia" value="${e}" class="mover">${esc(
+        NOMBRE_ESTADO[e] ?? e,
+      )}</button>`,
+    )
+    .join("");
+
+  return `<form method="post" action="${accion}" class="fila-mover">
+    <input type="hidden" name="id" value="${esc(pedido.id)}">
+    ${botones}
+  </form>`;
+}
+
+export function vistaPedidos(
+  pedidos: readonly Pedido[],
+  hoy: string,
+  accion: string,
+  soloLectura: boolean,
+): string {
   if (pedidos.length === 0) {
     return vacio("Todavía no hay pedidos", "Aparecerán solos a medida que lleguen por el chat.");
   }
@@ -113,7 +151,8 @@ export function vistaPedidos(pedidos: readonly Pedido[], hoy: string): string {
               pedido.items.map((i) => i.descripcion).join(", "),
             )}</span></td>
         <td>${esc(pedido.fechaComprometida ?? "-")}</td>
-        <td>${esc(NOMBRE_ESTADO[pedido.estado] ?? pedido.estado)}</td>
+        <td>${esc(NOMBRE_ESTADO[pedido.estado] ?? pedido.estado)}
+            ${botonesPedido(pedido, accion, soloLectura)}</td>
         <td>${esc(pesos(pedido.montoCentavos))}</td>
         <td><span class="chip ${riesgo}">${esc(NOMBRE_RIESGO[riesgo])}</span></td>
       </tr>`,
@@ -140,6 +179,7 @@ export function vistaRegistro(entradas: readonly EntradaAuditoria[]): string {
 
   const legible: Record<string, string> = {
     pedido_creado: "Creó un pedido automáticamente",
+    pedido_movido: "El dueño movió un pedido de estado",
     propuesta_creada: "Dejó una decisión en la bandeja",
     propuesta_aprobada: "El dueño aprobó una decisión",
     propuesta_rechazada: "El dueño descartó una decisión",

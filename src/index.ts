@@ -4,6 +4,8 @@ import { basicAuth } from "hono/basic-auth";
 import { ahoraISO, hoyEnZona, nuevoId } from "./db/id";
 import { avanzarLead } from "./core/crm/embudo";
 import { ESTADOS_LEAD, type EstadoLead } from "./core/crm/tipos";
+import { ESTADOS_PEDIDO, type EstadoPedido } from "./core/pedido/tipos";
+import { transicionar } from "./core/pedido/estado";
 import { modelos, numero, type Env } from "./env";
 import { AgenteConversacion, idDeConversacion } from "./agente/agente";
 import { correrVigia } from "./crons/vigia";
@@ -35,7 +37,7 @@ import { estructurarConLLM } from "./onboarding/estructurar";
 import { materializarConfiguracion } from "./onboarding/materializar";
 import { vistaEntrevista, vistaEntrevistaDemo } from "./admin/vistas-onboarding";
 import { guardarMensaje, obtenerOCrearConversacion } from "./db/repos/conversacion";
-import { listarPedidos } from "./db/repos/pedido";
+import { guardarPedido, listarPedidos, obtenerPedido } from "./db/repos/pedido";
 import { contarPendientes, listarPendientes } from "./db/repos/propuesta";
 import { auditar, listarAuditoria, purgarMensajesViejos } from "./db/repos/varios";
 import { guardarLead, listarContactos, listarLeads, obtenerLead } from "./db/repos/crm";
@@ -397,12 +399,57 @@ function montarPanel(opciones: {
         negocio: d.negocio.nombre,
         activo: "pedidos",
         pendientes,
-        contenido: vistaPedidos(pedidos, hoyEnZona(d.negocio.zonaHoraria)),
+        contenido: vistaPedidos(
+          pedidos,
+          hoyEnZona(d.negocio.zonaHoraria),
+          `${base}/pedidos/mover${d.consulta}`,
+          soloLectura,
+        ),
         base,
         consulta: d.consulta,
         selector: d.selector,
       }),
     );
+  });
+
+  /**
+   * Avanzar un pedido por su máquina de estados.
+   *
+   * Esta ruta SÍ se registra en la demo, al revés que las de conocimiento, y es
+   * a propósito: la diferencia entre enseñar un tablero y dejar usarlo. Lo que
+   * un desconocido puede romper está acotado por tres lados. `transicionar()`
+   * rechaza cualquier salto que no esté en su tabla, la demo solo alcanza a
+   * `demo-optica`, y el resembrado repone ese negocio cada media hora.
+   *
+   * Quién decide qué movimiento es legal sigue siendo el núcleo, no esta ruta.
+   */
+  app.post(`${base}/pedidos/mover`, async (c) => {
+    const negocioId = negocioDe(c);
+    const f = await c.req.formData();
+
+    const id = String(f.get("id") ?? "");
+    const hacia = String(f.get("hacia") ?? "");
+    if (!id || !(ESTADOS_PEDIDO as readonly string[]).includes(hacia)) {
+      return c.text("Petición inválida", 400);
+    }
+
+    // Cancelar es el único movimiento que deja el tablero peor de lo que estaba,
+    // y en la demo no hay quien lo devuelva hasta el siguiente resembrado. Se
+    // rechaza aquí y no solo en la vista: un POST se arma a mano.
+    if (soloLectura && hacia === "cancelado") {
+      return c.text("En la demo no se cancelan pedidos", 403);
+    }
+
+    const pedido = await obtenerPedido(c.env.DB, negocioId, id);
+    if (!pedido) return c.text("Ese pedido ya no existe", 404);
+
+    const movido = transicionar(pedido, hacia as EstadoPedido, ahoraISO());
+    if (!movido.ok) return c.text(movido.error, 409);
+
+    await guardarPedido(c.env.DB, movido.valor);
+    await auditar(c.env.DB, negocioId, "pedido_movido", { hacia }, "admin");
+
+    return c.redirect(`${base}/pedidos${consultaDe(c, negocioId)}`, 303);
   });
 
   app.get(`${base}/registro`, async (c) => {
