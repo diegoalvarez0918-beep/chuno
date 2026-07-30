@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "El asistente que se acuerda de lo que le prometiste a tu cliente.",
+  "bin": { "chuno": "cli/chuno.mjs" },
+  "engines": { "node": ">=18" },
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
