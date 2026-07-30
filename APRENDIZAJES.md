@@ -27,6 +27,12 @@ Más recientes arriba. Si una entrada queda obsoleta o la contradice otra más n
 
 <!-- Nuevas entradas arriba de esta línea. -->
 
+- **2026-07-30 — Una frase de la landing es una afirmación técnica y se verifica igual que un diagnóstico:** al enlazar el bot escribí en el hero "escríbele y tu pedido aparece en el tablero". Sonaba obvio y era falso: `@Chunnobot` entra por `NEGOCIO_TELEGRAM = "mi-optica"`, que vive detrás de la contraseña, mientras la demo pública muestra `demo-optica`. El visitante recibe respuesta real y no puede ver su pedido en ninguna parte. Se descubrió leyendo `wrangler.jsonc` y la ruta del webhook, no probándolo.
+  **Por qué importa:** es la misma regla del detector sin control, aplicada a la copia. Todo lo que la página le promete a un desconocido es una afirmación sobre el código y hay que poder señalar el archivo que la sostiene **antes** de desplegarla. Una promesa falsa en la landing es peor que un bug: el bug se ve, la promesa la descubre el usuario cuando ya no confía.
+
+- **2026-07-30 — Un flag cuyo nombre dejó de ser cierto es una mina para la próxima sesión:** `soloLectura` gobernaba la demo, y al abrir los tableros pasó a gobernar rutas que escriben. Mantener el nombre habría costado un diagnóstico equivocado dentro de un mes ("esta ruta no puede escribir, se llama soloLectura"). Se renombró a `esDemo` y el comentario separa las dos políticas que salen de él.
+  **Por qué importa:** cuando una funcionalidad nueva cambia el significado de una bandera, el rename va en el mismo commit, no en la limpieza de después. Es más barato que el rastro falso que deja.
+
 - **2026-07-30 — Un detector sin control es una moneda al aire:** para saber si el video subido a YouTube servía, busqué la palabra `UNPLAYABLE` en el HTML de la página. Dio positivo, y con eso le dije a Diego que estaba roto "confirmado por tres vías". Al pasar el mismo detector por un video suyo de 2020 que funciona perfectamente, también dio positivo: esa cadena está en la configuración del reproductor siempre. El detector bueno resultó ser `"lengthSeconds"`, que solo aparece si hay medio reproducible.
   **Por qué importa:** antes de creerle a una comprobación que uno mismo inventó, hay que correrla contra un caso que se sabe bueno y otro que se sabe malo. Sin eso no se está midiendo la propiedad, se está midiendo el ruido. Y el costo aquí fue peor que perder tiempo: fue afirmarle algo falso a Diego con tono de certeza.
 

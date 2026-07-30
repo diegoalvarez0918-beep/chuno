@@ -17,7 +17,8 @@
 | Herramienta pública | https://chuno.vozdigital-ai.workers.dev | Entregable #2 del concurso |
 | Landing | `/` | Sistema Voz, 3 secciones, hero con spotlight |
 | Entrada al panel | `/entrar` | Formulario propio; deja cookie de sesión firmada |
-| Demo sin registro | `/demo/inicio` | `demo-optica`, **solo lectura** y resembrada cada 30 min |
+| Demo sin registro | `/demo/inicio` | `demo-optica`, resembrada cada 30 min. Los tableros **sí se mueven** |
+| Bot público | `t.me/Chunnobot` | Enlazado desde la landing desde 2026-07-30 |
 | Panel del dueño | `/panel/inicio` | Cookie de sesión **o** Basic Auth. Barra lateral fija |
 | Embudo de clientes | `/panel/clientes` | Kanban de 5 columnas, se mueve arrastrando o con botones |
 | Imagen del hero | `/hero.jpg` | 190 KB. Sale de `public/`, servida por el `notFound` del Worker |
@@ -31,6 +32,10 @@
 | Base de datos D1 | `chuno` · `50f72126-740e-4813-8c9c-355ca32a8698` | 16 tablas |
 
 **Dos negocios separados a propósito:** `demo-optica` es lo que ve el público; `mi-optica` recibe las conversaciones reales de Telegram. La demo nunca muestra chats reales.
+
+**Consecuencia del bot enlazado, y hay que no prometer de más:** @Chunnobot escribe en `mi-optica`, que vive detrás de la contraseña. Quien le escriba desde la landing **recibe respuesta real pero no puede ver su propio pedido en ningún lado**. Apuntar el bot a `demo-optica` cerraría ese lazo y publicaría las conversaciones de unos visitantes a los otros, que es justo lo que prohíben las reglas 6 y 7. Por eso la copia del hero dice "un bot de verdad, respondiendo ahora" y no "tu pedido aparece en el tablero".
+
+**`esDemo`, antes `soloLectura`:** el flag de `montarPanel` se renombró el 2026-07-30 porque dejó de ser cierto. Hoy separa dos políticas: el conocimiento no se edita (sus rutas ni se registran), pero los tableros de pedidos y de clientes **sí se mueven**, sin los destinos que los degradan sin vuelta atrás (`cancelado` y `perdido`). Los vetos se comprueban en el servidor, no solo en la vista.
 
 ## Credenciales
 
@@ -141,9 +146,9 @@ uso real. **Este es el punto de partida de la próxima sesión**, por delante de
 las Fases 4, 5 y 7-8 del spec: agregarle superficie a un producto cuyo lazo
 operativo no cierra es construir sobre algo que todavía se cae.
 
-1. **Los pedidos se duplican.** El agente re-extrae el hilo completo en cada ráfaga y la propuesta `crear_pedido` se crea sin `claveDedupe` (`agente.ts`). Un cliente que escribe tres veces produce tres pedidos. `listarPedidosDeConversacion` ya existe y no la llama nadie.
-2. **El pedido nunca avanza de estado.** `borrador → … → entregado` está implementado y probado, pero no hay ruta ni botón: los payloads `cambiar_estado` y `cambiar_fecha` se ejecutan en `aplicar.ts` y nadie los crea. El tablero es de solo lectura y nada llega nunca a "listo". **El equivalente del CRM ya se cerró el 2026-07-30** (`avanzarLead` ahora se llama desde `/panel/clientes/mover`); esto es lo mismo para pedidos y el patrón a copiar está ahí.
-3. **El vigía avisa una sola vez por pedido, para siempre.** `idx_prop_dedupe` es único sobre `(negocio_id, clave_dedupe)` sin filtrar por estado: descartar un aviso lo silencia definitivamente.
+1. ~~**Los pedidos se duplican.**~~ ✅ cerrado 2026-07-30. `core/pedido/dedupe.ts` (`yaHayEncargoVivo`, 7 tests) y su llamada en `agente.ts`. Tapa los **dos** caminos a la vez, el pedido ya creado y la propuesta sin decidir, porque tapar uno solo deja pasar el duplicado por el otro. **No usa `claveDedupe` a propósito:** ver el punto 3, esa clave silencia para siempre.
+2. ~~**El pedido nunca avanza de estado.**~~ ✅ cerrado 2026-07-30. `/panel/pedidos/mover` y `/demo/pedidos/mover`, con botones que salen de `transicionesPosibles()`. `cambiar_fecha` sigue sin quien lo cree.
+3. **El vigía avisa una sola vez por pedido, para siempre.** `idx_prop_dedupe` es único sobre `(negocio_id, clave_dedupe)` sin filtrar por estado: descartar un aviso lo silencia definitivamente. **Se arregla haciendo el índice parcial** (`WHERE estado = 'propuesta'`), lo que exige migración sobre la D1 viva; por eso el arreglo de duplicados del punto 1 no pasa por ahí.
 4. **No hay bandeja de conversaciones.** El dueño aprueba mensajes hacia su cliente sin poder leer lo que el cliente escribió, y `pausarConversacion` —tomar el control del chat— es código que nadie llama. `listarConversaciones` y `listarTicketsAbiertos`, igual.
 
 5. **`seed.sql` borra `mi-optica`, el negocio real.** Sus `DELETE` cubren los dos negocios. Hoy es inofensivo porque `mi-optica` solo ha tenido conversaciones de prueba, pero con un cliente conectado un `npm run seed:remote` distraído le borra el historial. Se arregla acotando sus `DELETE` a `demo-optica` y sembrando lo de `mi-optica` por separado.
