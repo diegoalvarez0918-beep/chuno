@@ -1,8 +1,12 @@
 # Estado del proyecto
 
 > Traspaso entre sesiones. Léelo después de `CLAUDE.md` y antes de tocar nada.
-> Última actualización: 2026-07-30 (mañana), tras el rediseño de superficie —
-> panel lateral, Kanban de clientes y hero con foto. Todo desplegado.
+> Última actualización: 2026-07-30, con la entrega hecha: panel lateral, Kanban
+> de clientes, hero con foto, fotos de catálogo y video subido. Todo desplegado.
+>
+> **Entregado al concurso:** video no listado `https://youtu.be/owZTkUv2oaY`
+> (93 s, sin narración) y herramienta `https://chuno.vozdigital-ai.workers.dev`.
+> Quedan 4 horas concedidas para refinar lo entregado.
 
 ---
 
@@ -161,6 +165,20 @@ están en el repo, no recibe subidas. Las dos opciones:
 
 Con el almacenamiento resuelto, la marca blanca sale casi gratis: color, nombre
 y logo por negocio caben en la tabla `settings`, que ya existe.
+
+### Fotos del catálogo — lo que quedó a medias
+
+Se cerraron cuatro de las cinco piezas: almacén en KV (`db/imagenes.ts`), zona de
+subida en Conocimiento, procesado en el navegador (cuadrado 600 px, fondo blanco,
+WebP) y servido público en `/img/:negocio/:item/:version` con caché inmutable. La
+demo tiene sus cinco productos con foto, de Pexels y con licencia comercial.
+
+**Falta la pieza 5:** que la foto viaje al cliente. Hoy el agente no sabe que un
+producto tiene imagen. Lo que falta es que `promptRespuesta` sepa qué productos
+tienen foto, que el payload `enviar_aviso` acepte una imagen adjunta, que la
+tarjeta de la bandeja la muestre y que `canales/telegram.ts` use `sendPhoto` en
+vez de `sendMessage` cuando la haya. La regla no se relaja: la foto sale con la
+misma aprobación que el texto.
 
 ### Deuda que dejó el rediseño
 
