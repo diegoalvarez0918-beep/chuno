@@ -26,7 +26,7 @@
 | Entrevista de onboarding | `/panel/comenzar` | 7 preguntas → negocio nuevo configurado |
 | Repetición de la entrevista | `/demo/comenzar` | Pública, determinista, sin LLM y sin escribir |
 | Webhook multi-bot | `/webhook/telegram/:negocioId` | Un bot por negocio, con secreto propio |
-| Instalador | `npx chuno init` · `cli/chuno.mjs` | Crea D1, despliega y conecta el bot |
+| Instalador | `npx chuno-cli init` · `cli/chuno.mjs` | Publicado en npm como `chuno-cli@0.1.1` |
 | Repositorio público | https://github.com/diegoalvarez0918-beep/chuno | Entregable #1 |
 | Bot de Telegram | `@Chunnobot` | Escribe al negocio `mi-optica` |
 | Base de datos D1 | `chuno` · `50f72126-740e-4813-8c9c-355ca32a8698` | 16 tablas |
@@ -60,7 +60,7 @@ Cloudflare está autenticado por OAuth en `~/.wrangler`. GitHub **no** tiene cre
 | 5 | Marca blanca | pendiente |
 | 6 | Entrega del concurso: video, links, votos | los dos links, listos y desplegados · faltan video y votos |
 | 7-8 | Herramientas con escritura, RAG con embeddings | después del concurso |
-| 9 | CLI instalador | ✅ adelantada — `npx chuno init` |
+| 9 | CLI instalador | ✅ adelantada — `npx chuno-cli init` |
 | — | Landing pública con login, demo blindada y resembrada | ✅ cerrada 2026-07-30 |
 
 Spec completo: `docs/superpowers/specs/2026-07-29-chuno-plataforma-design.md`

@@ -1,12 +1,20 @@
 {
-  "name": "chuno",
-  "version": "0.1.0",
+  "//name": "El paquete se llama chuno-cli y no chuno porque npm rechaza el nombre corto: su filtro de similitud lo considera demasiado parecido a 'hono', que es justamente la librería sobre la que corre este Worker. El ejecutable SÍ se llama chuno (ver bin), así que dentro del paquete todo sigue igual.",
+  "name": "chuno-cli",
+  "version": "0.1.1",
   "type": "module",
   "description": "El asistente que se acuerda de lo que le prometiste a tu cliente.",
-  "bin": { "chuno": "cli/chuno.mjs" },
-  "engines": { "node": ">=18" },
+  "bin": {
+    "chuno": "cli/chuno.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "license": "MIT",
-  "repository": { "type": "git", "url": "git+https://github.com/diegoalvarez0918-beep/chuno.git" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/diegoalvarez0918-beep/chuno.git"
+  },
   "//files": "Lista blanca, no lista negra. Publicar en npm es público e irreversible: un .dev.vars que se escape no se recoge, se rota. Enumerar lo que viaja es la única forma de saber qué viaja. src/ y wrangler.jsonc van porque el instalador despliega DESDE el paquete descargado; public/ va porque wrangler falla si el directorio de assets no existe.",
   "files": [
     "cli/",

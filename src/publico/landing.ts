@@ -601,7 +601,7 @@ const GUION = `
   var copiar = document.getElementById('copiar');
   if (copiar && navigator.clipboard) {
     copiar.addEventListener('click', function () {
-      navigator.clipboard.writeText('npx chuno init').then(function () {
+      navigator.clipboard.writeText('npx chuno-cli init').then(function () {
         copiar.textContent = 'Copiado';
         setTimeout(function () { copiar.textContent = 'Copiar'; }, 1600);
       });
@@ -782,7 +782,7 @@ ${FUENTES_VOZ}
       ${pill(BOT, "Escríbele al bot", "suave")}
     </div>
     <p class="hero-apunte">
-      Todo arranca con <code>npx chuno init</code>. Respondes siete preguntas y tu
+      Todo arranca con <code>npx chuno-cli init</code>. Respondes siete preguntas y tu
       asistente queda atendiendo, uno por cada negocio o sucursal.
     </p>
   </div>
@@ -811,7 +811,7 @@ ${FUENTES_VOZ}
     </p>
     <div class="pasos">${pasos}</div>
     <div class="comando">
-      <code><span class="prompt">❯</span> npx chuno init</code>
+      <code><span class="prompt">❯</span> npx chuno-cli init</code>
       <button id="copiar" type="button">Copiar</button>
     </div>
   </section>

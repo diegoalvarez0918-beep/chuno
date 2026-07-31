@@ -27,6 +27,12 @@ Más recientes arriba. Si una entrada queda obsoleta o la contradice otra más n
 
 <!-- Nuevas entradas arriba de esta línea. -->
 
+- **2026-07-31 — npm rechaza nombres "demasiado parecidos" a paquetes que ya existen, y lo hace al publicar, no antes:** `chuno` estaba libre (`npm view` daba 404) y aun así el `publish` devolvió `403 Package name too similar to existing package hono`. Ironía incluida: `hono` es la librería sobre la que corre este Worker. Que un nombre esté libre no significa que se pueda usar, y el filtro solo se ejerce en el momento de publicar. Quedó como `chuno-cli`, con el ejecutable llamándose `chuno` igual.
+  **Por qué importa:** el nombre del paquete estaba impreso en la landing y en un video ya entregado, así que el rechazo llegó cuando ya era caro. Si un identificador público va a aparecer en material que no se puede cambiar, hay que reservarlo **antes** de imprimirlo: publicar una versión 0.0.1 vacía cuesta un minuto y elimina el riesgo entero.
+
+- **2026-07-31 — `npx paquete@latest` sirve una versión vieja de su caché:** tras publicar 0.1.1 con un texto corregido, `npx --yes chuno-cli@latest revisar` seguía imprimiendo el texto de 0.1.0. No era el publish: era la caché de npx, que reusó el tarball bajado minutos antes. Se comprobó bajando el tarball publicado con `npm pack chuno-cli@0.1.1` y leyendo el archivo por dentro.
+  **Por qué importa:** es la misma trampa de la caché del navegador, en otra herramienta. Para verificar qué contiene una versión publicada hay que **leer el artefacto del registro**, no observar el comportamiento de un ejecutor que cachea. Vale para npx, para pip y para cualquier cosa con caché local.
+
 - **2026-07-30 — Una frase de la landing es una afirmación técnica y se verifica igual que un diagnóstico:** al enlazar el bot escribí en el hero "escríbele y tu pedido aparece en el tablero". Sonaba obvio y era falso: `@Chunnobot` entra por `NEGOCIO_TELEGRAM = "mi-optica"`, que vive detrás de la contraseña, mientras la demo pública muestra `demo-optica`. El visitante recibe respuesta real y no puede ver su pedido en ninguna parte. Se descubrió leyendo `wrangler.jsonc` y la ruta del webhook, no probándolo.
   **Por qué importa:** es la misma regla del detector sin control, aplicada a la copia. Todo lo que la página le promete a un desconocido es una afirmación sobre el código y hay que poder señalar el archivo que la sostiene **antes** de desplegarla. Una promesa falsa en la landing es peor que un bug: el bug se ve, la promesa la descubre el usuario cuando ya no confía.
 

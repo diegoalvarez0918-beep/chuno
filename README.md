@@ -69,7 +69,7 @@ Cuando el modelo se equivoca, el modo de falla es **molestar a un humano**, no e
 
 ## Alcance de esta versión
 
-**Funciona:** conversación → pedido con fecha · tablero con lo vencido primero · vigía de promesas · bandeja de decisiones con aprobar, editar y descartar · catálogo y preguntas frecuentes que el asistente cita sin escalar · onboarding conversacional de 7 preguntas · varios bots en una instalación, con su token cifrado · CRM que se llena solo · auditoría · instalador `npx chuno init` · demo pública.
+**Funciona:** conversación → pedido con fecha · tablero con lo vencido primero · vigía de promesas · bandeja de decisiones con aprobar, editar y descartar · catálogo y preguntas frecuentes que el asistente cita sin escalar · onboarding conversacional de 7 preguntas · varios bots en una instalación, con su token cifrado · CRM que se llena solo · auditoría · instalador `npx chuno-cli init` · demo pública.
 
 **Todavía no:** WhatsApp Business API, herramientas de escritura hacia fuera (inventario, agenda, cobros), búsqueda semántica con embeddings, marca blanca por dominio propio.
 
@@ -81,7 +81,7 @@ Un comando. CHUNO no es un servicio al que te suscribes: es código que corre en
 **tu** cuenta de Cloudflare, con tus datos.
 
 ```bash
-npx chuno init
+npx chuno-cli init
 ```
 
 La entrevista pide el nombre del negocio y tus tres llaves, y se encarga del
@@ -96,7 +96,7 @@ Antes de correrlo necesitas tres cosas, todas gratuitas:
 | Llave de Gemini | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | El cerebro |
 | Bot de Telegram | [@BotFather](https://t.me/BotFather) → `/newbot` | El canal |
 
-¿Quieres comprobar que tienes todo antes de instalar? `npx chuno revisar` no
+¿Quieres comprobar que tienes todo antes de instalar? `npx chuno-cli revisar` no
 crea ni despliega nada, solo revisa.
 
 Al terminar, entra a tu panel y dale a **＋ Nuevo asistente**: siete preguntas
@@ -139,7 +139,7 @@ src/giros/      contrato de vertical
 src/db/         esquema y acceso a datos
 src/admin/      panel del dueño
 src/onboarding/ materializa la entrevista en filas y conecta el bot
-cli/            npx chuno init — el instalador
+cli/            npx chuno-cli init — el instalador
 test/core/      lo único que se prueba con vitest, y a propósito
 ```
 

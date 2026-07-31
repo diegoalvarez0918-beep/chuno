@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * `npx chuno init` — instala CHUNO en la nube del propio negocio.
+ * `npx chuno-cli init` — instala CHUNO en la nube del propio negocio.
  *
  * Qué hace y qué no: orquesta `wrangler`, que es la herramienta oficial de
  * Cloudflare. No reimplementa su autenticación ni guarda credenciales propias.
@@ -115,7 +115,7 @@ function verificarEntorno() {
   if (!existsSync(join(RAIZ, "src", "db", "schema.sql"))) {
     morir(
       "No encuentro el código de CHUNO.",
-      "Corre esto desde la carpeta del proyecto, o usa:\n  npx github:diegoalvarez0918-beep/chuno init",
+      "Corre esto desde la carpeta del proyecto, o usa:\n  npx chuno-cli init",
     );
   }
   ok("código de CHUNO encontrado");
@@ -414,8 +414,8 @@ const AYUDA = `
   ${c.fuerte("chuno")} — instala CHUNO en tu propia nube de Cloudflare
 
   ${c.fuerte("Uso:")}
-    npx chuno init     instala y publica tu asistente
-    npx chuno revisar  comprueba que tengas todo listo, sin instalar nada
+    npx chuno-cli init     instala y publica tu asistente
+    npx chuno-cli revisar  comprueba que tengas todo listo, sin instalar nada
 
   ${c.fuerte("Antes de empezar necesitas:")}
     · Una cuenta de Cloudflare (gratuita) — npx wrangler login
@@ -434,7 +434,7 @@ if (comando === "init") {
   log(
     previo
       ? `\n      ${c.suave(`Ya instalado, apuntando a la base "${previo.nombre}".`)}\n`
-      : `\n      ${c.lima("Todo listo.")} Corre ${c.fuerte("npx chuno init")} para instalar.\n`,
+      : `\n      ${c.lima("Todo listo.")} Corre ${c.fuerte("npx chuno-cli init")} para instalar.\n`,
   );
 } else {
   log(AYUDA);
