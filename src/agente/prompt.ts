@@ -82,9 +82,9 @@ export function promptRespuesta(giro: Giro, negocio: ContextoNegocio): string {
     ...(negocio.catalogo.length > 0 ? ["", bloqueCatalogo(negocio.catalogo)] : []),
     ...(negocio.faq.length > 0 ? ["", bloqueFaq(negocio.faq)] : []),
     "",
-    "Responde en máximo 3 frases. Si no sabes algo, dilo sin rodeos y ofrece",
-    "confirmarlo con el dueño. El mensaje que escribas se le envía tal cual al",
-    "cliente, así que no incluyas notas internas ni explicaciones de tu proceso.",
+    "Si no sabes algo, dilo sin rodeos y ofrece confirmarlo con el dueño. El",
+    "mensaje que escribas se le envía tal cual al cliente, así que no incluyas",
+    "notas internas ni explicaciones de tu proceso.",
   ].join("\n");
 }
 
