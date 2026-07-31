@@ -30,6 +30,13 @@ export interface Env {
    */
   readonly MODELOS_LLM: string;
   readonly BUFFER_SEGUNDOS: string;
+  /**
+   * Topes de abuso. Se dejan configurables porque el punto justo depende del
+   * negocio: una floristería en temporada de madres no se parece a una óptica
+   * de barrio, y un tope que estorba se termina quitando entero.
+   */
+  readonly TOPE_LLM_DIARIO?: string;
+  readonly TOPE_POR_CONVERSACION?: string;
   readonly RETENCION_DIAS: string;
   /** Negocio sembrado que se muestra en /demo, abierto al público. */
   readonly NEGOCIO_DEMO: string;

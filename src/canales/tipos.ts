@@ -25,4 +25,17 @@ export interface Canal {
    */
   interpretar(cuerpo: unknown): MensajeEntrante | null;
   enviar(canalChatId: string, texto: string): Promise<Resultado<void, string>>;
+  /**
+   * Manda una foto de producto por su URL pública.
+   *
+   * Recibe una URL y no bytes a propósito: quien la descarga son los servidores
+   * de Telegram o de WhatsApp, no el Worker. Subir el archivo obligaría a
+   * leerlo de KV y reenviarlo en cada mensaje, pagando el tráfico dos veces por
+   * algo que la CDN ya sirve cacheado.
+   */
+  enviarFoto(
+    canalChatId: string,
+    urlFoto: string,
+    pie: string,
+  ): Promise<Resultado<void, string>>;
 }

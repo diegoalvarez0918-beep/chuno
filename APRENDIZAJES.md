@@ -27,6 +27,9 @@ Más recientes arriba. Si una entrada queda obsoleta o la contradice otra más n
 
 <!-- Nuevas entradas arriba de esta línea. -->
 
+- **2026-07-31 — Un `wrangler deploy` que ya terminó todavía sirve la versión vieja:** pasó tres veces en una sola sesión y las tres estuve a punto de diagnosticar mal. El link del bot dio 0 apariciones cuando sí estaba; la ruta nueva de la agenda devolvió 404 en dos peticiones y 400 en otra, en el mismo segundo; y el recorte de texto guardó 9999 caracteres en el primer intento y 2000 un minuto después, sin tocar nada. El despliegue se propaga por la red de Cloudflare y las primeras peticiones caen en cualquiera de las dos versiones.
+  **Por qué importa:** verificar contra el servidor no basta si se verifica de inmediato. Después de desplegar hay que esperar, o repetir hasta que dos lecturas seguidas coincidan, antes de creerle a la primera. Y ojo con el modo de falla peor: una tanda de comprobaciones puede salir mezclada, unas contra el código nuevo y otras contra el viejo, y eso se lee como un bug que no existe.
+
 - **2026-07-31 — npm rechaza nombres "demasiado parecidos" a paquetes que ya existen, y lo hace al publicar, no antes:** `chuno` estaba libre (`npm view` daba 404) y aun así el `publish` devolvió `403 Package name too similar to existing package hono`. Ironía incluida: `hono` es la librería sobre la que corre este Worker. Que un nombre esté libre no significa que se pueda usar, y el filtro solo se ejerce en el momento de publicar. Quedó como `chuno-cli`, con el ejecutable llamándose `chuno` igual.
   **Por qué importa:** el nombre del paquete estaba impreso en la landing y en un video ya entregado, así que el rechazo llegó cuando ya era caro. Si un identificador público va a aparecer en material que no se puede cambiar, hay que reservarlo **antes** de imprimirlo: publicar una versión 0.0.1 vacía cuesta un minuto y elimina el riesgo entero.
 

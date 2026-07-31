@@ -8,12 +8,20 @@ import {
 } from "../core/pedido/extraccion";
 import { canalSaliente } from "../canales/salida";
 import { crearProveedorGemini } from "../llm/gemini";
-import { hoyEnZona } from "../db/id";
+import { hoyEnZona, inicioDelDiaISO } from "../db/id";
 import { modelos, numero, type Env } from "../env";
 import { obtenerGiro } from "../giros";
 import type { ContextoNegocio } from "../giros/tipos";
 import { CLAVE_AGENDA } from "../core/conocimiento/agenda";
-import { filtrarCatalogo, filtrarFaq } from "../core/conocimiento/busqueda";
+import {
+  HILO_MAXIMO,
+  TOPE_DIARIO,
+  TOPE_POR_CONVERSACION,
+  hayCuotaHoy,
+  registrarEnVentana,
+  type Marca,
+} from "../core/limites";
+import { filtrarCatalogo, filtrarFaq, fotoParaResponder } from "../core/conocimiento/busqueda";
 import { listarCatalogo, listarFaq } from "../db/repos/catalogo";
 import { leerSetting, obtenerNegocio } from "../db/repos/negocio";
 import {
@@ -27,7 +35,7 @@ import { crearPedido, listarPedidosDeConversacion } from "../db/repos/pedido";
 import { crearPropuesta, listarPendientes } from "../db/repos/propuesta";
 import { auditar, buscarConocimiento, crearTicket } from "../db/repos/varios";
 import { registrarContacto, registrarLead } from "../db/repos/crm";
-import { registrarUso } from "../db/repos/uso";
+import { contarUsoDesde, registrarUso } from "../db/repos/uso";
 import type { UsoLLM } from "../llm/tipos";
 import { comoMensajesLLM, comoTranscripcion, promptExtraccion, promptRespuesta } from "./prompt";
 
@@ -52,6 +60,12 @@ interface ContextoConversacion {
   readonly negocioId: string;
   readonly conversacionId: string;
   readonly canalChatId: string;
+  /**
+   * La URL pública del Worker, que el objeto no tiene forma de deducir solo.
+   * La necesita para armar el link de la foto: quien la descarga es Telegram
+   * desde sus propios servidores, así que tiene que ser una URL absoluta.
+   */
+  readonly origen?: string;
 }
 
 export class AgenteConversacion extends DurableObject<Env> {
@@ -98,7 +112,32 @@ export class AgenteConversacion extends DurableObject<Env> {
     // El dueño está atendiendo personalmente: el agente se queda callado.
     if (estaPausada(conversacion)) return;
 
-    const hilo = await leerHilo(db, negocioId, conversacionId);
+    // ── Topes, antes de gastar un solo token ──────────────────────────────
+    //
+    // El orden importa: primero lo que se responde con memoria del objeto, y de
+    // último lo que cuesta un viaje a la base. Un atacante no debería poder
+    // provocar consultas solo por insistir.
+    const ventana = registrarEnVentana(
+      (await this.ctx.storage.get<Marca>("ventana")) ?? null,
+      Date.now(),
+      numero(this.env.TOPE_POR_CONVERSACION, TOPE_POR_CONVERSACION),
+    );
+    await this.ctx.storage.put("ventana", ventana.marca);
+
+    if (!ventana.permitido) {
+      // Sin respuesta y sin llamada al modelo. Queda el rastro para que el
+      // dueño pueda ver que a alguien se le fue la mano, o que lo atacaron.
+      await auditar(db, negocioId, "tope_conversacion", { cuenta: ventana.marca.cuenta }, "agente");
+      return;
+    }
+
+    const usadasHoy = await contarUsoDesde(db, negocioId, inicioDelDiaISO(negocio.zonaHoraria));
+    if (!hayCuotaHoy(usadasHoy, numero(this.env.TOPE_LLM_DIARIO, TOPE_DIARIO))) {
+      await auditar(db, negocioId, "tope_diario", { usadasHoy }, "agente");
+      return;
+    }
+
+    const hilo = await leerHilo(db, negocioId, conversacionId, HILO_MAXIMO);
     if (hilo.length === 0) return;
 
     const ultimoDelCliente = [...hilo].reverse().find((m) => m.autor === "cliente");
@@ -157,6 +196,22 @@ export class AgenteConversacion extends DurableObject<Env> {
       const envio = await canal.enviar(canalChatId, respuesta.valor);
       if (envio.ok) {
         await guardarMensaje(db, negocioId, conversacionId, "agente", respuesta.valor);
+
+        // La foto va DESPUÉS del texto y solo si el cliente nombró un producto
+        // concreto que tiene una. Si el envío de la foto falla, el cliente ya
+        // recibió su respuesta: se audita y no se reintenta.
+        const conFoto = fotoParaResponder(catalogoCompleto, ultimoDelCliente.texto);
+        if (conFoto?.imagenClave && contexto.origen) {
+          const url = `${contexto.origen}/img/${conFoto.imagenClave.split("/").slice(1).join("/")}`;
+          const foto = await canal.enviarFoto(canalChatId, url, conFoto.nombre);
+          await auditar(
+            db,
+            negocioId,
+            foto.ok ? "foto_enviada" : "foto_fallida",
+            { itemId: conFoto.id, ...(foto.ok ? {} : { motivo: foto.error }) },
+            "agente",
+          );
+        }
       } else {
         // Un envío que falla en silencio es lo peor de los dos mundos: el
         // cliente no recibe nada y el dueño no se entera de que no recibió.

@@ -819,6 +819,9 @@ async function atenderTelegram(
       negocioId,
       conversacionId: conversacion.id,
       canalChatId: entrante.canalChatId,
+      // El objeto no puede deducir su propia URL pública, y la necesita para
+      // armar el link de la foto que Telegram va a descargar.
+      origen: new URL(c.req.url).origin,
     }),
   });
 

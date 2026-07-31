@@ -12,4 +12,5 @@ export const canalDemo: Canal = {
   id: "demo",
   interpretar: (): MensajeEntrante | null => null,
   enviar: async () => ok(undefined),
+  enviarFoto: async () => ok(undefined),
 };

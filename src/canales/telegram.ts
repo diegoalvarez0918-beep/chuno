@@ -1,4 +1,5 @@
 import { fallo, ok, type Resultado } from "../core/resultado";
+import { recortarTexto } from "../core/limites";
 import type { Canal, MensajeEntrante } from "./tipos";
 
 /**
@@ -48,7 +49,10 @@ export function crearCanalTelegram(botToken: string): Canal {
       return {
         canal: "telegram",
         canalChatId: String(chatId),
-        texto,
+        // Se recorta en el borde y no adentro: lo que se guarda en la base es
+        // lo mismo que ve el modelo, y así un mensaje enorme no puede inflar
+        // ni el costo de la llamada ni el tamaño del hilo para siempre.
+        texto: recortarTexto(texto),
         autorNombre: nombre || null,
       };
     },
@@ -70,6 +74,33 @@ export function crearCanalTelegram(botToken: string): Canal {
           return fallo(`telegram: HTTP ${respuesta.status}`);
         }
 
+        return ok(undefined);
+      } catch (e) {
+        const razon = e instanceof Error && e.name === "AbortError" ? "timeout" : "red";
+        return fallo(`telegram: fallo de ${razon}`);
+      } finally {
+        clearTimeout(reloj);
+      }
+    },
+
+    async enviarFoto(canalChatId, urlFoto, pie): Promise<Resultado<void, string>> {
+      const control = new AbortController();
+      const reloj = setTimeout(() => control.abort(), TIMEOUT_MS);
+
+      try {
+        const respuesta = await fetch(`${API}/bot${botToken}/sendPhoto`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          // El pie tiene tope propio: Telegram rechaza los que pasan de 1024.
+          body: JSON.stringify({
+            chat_id: canalChatId,
+            photo: urlFoto,
+            caption: pie.slice(0, 1000),
+          }),
+          signal: control.signal,
+        });
+
+        if (!respuesta.ok) return fallo(`telegram: HTTP ${respuesta.status}`);
         return ok(undefined);
       } catch (e) {
         const razon = e instanceof Error && e.name === "AbortError" ? "timeout" : "red";

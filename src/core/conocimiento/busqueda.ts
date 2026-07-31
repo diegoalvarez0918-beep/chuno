@@ -59,6 +59,44 @@ export function filtrarCatalogo(
   return elegidos.slice(0, limite);
 }
 
+/**
+ * El producto cuya foto vale la pena mandar, si es que hay alguno.
+ *
+ * No se apoya en `filtrarCatalogo` a propósito. Esa función, cuando nada
+ * coincide, devuelve el catálogo entero para que el modelo tenga con qué
+ * responder en vez de inventar. Eso está bien para texto y es pésimo para una
+ * foto: convertiría un "hola" en la foto de un producto al azar, que es
+ * exactamente como se comporta un bot de publicidad.
+ *
+ * Aquí la exigencia es otra: **coincidencia real y sin empate.** Si el cliente
+ * nombró un producto y solo uno, se manda su foto. Si nombró dos, o ninguno,
+ * no se manda nada — el texto ya lleva la información.
+ */
+export function fotoParaResponder(
+  items: readonly ItemCatalogo[],
+  consulta: string,
+): ItemCatalogo | null {
+  const terminos = tokenizar(consulta);
+  if (terminos.length === 0) return null;
+
+  const conFoto = items.filter((i) => i.imagenClave !== null);
+  if (conFoto.length === 0) return null;
+
+  const puntuados = conFoto
+    .map((item) => ({ item, puntos: puntuar(`${item.nombre} ${item.descripcion ?? ""}`, terminos) }))
+    .filter((p) => p.puntos > 0)
+    .sort((a, b) => b.puntos - a.puntos);
+
+  const mejor = puntuados[0];
+  if (!mejor) return null;
+
+  // Empate: el cliente preguntó por algo que toca dos productos. Mandar la foto
+  // de uno solo sería elegir por él.
+  if (puntuados[1] && puntuados[1].puntos === mejor.puntos) return null;
+
+  return mejor.item;
+}
+
 export function filtrarFaq(faqs: readonly Faq[], consulta: string, limite = 4): Faq[] {
   const terminos = tokenizar(consulta);
   if (terminos.length === 0) return faqs.slice(0, limite);

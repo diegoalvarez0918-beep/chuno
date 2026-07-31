@@ -29,3 +29,15 @@ export function hoyEnZona(zonaHoraria: string, referencia: Date = new Date()): s
 
   return partes; // en-CA ya entrega YYYY-MM-DD
 }
+
+/**
+ * El instante en que empezó "hoy" para el negocio, en el formato en que la base
+ * guarda las fechas.
+ *
+ * Las 05:00Z son la medianoche en Bogotá, que es UTC-5 todo el año. Sale de
+ * aquí y no de cada llamador porque un tope diario y una métrica diaria que
+ * cortan el día en momentos distintos no se pueden comparar entre sí.
+ */
+export function inicioDelDiaISO(zonaHoraria: string, referencia: Date = new Date()): string {
+  return `${hoyEnZona(zonaHoraria, referencia)}T05:00:00.000Z`;
+}

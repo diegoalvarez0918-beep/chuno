@@ -2,6 +2,7 @@ import { costoTotalCentavos, type UsoModelo } from "../../core/metricas/gasto";
 import { evaluarSalud, type EstadoSalud } from "../../core/metricas/salud";
 import { contarContactosActivos, contarLeadsAbiertos } from "./crm";
 import { contarPendientes } from "./propuesta";
+import { inicioDelDiaISO } from "../id";
 
 export interface Metricas {
   readonly mensajesHoy: number;
@@ -21,23 +22,13 @@ export interface Metricas {
  * tiene horario de verano, así que el desfase es constante — cuando haya
  * negocios fuera de Colombia esto necesita calcularse por zona.
  */
-function inicioDelDia(zonaHoraria: string): string {
-  const fecha = new Intl.DateTimeFormat("en-CA", {
-    timeZone: zonaHoraria,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-
-  return `${fecha}T05:00:00.000Z`;
-}
 
 export async function calcularMetricas(
   db: D1Database,
   negocioId: string,
   zonaHoraria: string,
 ): Promise<Metricas> {
-  const desde = inicioDelDia(zonaHoraria);
+  const desde = inicioDelDiaISO(zonaHoraria);
   const haceUnMes = new Date(Date.now() - 30 * 86_400_000).toISOString();
 
   const [mensajes, clientes, leads, pendientes, fallos, usos] = await Promise.all([

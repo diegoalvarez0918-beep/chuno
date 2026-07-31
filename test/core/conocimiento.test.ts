@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filtrarCatalogo, filtrarFaq, tokenizar } from "../../src/core/conocimiento/busqueda";
+import { filtrarCatalogo, filtrarFaq, fotoParaResponder, tokenizar } from "../../src/core/conocimiento/busqueda";
 import { bloqueCatalogo, bloqueFaq, precioTexto } from "../../src/core/conocimiento/bloques";
 import type { Faq, ItemCatalogo } from "../../src/core/conocimiento/tipos";
 
@@ -88,5 +88,47 @@ describe("bloques para el prompt", () => {
 
   it("FAQ vacía produce bloque vacío", () => {
     expect(bloqueFaq([])).toBe("");
+  });
+});
+
+describe("fotoParaResponder", () => {
+  const conFoto = (nombre: string, imagenClave: string | null): ItemCatalogo => ({
+    id: nombre,
+    negocioId: "neg_1",
+    nombre,
+    descripcion: null,
+    precioCentavos: 1000,
+    diasEntrega: 1,
+    imagenClave,
+  });
+
+  const catalogo = [
+    conFoto("Lentes progresivos", "img/a"),
+    conFoto("Montura infantil flexible", "img/b"),
+    conFoto("Gafas de sol", null),
+  ];
+
+  it("manda la foto del producto que el cliente nombró", () => {
+    const r = fotoParaResponder(catalogo, "cuánto valen los lentes progresivos?");
+    expect(r?.nombre).toBe("Lentes progresivos");
+  });
+
+  it("no manda nada con un saludo", () => {
+    // Es la diferencia entre un asistente y un bot de publicidad.
+    expect(fotoParaResponder(catalogo, "hola")).toBeNull();
+    expect(fotoParaResponder(catalogo, "buenas, cómo están?")).toBeNull();
+  });
+
+  it("no manda nada si el producto que coincide no tiene foto", () => {
+    expect(fotoParaResponder(catalogo, "tienen gafas de sol?")).toBeNull();
+  });
+
+  it("no elige por el cliente cuando hay empate", () => {
+    const empatados = [conFoto("Montura metálica", "img/a"), conFoto("Montura acetato", "img/b")];
+    expect(fotoParaResponder(empatados, "quiero una montura")).toBeNull();
+  });
+
+  it("sin catálogo con fotos no hay nada que mandar", () => {
+    expect(fotoParaResponder([conFoto("Lentes progresivos", null)], "lentes progresivos")).toBeNull();
   });
 });
