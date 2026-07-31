@@ -1,12 +1,35 @@
 # Estado del proyecto
 
 > Traspaso entre sesiones. Léelo después de `CLAUDE.md` y antes de tocar nada.
-> Última actualización: 2026-07-30, con la entrega hecha: panel lateral, Kanban
-> de clientes, hero con foto, fotos de catálogo y video subido. Todo desplegado.
+> Última actualización: **2026-07-31**, cerrando la ventana de refinamiento.
+> 152 tests verdes, typecheck limpio, todo desplegado y verificado.
 >
 > **Entregado al concurso:** video no listado `https://youtu.be/owZTkUv2oaY`
 > (93 s, sin narración) y herramienta `https://chuno.vozdigital-ai.workers.dev`.
-> Quedan 4 horas concedidas para refinar lo entregado.
+>
+> **Ojo con el video:** muestra `npx chuno init`, y ese comando NO existe. npm
+> rechazó el nombre corto por parecerse a `hono`. El paquete real es
+> `npx chuno-cli init` y la landing ya dice lo correcto.
+
+## Lo que se cerró el 2026-07-31
+
+| Qué | Dónde |
+|---|---|
+| Titular del hero en positivo, y el comando de instalación en el hero | `publico/landing.ts` |
+| Bot de Telegram enlazado desde la landing | `publico/landing.ts` |
+| Pedidos y leads se mueven, también en la demo | `index.ts`, `admin/vistas.ts` |
+| Un encargo por conversación, no uno por ráfaga | `core/pedido/dedupe.ts` |
+| Instalador publicado y arreglado para cuentas ajenas | `cli/chuno.mjs` |
+| Respuestas con estructura y emojis cuando hay algo que listar | `giros/por-encargo.ts` |
+| El asistente aprende de lo que contesta el dueño | `core/conocimiento/aprendizaje.ts` |
+| Link de agenda (Cal/Calendly) que comparte solo si se lo piden | `core/conocimiento/agenda.ts` |
+| Topes de abuso, memoria del hilo en 20, foto del producto | `core/limites.ts`, `core/conocimiento/busqueda.ts` |
+
+**Lo que NO se pudo verificar en vivo y queda pendiente de una prueba real:**
+el envío de fotos y el tope por conversación. El webhook sintético no sirve
+para ninguno de los dos: su chat no existe, así que el envío falla y el bloque
+de la foto ni se intenta, y llegar al tope exigiría 30 llamadas reales al
+modelo. Hay que probarlos escribiéndole a `@Chunnobot` desde un teléfono.
 
 ---
 
@@ -46,7 +69,9 @@ Nunca están en el repo. Viven en dos sitios:
 
 `CLAVE_CIFRADO` es la llave maestra AES-GCM (base64, 32 bytes) de la tabla `credenciales`: ahí viven, **cifrados**, el token de bot y el secreto de webhook de cada negocio creado por el onboarding. La base sola no alcanza para hablar por esos bots — hace falta también la llave. Si se rota, esas credenciales dejan de descifrar y `leerCredencial` las trata como ausentes (cae al bot global; el webhook por negocio responde 401).
 
-Cloudflare está autenticado por OAuth en `~/.wrangler`. GitHub **no** tiene credenciales de git: el código se subió por la API de Composio (`GITHUB_COMMIT_MULTIPLE_FILES`), por eso el repo remoto muestra un solo commit aunque localmente hay diez.
+Cloudflare está autenticado por OAuth en `~/.wrangler`. GitHub va por llave SSH y `git push` funciona sin contraseña.
+
+**npm:** cuenta `chunoai`, con 2FA activo. Publicar exige código de un solo uso, así que lo corre Diego. Hay un token de acceso guardado en `~/.npmrc` con permiso de saltarse el 2FA: **bórralo cuando ya no haga falta**, en npmjs.com/settings/chunoai/tokens.
 
 ## Fases
 
@@ -74,7 +99,7 @@ El motor de la entrevista es una máquina de estados pura en `src/core/onboardin
 ## Cómo verificar que todo sigue en pie
 
 ```bash
-npm test          # 115 tests deterministas, sin red ni LLM
+npm test          # 152 tests deterministas, sin red ni LLM
 npm run typecheck # limpio, sin any ni @ts-ignore
 curl -s -o /dev/null -w '%{http_code}\n' https://chuno.vozdigital-ai.workers.dev/demo/inicio
 ```
