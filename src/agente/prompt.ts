@@ -81,6 +81,18 @@ export function promptRespuesta(giro: Giro, negocio: ContextoNegocio): string {
     bloqueConocimiento(negocio.conocimiento),
     ...(negocio.catalogo.length > 0 ? ["", bloqueCatalogo(negocio.catalogo)] : []),
     ...(negocio.faq.length > 0 ? ["", bloqueFaq(negocio.faq)] : []),
+    // Solo cuando el cliente pide cita. Ofrecerlo sin que lo pidan convierte
+    // cualquier saludo en un empujón de ventas, que es como se lee un bot.
+    ...(negocio.agendaUrl
+      ? [
+          "",
+          "AGENDA DE CITAS:",
+          `Si el cliente quiere una cita, agendar, reservar hora o pregunta cuándo`,
+          `puede ir, le compartes este link tal cual: ${negocio.agendaUrl}`,
+          "No lo ofrezcas si no lo piden, y nunca confirmes tú una hora concreta:",
+          "quien tiene los horarios libres es la agenda, no tú.",
+        ]
+      : []),
     "",
     "Si no sabes algo, dilo sin rodeos y ofrece confirmarlo con el dueño. El",
     "mensaje que escribas se le envía tal cual al cliente, así que no incluyas",

@@ -20,6 +20,8 @@ export interface ContextoNegocio {
   readonly faq: readonly Faq[];
   /** Cómo quiere el dueño que hable el asistente. Sale del onboarding. */
   readonly tono: string | null;
+  /** Link de Cal, Calendly o similar. El asistente lo comparte solo si se lo piden. */
+  readonly agendaUrl: string | null;
 }
 
 export interface Giro {

@@ -527,6 +527,13 @@ td .acciones { flex-wrap: nowrap; }
 }
 .mover:hover { background: var(--invertido); color: var(--sobre-invertido); border-color: transparent; }
 
+.fila-agenda { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.fila-agenda input {
+  flex: 1 1 260px; font: inherit; font-size: 14.5px; padding: 9px 12px;
+  border: 1px solid var(--borde); border-radius: 8px;
+  background: var(--fondo-2); color: var(--texto);
+}
+
 /* La casilla que convierte una respuesta del dueño en conocimiento del negocio.
    Discreta a propósito: es una opción, no el camino principal. */
 .aprender {

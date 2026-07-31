@@ -209,6 +209,7 @@ export function vistaRegistro(entradas: readonly EntradaAuditoria[]): string {
     pedido_descartado: "Descartó un pedido sin datos concretos",
     pedido_duplicado_evitado: "Reconoció un encargo que ya estaba registrado",
     conocimiento_aprendido: "Aprendió tu respuesta para la próxima vez",
+    agenda_actualizada: "Cambiaste el link de tu agenda",
     aprendizaje_descartado: "No guardó la respuesta: no le serviría a otro cliente",
     negocio_configurado: "Se configuró un asistente nuevo",
     imagen_cargada: "Le cargó la foto a un producto",

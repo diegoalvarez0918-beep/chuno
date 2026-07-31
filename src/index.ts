@@ -6,6 +6,7 @@ import { avanzarLead } from "./core/crm/embudo";
 import { ESTADOS_LEAD, type EstadoLead } from "./core/crm/tipos";
 import { ESTADOS_PEDIDO, type EstadoPedido } from "./core/pedido/tipos";
 import { transicionar } from "./core/pedido/estado";
+import { CLAVE_AGENDA, normalizarUrlAgenda } from "./core/conocimiento/agenda";
 import { modelos, numero, type Env } from "./env";
 import { AgenteConversacion, idDeConversacion } from "./agente/agente";
 import { correrVigia } from "./crons/vigia";
@@ -17,7 +18,7 @@ import { vistaEntrar } from "./publico/entrar";
 import { DURACION_SESION_SEGUNDOS, firmarSesion, verificarSesion } from "./core/sesion";
 import { resembrarDemo } from "./crons/resembrar";
 import { crearCanalTelegram, registrarWebhook, webhookAutentico } from "./canales/telegram";
-import { crearNegocio, listarNegocios, obtenerNegocio } from "./db/repos/negocio";
+import { crearNegocio, escribirSetting, leerSetting, listarNegocios, obtenerNegocio } from "./db/repos/negocio";
 import { leerCredencial } from "./db/repos/credencial";
 import { crearProveedorGemini } from "./llm/gemini";
 import {
@@ -231,10 +232,11 @@ function montarPanel(opciones: {
     const d = await datosPanel(c);
     if (!d) return c.text("Negocio no configurado", 404);
 
-    const [items, faqs, pendientes] = await Promise.all([
+    const [items, faqs, pendientes, agendaUrl] = await Promise.all([
       listarCatalogo(c.env.DB, d.negocioId),
       listarFaq(c.env.DB, d.negocioId),
       contarPendientes(c.env.DB, d.negocioId),
+      leerSetting(c.env.DB, d.negocioId, CLAVE_AGENDA),
     ]);
 
     return c.html(
@@ -243,7 +245,7 @@ function montarPanel(opciones: {
         negocio: d.negocio.nombre,
         activo: "conocimiento",
         pendientes,
-        contenido: vistaConocimiento(items, faqs, base, d.consulta, esDemo),
+        contenido: vistaConocimiento(items, faqs, base, d.consulta, esDemo, agendaUrl),
         base,
         consulta: d.consulta,
         selector: d.selector,
@@ -383,6 +385,30 @@ function montarPanel(opciones: {
       pregunta,
       respuesta,
     });
+
+    return c.redirect(`${base}/conocimiento${consultaDe(c, negocioId)}`, 303);
+  });
+
+  /**
+   * El link de agenda del negocio.
+   *
+   * Vacío significa quitarlo, y por eso no se valida ese caso: es el botón de
+   * "Quitar", no un error del dueño.
+   */
+  app.post(`${base}/conocimiento/agenda`, async (c) => {
+    const negocioId = negocioDe(c);
+    const crudo = String((await c.req.formData()).get("url") ?? "").trim();
+
+    if (crudo === "") {
+      await escribirSetting(c.env.DB, negocioId, CLAVE_AGENDA, "");
+      return c.redirect(`${base}/conocimiento${consultaDe(c, negocioId)}`, 303);
+    }
+
+    const url = normalizarUrlAgenda(crudo);
+    if (!url.ok) return c.text(url.error, 400);
+
+    await escribirSetting(c.env.DB, negocioId, CLAVE_AGENDA, url.valor);
+    await auditar(c.env.DB, negocioId, "agenda_actualizada", {}, "admin");
 
     return c.redirect(`${base}/conocimiento${consultaDe(c, negocioId)}`, 303);
   });

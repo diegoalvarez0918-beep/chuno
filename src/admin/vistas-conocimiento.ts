@@ -19,6 +19,7 @@ export function vistaConocimiento(
   base: string,
   consulta = "",
   soloLectura = false,
+  agendaUrl: string | null = null,
 ): string {
   const aviso = soloLectura
     ? `<div class="tarjeta vacio" style="padding:16px">
@@ -27,12 +28,46 @@ export function vistaConocimiento(
        </div>`
     : "";
 
-  return `${aviso}${seccionCatalogo(items, base, consulta, soloLectura)}${seccionFaq(
-    faqs,
+  return `${aviso}${seccionAgenda(agendaUrl, base, consulta, soloLectura)}${seccionCatalogo(
+    items,
     base,
     consulta,
     soloLectura,
-  )}${soloLectura ? "" : GUION_FOTOS}`;
+  )}${seccionFaq(faqs, base, consulta, soloLectura)}${soloLectura ? "" : GUION_FOTOS}`;
+}
+
+/**
+ * El link de agenda del negocio.
+ *
+ * Un link y no una integración: agendar de verdad es escribir en un sistema
+ * ajeno y tendría que pasar por la bandeja como cualquier acción hacia fuera.
+ * Compartir el link resuelve el caso común sin credenciales ni superficie nueva.
+ */
+function seccionAgenda(
+  agendaUrl: string | null,
+  base: string,
+  consulta: string,
+  soloLectura: boolean,
+): string {
+  const estado = agendaUrl
+    ? `<p class="motivo">Tu asistente comparte <a href="${esc(agendaUrl)}">${esc(
+        agendaUrl,
+      )}</a> cuando alguien pide cita.</p>`
+    : `<p class="motivo" style="color:var(--suave)">Todavía no hay agenda. Si pegas tu
+       link de Cal o Calendly, el asistente lo comparte cuando un cliente pida cita
+       — y solo entonces.</p>`;
+
+  const formulario = soloLectura
+    ? ""
+    : `<form method="post" action="${base}/conocimiento/agenda${consulta}" class="fila-agenda">
+         <input type="url" name="url" placeholder="cal.com/tu-negocio"
+                value="${esc(agendaUrl ?? "")}">
+         <button class="primario">Guardar</button>
+         ${agendaUrl ? `<button name="url" value="">Quitar</button>` : ""}
+       </form>`;
+
+  return `<div class="seccion">Agenda de citas</div>
+    <div class="tarjeta">${estado}${formulario}</div>`;
 }
 
 /** La ruta pública de la foto. La llave ya trae negocio, producto y versión. */

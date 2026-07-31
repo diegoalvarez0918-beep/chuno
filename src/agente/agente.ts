@@ -12,6 +12,7 @@ import { hoyEnZona } from "../db/id";
 import { modelos, numero, type Env } from "../env";
 import { obtenerGiro } from "../giros";
 import type { ContextoNegocio } from "../giros/tipos";
+import { CLAVE_AGENDA } from "../core/conocimiento/agenda";
 import { filtrarCatalogo, filtrarFaq } from "../core/conocimiento/busqueda";
 import { listarCatalogo, listarFaq } from "../db/repos/catalogo";
 import { leerSetting, obtenerNegocio } from "../db/repos/negocio";
@@ -127,11 +128,12 @@ export class AgenteConversacion extends DurableObject<Env> {
 
     try {
 
-    const [conocimiento, catalogoCompleto, faqCompletas, tono] = await Promise.all([
+    const [conocimiento, catalogoCompleto, faqCompletas, tono, agendaUrl] = await Promise.all([
       buscarConocimiento(db, negocioId, ultimoDelCliente.texto),
       listarCatalogo(db, negocioId),
       listarFaq(db, negocioId),
       leerSetting(db, negocioId, "tono"),
+      leerSetting(db, negocioId, CLAVE_AGENDA),
     ]);
 
     const contextoNegocio: ContextoNegocio = {
@@ -142,6 +144,7 @@ export class AgenteConversacion extends DurableObject<Env> {
       catalogo: filtrarCatalogo(catalogoCompleto, ultimoDelCliente.texto),
       faq: filtrarFaq(faqCompletas, ultimoDelCliente.texto),
       tono,
+      agendaUrl,
     };
 
     // ── 1. Responderle al cliente ─────────────────────────────────────────
