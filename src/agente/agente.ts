@@ -256,6 +256,9 @@ export class AgenteConversacion extends DurableObject<Env> {
         conversacionId,
         pedidoId: null,
         texto: `Hola ${primerNombre}, sobre lo que me preguntaste: `,
+        // Viaja con la propuesta para que la respuesta del dueño pueda quedar
+        // como conocimiento del negocio cuando él lo autorice.
+        pregunta,
       },
       motivo: `${clienteNombre} preguntó: "${pregunta}". No está en la información que tienes cargada. Escríbele la respuesta y yo se la envío.`,
       confianza: null,

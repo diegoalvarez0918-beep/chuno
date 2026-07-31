@@ -527,6 +527,15 @@ td .acciones { flex-wrap: nowrap; }
 }
 .mover:hover { background: var(--invertido); color: var(--sobre-invertido); border-color: transparent; }
 
+/* La casilla que convierte una respuesta del dueño en conocimiento del negocio.
+   Discreta a propósito: es una opción, no el camino principal. */
+.aprender {
+  display: flex; align-items: flex-start; gap: 9px; margin-top: 12px;
+  font-size: 13.5px; color: var(--suave); cursor: pointer; line-height: 1.45;
+}
+.aprender input { margin: 2px 0 0; accent-color: var(--invertido); flex: none; }
+.aprender:hover span { color: var(--texto); }
+
 /* Lo que necesita atención hoy, en la pantalla de inicio. */
 .atencion { display: grid; gap: 10px; }
 .riesgo {

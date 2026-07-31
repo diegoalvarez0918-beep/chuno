@@ -519,10 +519,18 @@ function montarPanel(opciones: {
     const texto = formulario.get("texto");
     const fecha = formulario.get("fecha");
 
-    await decidirPropuesta(c.env, negocioId, id, decision, {
-      ...(typeof texto === "string" ? { texto } : {}),
-      ...(typeof fecha === "string" ? { fecha } : {}),
-    });
+    await decidirPropuesta(
+      c.env,
+      negocioId,
+      id,
+      decision,
+      {
+        ...(typeof texto === "string" ? { texto } : {}),
+        ...(typeof fecha === "string" ? { fecha } : {}),
+      },
+      // Una casilla sin marcar no viaja en el formulario: su ausencia ES el no.
+      formulario.get("aprender") === "si",
+    );
 
     // Redirección después del POST: recargar la página no repite la decisión.
     return c.redirect(`${base}/bandeja${consultaDe(c, negocioId)}`, 303);

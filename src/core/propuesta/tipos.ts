@@ -42,6 +42,14 @@ const PayloadEnviarAviso = z.object({
   pedidoId: z.string().min(1).nullable(),
   /** El texto que saldría al cliente. El dueño puede editarlo antes de aprobar. */
   texto: z.string().trim().min(1).max(1000),
+  /**
+   * La pregunta que obligó a escalar, cuando la hubo. Viaja con la propuesta
+   * para que al aprobarla se pueda guardar la pareja pregunta-respuesta como
+   * conocimiento del negocio: es lo que hace que el asistente moleste cada vez
+   * menos. Opcional porque los avisos del vigía no nacen de una pregunta, y
+   * porque las propuestas guardadas antes de esto no lo traen.
+   */
+  pregunta: z.string().trim().min(1).max(500).nullish(),
 });
 
 export const PayloadPropuestaSchema = z.discriminatedUnion("tipo", [

@@ -1,3 +1,5 @@
+import { comoFaq, yaEstaEnFaq } from "../core/conocimiento/aprendizaje";
+import { guardarFaq, listarFaq } from "../db/repos/catalogo";
 import { transicionar } from "../core/pedido/estado";
 import { resolver, type Decision, type PayloadPropuesta, type Propuesta } from "../core/propuesta/tipos";
 import { fallo, ok, type Resultado } from "../core/resultado";
@@ -22,6 +24,8 @@ export async function decidirPropuesta(
   propuestaId: string,
   decision: "aprobar" | "rechazar",
   edicion: { texto?: string; fecha?: string },
+  /** El dueño marcó que su respuesta sirve para la próxima vez. */
+  aprender = false,
 ): Promise<Resultado<string, string>> {
   const propuesta = await obtenerPropuesta(env.DB, negocioId, propuestaId);
   if (!propuesta) return fallo("esa decisión ya no existe");
@@ -45,7 +49,7 @@ export async function decidirPropuesta(
     return ok("Descartado");
   }
 
-  const ejecutado = await ejecutar(env, negocioId, resuelta.valor);
+  const ejecutado = await ejecutar(env, negocioId, resuelta.valor, aprender);
   await auditar(
     env.DB,
     negocioId,
@@ -74,10 +78,49 @@ function aplicarEdicion(
   return null;
 }
 
+/**
+ * Convierte la respuesta que el dueño acaba de aprobar en conocimiento suyo.
+ *
+ * Si esa pregunta ya estaba guardada, se ACTUALIZA en vez de duplicarse: el
+ * bloque de preguntas frecuentes entra entero al prompt, y dos versiones de lo
+ * mismo son ruido que el modelo tiene que desempatar solo.
+ */
+async function aprenderDeLaRespuesta(
+  env: Env,
+  negocioId: string,
+  pregunta: string,
+  respuesta: string,
+): Promise<void> {
+  const aprendida = comoFaq(pregunta, respuesta);
+  if (!aprendida.ok) {
+    await auditar(env.DB, negocioId, "aprendizaje_descartado", { motivo: aprendida.error }, "admin");
+    return;
+  }
+
+  const existentes = await listarFaq(env.DB, negocioId);
+  const previa = yaEstaEnFaq(existentes, aprendida.valor.pregunta);
+
+  await guardarFaq(env.DB, {
+    id: previa?.id ?? null,
+    negocioId,
+    pregunta: aprendida.valor.pregunta,
+    respuesta: aprendida.valor.respuesta,
+  });
+
+  await auditar(
+    env.DB,
+    negocioId,
+    "conocimiento_aprendido",
+    { actualizada: previa !== null },
+    "admin",
+  );
+}
+
 async function ejecutar(
   env: Env,
   negocioId: string,
   propuesta: Propuesta,
+  aprender: boolean,
 ): Promise<Resultado<string, string>> {
   const p = propuesta.payload;
 
@@ -107,6 +150,15 @@ async function ejecutar(
 
       await guardarMensaje(env.DB, negocioId, p.conversacionId, "dueno", p.texto);
       await auditar(env.DB, negocioId, "aviso_enviado", { pedidoId: p.pedidoId }, "admin");
+
+      // El lazo que hace que el asistente moleste cada vez menos. Va DESPUÉS
+      // del envío y nunca antes: si el mensaje no salió, no hay nada aprendido
+      // que valga. Y si aprender falla, el cliente ya recibió su respuesta, así
+      // que no se devuelve error: se audita y se sigue.
+      if (aprender && p.pregunta) {
+        await aprenderDeLaRespuesta(env, negocioId, p.pregunta, p.texto);
+      }
+
       return ok("Mensaje enviado");
     }
 

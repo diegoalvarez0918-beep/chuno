@@ -72,9 +72,25 @@ function cuerpoPropuesta(propuesta: Propuesta): string {
   const p = propuesta.payload;
 
   if (p.tipo === "enviar_aviso") {
+    /**
+     * La casilla va APAGADA por defecto, y es deliberado.
+     *
+     * No toda respuesta del dueño es conocimiento del negocio: "sí Marta, tus
+     * gafas ya están listas" le sirve a Marta y a nadie más. Guardarla la manda
+     * al prompt y el asistente se la repite a otro cliente. Quien sabe si esta
+     * respuesta vale para el siguiente que pregunte es el dueño, no nosotros.
+     */
+    const aprender = p.pregunta
+      ? `<label class="aprender">
+           <input type="checkbox" name="aprender" value="si">
+           <span>Guardar esta respuesta para la próxima vez que se lo pregunten</span>
+         </label>`
+      : "";
+
     return `<div class="propuesto">
       <div class="etiqueta">Mensaje que se le enviará al cliente. Puedes editarlo</div>
       <textarea name="texto" maxlength="1000">${esc(p.texto)}</textarea>
+      ${aprender}
     </div>`;
   }
 
@@ -192,6 +208,8 @@ export function vistaRegistro(entradas: readonly EntradaAuditoria[]): string {
     envio_fallido: "No pudo entregar un mensaje al cliente",
     pedido_descartado: "Descartó un pedido sin datos concretos",
     pedido_duplicado_evitado: "Reconoció un encargo que ya estaba registrado",
+    conocimiento_aprendido: "Aprendió tu respuesta para la próxima vez",
+    aprendizaje_descartado: "No guardó la respuesta: no le serviría a otro cliente",
     negocio_configurado: "Se configuró un asistente nuevo",
     imagen_cargada: "Le cargó la foto a un producto",
   };
