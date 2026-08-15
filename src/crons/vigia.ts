@@ -1,9 +1,9 @@
-import { evaluarPromesa, type Riesgo } from "../core/vigia/reglas";
+import { claveAviso, evaluarPromesa, type Riesgo } from "../core/vigia/reglas";
 import type { Pedido } from "../core/pedido/tipos";
 import { hoyEnZona } from "../db/id";
 import { listarNegocios, type Negocio } from "../db/repos/negocio";
 import { listarPedidosVivos } from "../db/repos/pedido";
-import { crearPropuesta } from "../db/repos/propuesta";
+import { crearPropuesta, listarPendientes } from "../db/repos/propuesta";
 import { auditar } from "../db/repos/varios";
 
 /**
@@ -73,8 +73,32 @@ async function revisarNegocio(
   // ya es el día siguiente en UTC, y usar UTC marcaría como vencidos pedidos que
   // todavía tienen un día por delante.
   const hoy = hoyEnZona(negocio.zonaHoraria);
-  const pedidos = await listarPedidosVivos(db, negocio.id);
+  const [pedidos, pendientes] = await Promise.all([
+    listarPedidosVivos(db, negocio.id),
+    listarPendientes(db, negocio.id),
+  ]);
   let avisos = 0;
+
+  /**
+   * Pedidos que ya tienen un aviso esperando decisión.
+   *
+   * La clave de deduplicación evita repetir el MISMO aviso; esto evita apilar
+   * avisos DISTINTOS del mismo pedido. Sin ello, un dueño que deja la bandeja
+   * sin mirar tres días encuentra tres tarjetas del mismo encargo, y cuando el
+   * riesgo escala de "en_riesgo" a "vencida" la clave cambia y entraría una
+   * segunda aunque la primera siga sin decidirse.
+   *
+   * Una tarjeta por pedido a la vez, y es lo correcto además de lo cómodo:
+   * cada tarjeta es un mensaje que saldría al cliente, y mandarle dos mensajes
+   * distintos sobre el mismo encargo sería un error, no una mejora.
+   */
+  const conAvisoPendiente = new Set(
+    // `flatMap` y no `filter().map()`: dentro del ternario TypeScript sí estrecha
+    // el payload a su variante y `pedidoId` a string, así que no hace falta cast.
+    pendientes.flatMap((p) =>
+      p.payload.tipo === "enviar_aviso" && p.payload.pedidoId !== null ? [p.payload.pedidoId] : [],
+    ),
+  );
 
   for (const pedido of pedidos) {
     const { riesgo, diasRestantes } = evaluarPromesa(pedido, hoy);
@@ -82,6 +106,8 @@ async function revisarNegocio(
     // "sin_fecha" se ve en el tablero pero no genera mensaje al cliente: no hay
     // nada concreto que decirle todavía.
     if (riesgo !== "vencida" && riesgo !== "en_riesgo") continue;
+
+    if (conAvisoPendiente.has(pedido.id)) continue;
 
     const propuesta = await crearPropuesta(db, {
       negocioId: negocio.id,
@@ -93,9 +119,9 @@ async function revisarNegocio(
       },
       motivo: motivoParaElDueno(pedido, riesgo, diasRestantes),
       confianza: null,
-      // Un aviso por pedido y por nivel de riesgo. Cuando un pedido pasa de
-      // "en riesgo" a "vencido", la clave cambia y sí se genera uno nuevo.
-      claveDedupe: `aviso:${pedido.id}:${riesgo}`,
+      // Un aviso por pedido, por nivel de riesgo y por DÍA. El día es lo que
+      // hace que descartar un aviso no silencie ese pedido para siempre.
+      claveDedupe: claveAviso(pedido.id, riesgo, hoy),
     });
 
     if (propuesta) avisos++;

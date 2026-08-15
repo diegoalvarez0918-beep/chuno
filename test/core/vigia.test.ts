@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  claveAviso,
   diasEntre,
   esAccionable,
   evaluarPromesa,
@@ -81,5 +82,34 @@ describe("priorización de la bandeja", () => {
       .sort((a, b) => prioridad(a) - prioridad(b));
 
     expect(orden).toEqual(["vencida", "en_riesgo", "sin_fecha", "ok"]);
+  });
+});
+
+describe("claveAviso", () => {
+  it("identifica el aviso por pedido, riesgo y día", () => {
+    expect(claveAviso("ped-1", "vencida", HOY)).toBe("aviso:ped-1:vencida:2026-07-28");
+  });
+
+  /**
+   * El día es lo que arregla el bug. Sin él la clave solo podía significar
+   * "nunca más" —descartar un aviso dejaba el pedido mudo para siempre— y la
+   * alternativa era repetirlo en cada pasada del cron, cada media hora.
+   */
+  it("cambia al día siguiente: una promesa que sigue vencida vuelve a avisar mañana", () => {
+    expect(claveAviso("ped-1", "vencida", HOY)).not.toBe(
+      claveAviso("ped-1", "vencida", "2026-07-29"),
+    );
+  });
+
+  it("no repite dentro del mismo día, aunque el cron pase cuarenta veces", () => {
+    expect(claveAviso("ped-1", "vencida", HOY)).toBe(claveAviso("ped-1", "vencida", HOY));
+  });
+
+  it("cambia cuando el riesgo escala de en_riesgo a vencida", () => {
+    expect(claveAviso("ped-1", "en_riesgo", HOY)).not.toBe(claveAviso("ped-1", "vencida", HOY));
+  });
+
+  it("no colisiona entre pedidos distintos", () => {
+    expect(claveAviso("ped-1", "vencida", HOY)).not.toBe(claveAviso("ped-2", "vencida", HOY));
   });
 });

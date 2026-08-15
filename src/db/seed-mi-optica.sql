@@ -27,9 +27,15 @@ UPDATE catalogo SET descripcion = 'Se descuenta si compras las gafas el mismo d�
   actualizado_en = '2026-07-31T22:10:00.000Z'
   WHERE negocio_id = 'mi-optica' AND id = 'cat-m1';
 
--- Productos nuevos, todos sin foto a propósito: `fotoParaResponder` se niega a
--- mandar imagen cuando dos productos CON foto empatan, así que dejar una sola
--- foto por familia mantiene el desempate imposible.
+-- Productos nuevos, todos sin foto a propósito. `fotoParaResponder` se niega a
+-- mandar imagen cuando dos productos CON foto empatan en puntaje, así que cada
+-- foto que se agrega estrecha el margen.
+--
+-- **Ojo, medido el 2026-08-15:** en producción ya hay DOS con foto, "Lentes
+-- monofocales" y "Lentes de sol". Las dos empiezan por "Lentes", así que un
+-- cliente que escriba "¿tienen lentes?" empata y NO recibe foto; solo la recibe
+-- si nombra el producto ("lentes monofocales"). Funciona, pero el comentario
+-- que decía "una sola foto por familia" ya no describe la base real.
 INSERT OR IGNORE INTO catalogo (id, negocio_id, nombre, descripcion, precio_centavos, dias_entrega, imagen_clave, creado_en, actualizado_en) VALUES
  ('cat-m3','mi-optica','Lentes progresivos','Marco no incluido',42000000,7,NULL,'2026-07-31T22:10:00.000Z','2026-07-31T22:10:00.000Z'),
  ('cat-m4','mi-optica','Lentes de contacto por encargo',NULL,24000000,5,NULL,'2026-07-31T22:10:00.000Z','2026-07-31T22:10:00.000Z'),
