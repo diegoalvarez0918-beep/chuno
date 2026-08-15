@@ -1,6 +1,6 @@
 import { esc, fechaCorta } from "./html";
 import { minutosRestantesDePausa } from "../core/conversacion/pausa";
-import type { Conversacion } from "../db/repos/conversacion";
+import { LIMITE_CONVERSACIONES, type Conversacion } from "../db/repos/conversacion";
 
 /**
  * La lista de conversaciones.
@@ -63,5 +63,15 @@ export function vistaConversaciones(
     })
     .join("");
 
-  return `<ul class="conversaciones">${filas}</ul>`;
+  /**
+   * Si la lista viene llena hasta el tope, hay más y hay que decirlo. Una lista
+   * cortada en silencio se lee como "esto es todo", y el dueño que busca un
+   * chat viejo y no lo encuentra concluye que se perdió.
+   */
+  const aviso =
+    conversaciones.length >= LIMITE_CONVERSACIONES
+      ? `<p class="nota-lista">Se muestran las ${LIMITE_CONVERSACIONES} conversaciones con movimiento más reciente. Hay más.</p>`
+      : "";
+
+  return `<ul class="conversaciones">${filas}</ul>${aviso}`;
 }

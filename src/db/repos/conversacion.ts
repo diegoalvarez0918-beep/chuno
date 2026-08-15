@@ -108,10 +108,19 @@ export async function obtenerConversacion(
   return fila ? aConversacion(fila) : null;
 }
 
+/**
+ * Cuántas conversaciones trae la lista del panel.
+ *
+ * Se exporta para que la vista pueda avisar cuando hay más: una lista cortada
+ * en silencio se lee como "esto es todo lo que tengo", y eso es una mentira que
+ * el dueño no tiene forma de detectar.
+ */
+export const LIMITE_CONVERSACIONES = 50;
+
 export async function listarConversaciones(
   db: D1Database,
   negocioId: string,
-  limite = 50,
+  limite = LIMITE_CONVERSACIONES,
 ): Promise<Conversacion[]> {
   const { results } = await db
     .prepare(

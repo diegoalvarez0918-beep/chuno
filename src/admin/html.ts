@@ -585,6 +585,7 @@ td .acciones { flex-wrap: nowrap; }
   font-size: 12.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
   background: var(--fondo-2); color: var(--suave); border: 1px solid var(--borde);
 }
+.nota-lista { margin: 12px 2px 0; font-size: 13px; color: var(--suave); }
 .conversacion-cuando { margin-left: auto; text-align: right; white-space: nowrap; color: var(--suave); font-size: 13px; }
 @media (max-width: 560px) {
   .conversacion { flex-wrap: wrap; }

@@ -457,9 +457,19 @@ function montarPanel(opciones: {
     const d = await datosPanel(c);
     if (!d) return c.text("Negocio no configurado", 404);
 
-    const [conversaciones, propuestas] = await Promise.all([
+    /**
+     * Tres consultas y no dos, a propósito.
+     *
+     * `listarPendientes` corta en 50 y sirve para agrupar por conversación, pero
+     * el globo de la barra lateral tiene que decir el total de verdad. Contarlo
+     * con `length` sobre una lista truncada haría que un negocio con más de 50
+     * decisiones viera "50" para siempre — un indicador que miente se deja de
+     * mirar, y entonces no sirve ni cuando el problema es real.
+     */
+    const [conversaciones, propuestas, totalPendientes] = await Promise.all([
       listarConversaciones(c.env.DB, d.negocioId),
       listarPendientes(c.env.DB, d.negocioId),
+      contarPendientes(c.env.DB, d.negocioId),
     ]);
 
     return c.html(
@@ -467,7 +477,7 @@ function montarPanel(opciones: {
         titulo: "Conversaciones",
         negocio: d.negocio.nombre,
         activo: "conversaciones",
-        pendientes: propuestas.length,
+        pendientes: totalPendientes,
         contenido: vistaConversaciones(
           conversaciones,
           contarPendientesPorConversacion(propuestas),
