@@ -4,6 +4,7 @@ import {
   PropuestaSchema,
   estaPendiente,
   resolver,
+  yaHayEscalacionPendiente,
   type PayloadPropuesta,
   type Propuesta,
 } from "../../src/core/propuesta/tipos";
@@ -134,5 +135,63 @@ describe("payloads de propuesta", () => {
   it("no deja mandar un aviso vacío al cliente", () => {
     const r = PayloadPropuestaSchema.safeParse({ ...avisoOriginal, texto: "   " });
     expect(r.success).toBe(false);
+  });
+});
+
+describe("yaHayEscalacionPendiente", () => {
+  /** Una escalación: aviso SIN pedido detrás, nacido de una pregunta. */
+  function escalacion(conversacionId: string, sobre: Partial<Propuesta> = {}): Propuesta {
+    return propuesta({
+      id: `prop_${conversacionId}`,
+      payload: {
+        tipo: "enviar_aviso",
+        conversacionId,
+        pedidoId: null,
+        texto: "Hola Felipe, sobre lo que me preguntaste: ",
+        pregunta: "¿Tienen gafas de sol Ray-Ban?",
+      },
+      ...sobre,
+    });
+  }
+
+  it("detecta la pregunta que el dueño todavía no ha contestado", () => {
+    expect(yaHayEscalacionPendiente([escalacion("conv_1")], "conv_1")).toBe(true);
+  });
+
+  /**
+   * El corazón del bug: el modelo parafrasea la pregunta en cada pasada, así que
+   * la clave de dedupe cambiaba y no deduplicaba nada. En producción se midieron
+   * ONCE tarjetas de la misma conversación y la misma pregunta.
+   */
+  it("no depende de cómo el modelo redactó la pregunta", () => {
+    const otraRedaccion = escalacion("conv_1", {
+      id: "prop_otro",
+      payload: {
+        tipo: "enviar_aviso",
+        conversacionId: "conv_1",
+        pedidoId: null,
+        texto: "Hola Felipe, sobre lo que me preguntaste: ",
+        pregunta: "El cliente consulta por disponibilidad y precios de gafas de sol.",
+      },
+    });
+
+    expect(yaHayEscalacionPendiente([otraRedaccion], "conv_1")).toBe(true);
+  });
+
+  it("no confunde conversaciones distintas", () => {
+    expect(yaHayEscalacionPendiente([escalacion("conv_1")], "conv_2")).toBe(false);
+  });
+
+  it("deja escalar de nuevo cuando el dueño ya contestó", () => {
+    const contestada = escalacion("conv_1", { estado: "aplicada", resueltoPor: "admin" });
+    expect(yaHayEscalacionPendiente([contestada], "conv_1")).toBe(false);
+  });
+
+  it("no confunde un aviso del vigía con una pregunta: aquel sí trae pedido", () => {
+    expect(yaHayEscalacionPendiente([propuesta()], "conv_1")).toBe(false);
+  });
+
+  it("sin nada pendiente, no bloquea", () => {
+    expect(yaHayEscalacionPendiente([], "conv_1")).toBe(false);
   });
 });

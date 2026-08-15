@@ -18,6 +18,8 @@
  * devuelve a su punto de partida para el siguiente. Deja de ser degradable.
  */
 
+import { claveAviso, type Riesgo } from "../core/vigia/reglas";
+
 const NEGOCIO = "demo-optica";
 
 const MINUTO = 60_000;
@@ -144,17 +146,32 @@ const PEDIDOS: readonly [string, string, string, string, number | null, number |
 ];
 
 /**
- * Las claves de dedupe coinciden con las que generaría el vigía: por eso corre
- * después del resembrado y no las duplica.
+ * La clave de dedupe NO se escribe a mano aquí: se pide a `claveAviso()`, la
+ * misma función que usa el vigía. Antes era un literal escrito dos veces en dos
+ * archivos, sostenido solo por un comentario que decía "coinciden": el día que
+ * el vigía cambió de formato —hoy— estas se habrían quedado viejas en silencio
+ * y el resembrado habría dejado avisos que el vigía volvía a crear media hora
+ * después. Compartir la función lo vuelve imposible por construcción.
+ *
+ * La penúltima columna es el par (pedido, riesgo) del que sale la clave; `null`
+ * en las propuestas que no son avisos del vigía.
  */
-const PROPUESTAS: readonly [string, string, string, string, number | null, string | null, string][] = [
+const PROPUESTAS: readonly [
+  string,
+  string,
+  string,
+  string,
+  number | null,
+  readonly [string, Riesgo] | null,
+  string,
+][] = [
   [
     "pr-marta",
     "enviar_aviso",
     '{"tipo":"enviar_aviso","conversacionId":"c-marta","pedidoId":"p-marta","texto":"Hola Marta, te escribo por tu pedido de lentes progresivos con antirreflejo. Se nos corrió la fecha que te había prometido y quiero avisarte antes de que preguntes. Te confirmo hoy mismo una fecha nueva. Mil disculpas."}',
     "El pedido de Marta Ruiz venció hace 4 días y sigue sin estar listo. Además ella ya preguntó ayer.",
     null,
-    "aviso:p-marta:vencida",
+    ["p-marta", "vencida"],
     "-40 minutes",
   ],
   [
@@ -172,7 +189,7 @@ const PROPUESTAS: readonly [string, string, string, string, number | null, strin
     '{"tipo":"enviar_aviso","conversacionId":"c-luisa","pedidoId":"p-luisa","texto":"Hola Luisa, tu pedido de cambio de lentes monofocales con antirreflejo sigue en proceso y va para hoy. Te aviso apenas esté listo."}',
     "El pedido de Luisa Gómez vence hoy y todavía no está listo.",
     null,
-    "aviso:p-luisa:en_riesgo",
+    ["p-luisa", "en_riesgo"],
     "-25 minutes",
   ],
 ];
@@ -360,7 +377,7 @@ export async function resembrarDemo(
       ),
     ),
 
-    ...PROPUESTAS.map(([id, tipo, payload, motivo, confianza, dedupe, cuando]) =>
+    ...PROPUESTAS.map(([id, tipo, payload, motivo, confianza, aviso, cuando]) =>
       s(
         `INSERT INTO propuestas
            (id, negocio_id, tipo, payload_json, motivo, confianza, estado, clave_dedupe, creado_en)
@@ -371,7 +388,7 @@ export async function resembrarDemo(
         payload,
         motivo,
         confianza,
-        dedupe,
+        aviso === null ? null : claveAviso(aviso[0], aviso[1], fechaBogota(0, ahora)),
         t(cuando),
       ),
     ),

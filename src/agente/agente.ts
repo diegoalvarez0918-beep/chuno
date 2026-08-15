@@ -31,6 +31,7 @@ import {
   obtenerConversacion,
 } from "../db/repos/conversacion";
 import { yaHayEncargoVivo } from "../core/pedido/dedupe";
+import { yaHayEscalacionPendiente } from "../core/propuesta/tipos";
 import { crearPedido, listarPedidosDeConversacion } from "../db/repos/pedido";
 import { crearPropuesta, listarPendientes } from "../db/repos/propuesta";
 import { auditar, buscarConocimiento, crearTicket } from "../db/repos/varios";
@@ -304,6 +305,13 @@ export class AgenteConversacion extends DurableObject<Env> {
   ): Promise<boolean> {
     if (!extraccion.necesitaHumano || !extraccion.preguntaPendiente) return false;
 
+    // Mientras el dueño no conteste la pregunta que ya tiene, no se le apila
+    // otra. La clave de dedupe de abajo no alcanza y esta consulta es la que de
+    // verdad tapa el hueco: aquella se arma con el texto de la pregunta tal como
+    // lo redacta el modelo, y el modelo lo parafrasea distinto en cada pasada.
+    const pendientes = await listarPendientes(this.env.DB, negocioId);
+    if (yaHayEscalacionPendiente(pendientes, conversacionId)) return false;
+
     const primerNombre = clienteNombre.split(" ")[0] ?? clienteNombre;
     const pregunta = extraccion.preguntaPendiente;
 
@@ -320,7 +328,9 @@ export class AgenteConversacion extends DurableObject<Env> {
       },
       motivo: `${clienteNombre} preguntó: "${pregunta}". No está en la información que tienes cargada. Escríbele la respuesta y yo se la envío.`,
       confianza: null,
-      // La misma pregunta no vuelve a la bandeja; una distinta sí.
+      // Red de seguridad, no la defensa principal: sale de texto del modelo, así
+      // que solo atrapa la repetición literal. Quien impide el apilamiento es la
+      // consulta de arriba.
       claveDedupe: `pregunta:${conversacionId}:${pregunta.slice(0, 60)}`,
     });
 

@@ -51,6 +51,28 @@ export function evaluarPromesa(
   return { riesgo: "ok", diasRestantes };
 }
 
+/**
+ * La clave que impide que el mismo aviso vuelva a la bandeja.
+ *
+ * **Lleva el día adentro a propósito.** Sin él la clave solo podía significar
+ * dos cosas, y las dos estaban mal: "nunca más" —que era el comportamiento
+ * real, y descartar un aviso dejaba ese pedido mudo para siempre— o "otra vez
+ * en la próxima pasada", que con el cron cada media hora son 48 tarjetas
+ * idénticas al día, incluso después de que el dueño ya le escribió al cliente.
+ *
+ * Con el día adentro significa lo que un dueño espera de un asistente: te aviso
+ * una vez al día por cada promesa en riesgo, la hayas aprobado o descartado.
+ *
+ * Vive en el núcleo porque la usan dos sitios —el vigía y el sembrado de la
+ * demo— y mientras cada uno la escribía por su lado se desincronizaron.
+ *
+ * `hoy` entra como parámetro y es el día EN LA ZONA DEL NEGOCIO: a las 8 p.m.
+ * en Bogotá ya es el día siguiente en UTC, y usar UTC partiría el día en dos.
+ */
+export function claveAviso(pedidoId: string, riesgo: Riesgo, hoy: string): string {
+  return `aviso:${pedidoId}:${riesgo}:${hoy}`;
+}
+
 /** Los que el dueño tiene que ver hoy, y en qué orden. */
 export const RIESGOS_ACCIONABLES: readonly Riesgo[] = ["vencida", "en_riesgo", "sin_fecha"];
 

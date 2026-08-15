@@ -1,8 +1,12 @@
 # Estado del proyecto
 
 > Traspaso entre sesiones. Léelo después de `CLAUDE.md` y antes de tocar nada.
-> Última actualización: **2026-07-31**, cerrando la ventana de refinamiento.
-> 152 tests verdes, typecheck limpio, todo desplegado y verificado.
+> Última actualización: **2026-08-15**. 157 tests verdes, typecheck limpio.
+>
+> **Ojo: el arreglo del vigía está commiteado y NO desplegado.** Verificado de
+> punta a punta en local contra el mismo índice que tiene producción; lo que
+> corre hoy en la nube todavía tiene el bug de "avisa una sola vez y se calla
+> para siempre". Ver el punto 3 de "Lo que le falta de verdad".
 >
 > **Entregado al concurso:** video no listado `https://youtu.be/owZTkUv2oaY`
 > (93 s, sin narración) y herramienta `https://chuno.vozdigital-ai.workers.dev`.
@@ -25,11 +29,24 @@
 | Link de agenda (Cal/Calendly) que comparte solo si se lo piden | `core/conocimiento/agenda.ts` |
 | Topes de abuso, memoria del hilo en 20, foto del producto | `core/limites.ts`, `core/conocimiento/busqueda.ts` |
 
-**Lo que NO se pudo verificar en vivo y queda pendiente de una prueba real:**
-el envío de fotos y el tope por conversación. El webhook sintético no sirve
-para ninguno de los dos: su chat no existe, así que el envío falla y el bloque
-de la foto ni se intenta, y llegar al tope exigiría 30 llamadas reales al
-modelo. Hay que probarlos escribiéndole a `@Chunnobot` desde un teléfono.
+**Los dos quedaron verificados el 2026-08-15.** Lo que decía este párrafo —que
+hacían falta pruebas reales— era cierto al escribirlo y dejó de serlo:
+
+- **La foto sí llega por Telegram.** `auditoria` de `mi-optica` tiene
+  `foto_enviada` ×3, la última el 2026-08-03, y **cero** `foto_fallida`. Se
+  verificó sola cuando alguien le escribió al bot desde el teléfono. Y las fotos
+  de `mi-optica` se sirven como `image/webp`: Telegram acepta WebP por URL.
+- **El tope por conversación corta antes del modelo.** Probado en local con
+  `TOPE_POR_CONVERSACION=1` y una llave de Gemini falsa a propósito: el primer
+  mensaje deja `respuesta_fallida` (control: el tope NO fue lo que lo paró) y el
+  segundo deja `tope_conversacion` con `uso_llm` sin crecer. Cero cuota gastada.
+
+**El webhook sintético SÍ sirve para el tope**, al revés de lo que decía este
+documento: el tope corta en `agente.ts` antes de llamar al modelo y antes de
+cualquier envío, así que da igual que el chat no exista. Lo que lo hacía caro no
+era el chat, era el valor por defecto de 30 — y el tope cuenta **pasadas del
+agente, no mensajes**, porque el Durable Object agrupa ráfagas. Llegar a 30 son
+~60 llamadas al modelo, no 30. Bajando la variable, la prueba es gratis.
 
 ---
 
@@ -173,7 +190,11 @@ operativo no cierra es construir sobre algo que todavía se cae.
 
 1. ~~**Los pedidos se duplican.**~~ ✅ cerrado 2026-07-30. `core/pedido/dedupe.ts` (`yaHayEncargoVivo`, 7 tests) y su llamada en `agente.ts`. Tapa los **dos** caminos a la vez, el pedido ya creado y la propuesta sin decidir, porque tapar uno solo deja pasar el duplicado por el otro. **No usa `claveDedupe` a propósito:** ver el punto 3, esa clave silencia para siempre.
 2. ~~**El pedido nunca avanza de estado.**~~ ✅ cerrado 2026-07-30. `/panel/pedidos/mover` y `/demo/pedidos/mover`, con botones que salen de `transicionesPosibles()`. `cambiar_fecha` sigue sin quien lo cree.
-3. **El vigía avisa una sola vez por pedido, para siempre.** `idx_prop_dedupe` es único sobre `(negocio_id, clave_dedupe)` sin filtrar por estado: descartar un aviso lo silencia definitivamente. **Se arregla haciendo el índice parcial** (`WHERE estado = 'propuesta'`), lo que exige migración sobre la D1 viva; por eso el arreglo de duplicados del punto 1 no pasa por ahí.
+3. ~~**El vigía avisa una sola vez por pedido, para siempre.**~~ ✅ cerrado 2026-08-15, **y no como estaba planeado aquí.** El índice parcial se probó en local y arregla el mudo, pero abre otro fallo medido: no distingue "descartada" de "aplicada", así que el vigía vuelve a proponer el mismo aviso en cada pasada — **48 tarjetas idénticas al día** para un pedido que siga vencido, incluso después de que el dueño ya le escribió al cliente.
+
+   Se cerró metiéndole el día a la clave: `aviso:<pedido>:<riesgo>:<hoy>`, en `core/vigia/reglas.ts` como `claveAviso()`, más una regla que se salta el pedido que ya tenga un aviso sin decidir. **El índice no se tocó y no hubo migración sobre la D1 viva.** La semántica queda en una frase: un aviso por promesa y por día, se apruebe o se descarte.
+
+   `claveAviso()` vive en el núcleo porque la usan el vigía **y** el resembrado de la demo. Antes era el mismo literal escrito en dos archivos, sostenido por un comentario; este cambio los habría desincronizado en silencio.
 4. **No hay bandeja de conversaciones.** El dueño aprueba mensajes hacia su cliente sin poder leer lo que el cliente escribió, y `pausarConversacion` —tomar el control del chat— es código que nadie llama. `listarConversaciones` y `listarTicketsAbiertos`, igual.
 
 5. **`seed.sql` borra `mi-optica`, el negocio real.** Sus `DELETE` cubren los dos negocios. Hoy es inofensivo porque `mi-optica` solo ha tenido conversaciones de prueba, pero con un cliente conectado un `npm run seed:remote` distraído le borra el historial. Se arregla acotando sus `DELETE` a `demo-optica` y sembrando lo de `mi-optica` por separado.
@@ -223,7 +244,32 @@ como base, y el tablero apareciendo con el spotlight **encima de él**. El
 cursor destaparía el estado operativo sobre la imagen en vez de sobre burbujas
 grises.
 
-**Cabo suelto sin resolver:** el 2026-07-30 `mi-optica` apareció sin conversaciones ni mensajes, conservando su auditoría y su `uso_llm` del webhook sintético de las 03:07 UTC. El resembrado queda descartado como causa —borra esas dos tablas también, y sobrevivieron—, pero no se pudo fechar la pérdida porque no se midió antes de desplegar. El único código que borra `conversaciones` es `seed.sql`, que se corre a mano.
+**Cabo suelto, cerrado el 2026-08-15: no fue el código.** La evidencia medida
+contra la D1 de producción:
+
+- `PRAGMA foreign_keys = 1` — las cascadas están activas.
+- **Cero huérfanos.** Los 11 tickets de `mi-optica` apuntan todos a la única
+  conversación viva.
+- Esa conversación se creó el **2026-07-30T15:25:04Z y sigue ahí**, con mensajes
+  hasta el 3 de agosto: **sobrevivió entera** la ventana en que "desapareció"
+  algo. Lo que se perdió no era ella.
+- La auditoría de esa ventana tiene exactamente una cosa: `envio_fallido` ×3,
+  `propuesta_creada` y `pedido_duplicado_evitado` ×2, entre las 19:43:49 y las
+  19:44:49 UTC. Es la firma del **webhook sintético** — su chat no existe, así
+  que el envío falla y queda auditado.
+
+El webhook sintético crea una conversación **y** un contacto, y hoy no existe
+ninguno de los dos. `contactos` no cuelga de `conversaciones`, solo de
+`negocios`: desaparecieron dos filas de dos tablas que ninguna cascada une. Eso
+descarta la cascada desde `negocios` (habría matado la auditoría), un
+`DELETE FROM conversaciones` a secas (habría dejado el contacto huérfano),
+`seed.sql` y el resembrado.
+
+**Lo que queda, y va marcado como inferencia:** alguien borró a mano el rastro
+del webhook sintético. Encaja con que las dos veces ocurriera justo después de
+correr webhooks sintéticos. **No hay bug que arreglar.** Lo que sí hay que
+cambiar es la costumbre: si se limpian datos de prueba contra producción, que
+sea con un comando acotado y guardado en el repo, no con SQL suelto.
 
 ## Identidad visual — sistema Voz
 
