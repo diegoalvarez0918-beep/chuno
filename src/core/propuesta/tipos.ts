@@ -117,3 +117,36 @@ export function resolver(
 export function estaPendiente(propuesta: Propuesta): boolean {
   return propuesta.estado === "propuesta";
 }
+
+/**
+ * ¿Esta conversación ya tiene una pregunta esperando respuesta del dueño?
+ *
+ * El agente escala cuando el cliente pregunta algo que no está en el
+ * conocimiento cargado, y la clave de deduplicación se armaba con el texto de
+ * la pregunta **tal como la redacta el modelo**. Ese texto cambia en cada
+ * pasada: "¿tienen gafas de sol?" y "El cliente consulta por disponibilidad y
+ * precios de gafas de sol" son la misma pregunta y dos claves distintas. El
+ * dedupe no deduplicaba nada — en producción se midieron ONCE tarjetas de una
+ * sola conversación, todas la misma pregunta.
+ *
+ * La lección, y por eso vive en el núcleo: **una clave de deduplicación no
+ * puede salir de texto que escribe un modelo.** La regla que sí se sostiene no
+ * depende de la redacción: mientras el dueño no haya contestado la pregunta que
+ * tiene, no se le apila otra. Cuando conteste, una pregunta nueva vuelve a
+ * escalar — que es justo lo que un aviso por día no permitiría.
+ *
+ * El discriminante contra los avisos del vigía es `pedidoId`: aquellos siempre
+ * traen el pedido del que hablan, y una escalación nace de una pregunta.
+ */
+export function yaHayEscalacionPendiente(
+  propuestas: readonly Propuesta[],
+  conversacionId: string,
+): boolean {
+  return propuestas.some(
+    (p) =>
+      p.estado === "propuesta" &&
+      p.payload.tipo === "enviar_aviso" &&
+      p.payload.pedidoId === null &&
+      p.payload.conversacionId === conversacionId,
+  );
+}
