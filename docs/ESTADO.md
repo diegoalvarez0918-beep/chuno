@@ -1,12 +1,13 @@
 # Estado del proyecto
 
 > Traspaso entre sesiones. Léelo después de `CLAUDE.md` y antes de tocar nada.
-> Última actualización: **2026-08-15**. 157 tests verdes, typecheck limpio.
+> Última actualización: **2026-08-15**. 177 tests verdes, typecheck limpio.
 >
-> **Ojo: el arreglo del vigía está commiteado y NO desplegado.** Verificado de
-> punta a punta en local contra el mismo índice que tiene producción; lo que
-> corre hoy en la nube todavía tiene el bug de "avisa una sola vez y se calla
-> para siempre". Ver el punto 3 de "Lo que le falta de verdad".
+> **Desplegado y verificado en producción** (versión `cf538280`): el arreglo del
+> vigía y el del escalado. **Sin desplegar:** la lista de conversaciones, que
+> vive en el PR #4.
+>
+> **Dónde quedamos:** ver "Traspaso del 2026-08-15" al final de este archivo.
 >
 > **Entregado al concurso:** video no listado `https://youtu.be/owZTkUv2oaY`
 > (93 s, sin narración) y herramienta `https://chuno.vozdigital-ai.workers.dev`.
@@ -322,3 +323,96 @@ Las fusiones de rama las corre Diego a mano.
 - **Nada sale al cliente final sin aprobación humana.** Regla de diseño, no opción de configuración.
 - **`src/core/` es puro**: sin Cloudflare, sin red, sin LLM, sin reloj propio.
 - La demo pública **no llama al modelo en vivo** — datos sembrados, para que un pico de votantes no agote la cuota gratuita.
+
+---
+
+## Traspaso del 2026-08-15
+
+### Lo que quedó en producción
+
+Dos arreglos desplegados y verificados contra el servidor, versión `cf538280`:
+
+- **El vigía ya no se calla para siempre.** La clave de dedupe lleva el día
+  adentro: `aviso:<pedido>:<riesgo>:<hoy>`, en `claveAviso()` del núcleo.
+  Verificado con dos lecturas seguidas de la D1 de producción tras el cron de
+  las 19:30 UTC. **No hizo falta migración** — el índice no se tocó.
+- **El agente ya no apila la misma pregunta.** `mi-optica` tenía **once**
+  tarjetas idénticas porque la clave del escalado se armaba con texto que
+  redacta el modelo. Ahora: mientras el dueño no conteste, no se le apila otra.
+
+**Las once tarjetas viejas siguen en la bandeja.** El arreglo impide que nazcan
+nuevas, no borra las que hay. Se descartan desde el panel, con un clic cada una.
+No con SQL suelto contra producción: eso es exactamente la costumbre que
+produjo el "cabo suelto" de la conversación que desaparecía sola.
+
+### Cómo verificar el arreglo del escalado cuando haya tráfico real
+
+Línea base medida el 2026-08-15 a las 19:38 UTC: **11 escalaciones pendientes**
+en `conv_3702…`. Escríbele a `@Chunnobot` preguntando algo que el bot no sepa.
+**Si no aparece una decimosegunda tarjeta, el arreglo funciona.** Cuesta dos
+llamadas a Gemini y es el único eslabón que ningún test alcanza.
+
+```bash
+npx wrangler d1 execute chuno --remote --command \
+  "SELECT COUNT(*) FROM propuestas WHERE negocio_id='mi-optica' AND estado='propuesta' AND tipo='enviar_aviso' AND json_extract(payload_json,'\$.pedidoId') IS NULL"
+```
+
+### La bandeja de conversaciones — 2 de 5
+
+| # | Tarea | Estado |
+|---|---|---|
+| 1 | Ventana de pausa en el núcleo | ✅ mergeado |
+| 2 | Lista de conversaciones | 🟢 PR #4, abierto y revisado |
+| 3 | Hilo con las decisiones al lado | pendiente |
+| 4 | Pausar y reanudar desde el hilo | pendiente |
+| 5 | Verificación contra producción y docs | pendiente |
+
+**La lista todavía no enlaza al hilo, a propósito:** la ruta del hilo es la
+tarea 3, y una lista que abre en 404 es peor que una que no abre.
+
+### Subproyectos del asistente
+
+El pedido de "que suene cálido, sea más autónomo y cada negocio fije sus reglas"
+se descompuso en tres, porque son tres specs y no uno:
+
+- **A — Autoservicio de configuración.** Spec aprobado y mergeado en
+  `docs/superpowers/specs/2026-08-15-autoservicio-configuracion-design.md`.
+  **Listo para convertir en plan con `writing-plans`.** No se ha escrito código.
+- **B — Autonomía graduable por negocio.** Sin empezar. `UMBRAL_CONFIANZA` es
+  hoy una constante global igual para todos los negocios, y ahí está el
+  verdadero "el bot manda todo a la bandeja". Toca la tensión con la regla 11.
+- **C — Voz colombiana.** Sin empezar. Humanizer sobre el prompt base, los
+  avisos del vigía y los textos del panel.
+
+**Ojo con A:** el saludo con el nombre del negocio **ya existe** (commit
+`6fe7954`), y `prompt.ts:77` ya inyecta el tono. Lo que falta es la pantalla
+donde el dueño lo edite — hoy solo lo escribe la entrevista de onboarding.
+
+### Cabos sueltos menores
+
+- **`mi-optica` tiene DOS productos con foto**, "Lentes monofocales" y "Lentes
+  de sol", y los dos empiezan por "Lentes". Un cliente que escriba "¿tienen
+  lentes?" empata y no recibe foto; solo la recibe si nombra el producto. Es el
+  comportamiento diseñado, pero el margen es más delgado de lo que decía el
+  comentario de `seed-mi-optica.sql`, que ya está corregido.
+- **`seed.sql` sigue borrando `mi-optica`.** Punto 5 de "Lo que le falta de
+  verdad". Sin tocar.
+
+### Modelo de negocio, acordado esta sesión
+
+Plogy es **canal**, no cliente: monta su fee encima del precio de Diego, que es
+piso y no se descuenta. **USD $500/mes o $5.000/año** (dos meses gratis) por
+negocio, autoalojado — cada negocio en su propia nube, con sus datos y su CRM.
+
+El anual no es un descuento, es el modelo de cobranza: con autoalojado, cero
+telemetría y prohibición de kill switch, un cliente que deja de pagar el mensual
+se queda con el producto funcionando y nadie se entera.
+
+**Costo de API medido, no estimado:** 43 llamadas reales de `mi-optica` dan 828
+tokens de entrada y 72 de salida en promedio. Con el tope diario tocando todos
+los días del mes, el techo es **~USD $17**. Cloudflare va en cero. La llave de
+Gemini la pone Plogy en la instalación — el instalador ya la pide y el dueño
+nunca la ve.
+
+**Pendiente de eso:** mover `TOPE_LLM_DIARIO` de variable global a la tabla
+`settings`, porque si Plogy paga los tokens ese tope es su techo de factura.
