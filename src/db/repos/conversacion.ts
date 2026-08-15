@@ -9,6 +9,8 @@ export interface Conversacion {
   readonly canalChatId: string;
   readonly clienteNombre: string | null;
   readonly pausadoHasta: string | null;
+  /** Último movimiento del hilo. Es el orden natural de la lista del panel. */
+  readonly actualizadoEn: string;
 }
 
 export interface MensajeHilo {
@@ -24,6 +26,7 @@ interface FilaConv {
   canal_chat_id: string;
   cliente_nombre: string | null;
   pausado_hasta: string | null;
+  actualizado_en: string;
 }
 
 function aConversacion(f: FilaConv): Conversacion {
@@ -34,10 +37,12 @@ function aConversacion(f: FilaConv): Conversacion {
     canalChatId: f.canal_chat_id,
     clienteNombre: f.cliente_nombre,
     pausadoHasta: f.pausado_hasta,
+    actualizadoEn: f.actualizado_en,
   };
 }
 
-const COLUMNAS = "id, negocio_id, canal, canal_chat_id, cliente_nombre, pausado_hasta";
+const COLUMNAS =
+  "id, negocio_id, canal, canal_chat_id, cliente_nombre, pausado_hasta, actualizado_en";
 
 /**
  * Busca la conversación de un chat, y la crea si es la primera vez.
