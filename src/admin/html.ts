@@ -605,6 +605,16 @@ td .acciones { flex-wrap: nowrap; }
 .hilo-armazon { display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start; }
 .hilo-cabecera { margin: 0 0 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .hilo-cabecera .canal { font-size: 13px; color: var(--suave); }
+.pausa-form { margin: 0; }
+/* Discreto a propósito: tomar el chat es una acción de contexto, no el CTA de
+   la pantalla. El rojo-naranja es exclusivo de una acción dominante por
+   pantalla, y aquí esa es "Aprobar y enviar". */
+.enlace-boton {
+  background: none; border: 1px solid var(--borde); border-radius: 999px;
+  padding: 4px 12px; font: inherit; font-size: 12.5px; font-weight: 700;
+  color: var(--suave); cursor: pointer;
+}
+.enlace-boton:hover { border-color: var(--texto); color: var(--texto); }
 .hilo { display: grid; gap: 10px; }
 .mensaje {
   max-width: 78%; padding: 10px 14px; border-radius: var(--radio-s);

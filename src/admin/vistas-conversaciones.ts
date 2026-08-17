@@ -109,16 +109,30 @@ export function vistaHilo(opciones: {
   mensajes: readonly MensajeHilo[];
   pendientes: readonly Propuesta[];
   accionDecidir: string;
+  accionPausa: string;
   ahora: string;
 }): string {
-  const { conversacion, mensajes, pendientes, accionDecidir, ahora } = opciones;
+  const { conversacion, mensajes, pendientes, accionDecidir, accionPausa, ahora } = opciones;
 
   const minutosPausa = minutosRestantesDePausa(conversacion.pausadoHasta, ahora);
 
+  /**
+   * Tomar el chat y devolverlo.
+   *
+   * El botón dice qué pasa, no cómo se llama por dentro: el dueño no piensa
+   * "pausar la conversación", piensa "esta la atiendo yo". Y cuando está
+   * pausada, lo que necesita saber es cuándo vuelve solo — la pausa se vence
+   * sola justo para que olvidarse de reanudar no deje al asistente mudo.
+   */
   const pausa =
     minutosPausa > 0
-      ? `<span class="marca-pausa">Lo estás atendiendo tú · el asistente vuelve en ${minutosPausa} min</span>`
-      : "";
+      ? `<span class="marca-pausa">Lo estás atendiendo tú · el asistente vuelve en ${minutosPausa} min</span>
+         <form method="post" action="${accionPausa}" class="pausa-form">
+           <button name="accion" value="reanudar" class="enlace-boton">Devolvérselo al asistente</button>
+         </form>`
+      : `<form method="post" action="${accionPausa}" class="pausa-form">
+           <button name="accion" value="pausar" class="enlace-boton">Esta la atiendo yo</button>
+         </form>`;
 
   /**
    * Sin `<h1>` a propósito: `pagina()` ya pinta uno con el `titulo`, y la ruta
