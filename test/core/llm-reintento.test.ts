@@ -25,14 +25,34 @@ describe("otroModeloPuedeAyudar", () => {
     expect(otroModeloPuedeAyudar("gemini/gemini-3.6-flash: HTTP 503")).toBe(true);
   });
 
-  // Los tres modelos viven en el mismo host: si la red falló, cambiar de modelo
-  // no la arregla y solo gasta el tiempo que el cliente está esperando.
-  it("un fallo de red NO manda al siguiente", () => {
-    expect(otroModeloPuedeAyudar("gemini/gemini-3.6-flash: fallo de red")).toBe(false);
+  // Cambió de criterio el 2026-08-17 al invertir la lista: comparten host, así
+  // que otro modelo no arregla la red, pero un corte transitorio sí se puede
+  // recuperar en el segundo intento. Con el presupuesto acotado, intentar sale
+  // más barato que la certeza de quedarse mudo.
+  it("un fallo de red manda al siguiente", () => {
+    expect(otroModeloPuedeAyudar("gemini/gemini-3.6-flash: fallo de red")).toBe(true);
   });
 
-  it("un error nuestro NO manda al siguiente", () => {
-    expect(otroModeloPuedeAyudar("gemini/gemini-3.6-flash: HTTP 400")).toBe(false);
+  it("una respuesta vacía manda al siguiente", () => {
+    expect(otroModeloPuedeAyudar("gemini/gemini-3.6-flash: respuesta vacía")).toBe(true);
+  });
+
+  // El que importa de toda la lista: el error que todavía no hemos visto tiene
+  // que caer del lado de degradar, no del lado del silencio. Las tres veces que
+  // esto falló en producción, el error era uno que nadie había enumerado.
+  it("un error desconocido manda al siguiente", () => {
+    expect(otroModeloPuedeAyudar("gemini/gemini-3.6-flash: se cayó el planeta")).toBe(true);
+  });
+
+  it("una petición mal armada por nosotros NO manda al siguiente", () => {
+    expect(otroModeloPuedeAyudar("gemini/gemini-3.6-flash: HTTP 400: bad request")).toBe(false);
+  });
+
+  // La llave es la misma para todos los modelos de la lista: si no sirve para
+  // uno, no sirve para ninguno.
+  it("una llave inválida o sin permiso NO manda al siguiente", () => {
+    expect(otroModeloPuedeAyudar("gemini/gemini-3.6-flash: HTTP 401")).toBe(false);
+    expect(otroModeloPuedeAyudar("gemini/gemini-3.6-flash: HTTP 403")).toBe(false);
   });
 });
 

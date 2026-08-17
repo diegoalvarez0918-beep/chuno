@@ -27,20 +27,27 @@ export const PRESUPUESTO_TOTAL_MS = 30_000;
 const MINIMO_UTIL_MS = 3_000;
 
 /**
- * Síntomas de que el problema es de ESE modelo y no nuestro.
+ * Lo que NO se arregla cambiando de modelo, porque el problema es nuestro.
  *
- * 404 = jubilado. 429 = cuota agotada. 503 = saturado ahora mismo. El timeout
- * entró el 2026-08-17: es la misma saturación del 503, pero manifestada como
- * lentitud en vez de como un error que Google se digne a nombrar. Sin él, un
- * modelo lento tumbaba la lista entera con dos respaldos sanos sin tocar.
+ * La lista está invertida a propósito, y esa es la decisión importante de este
+ * archivo. Durante tres incidentes se enumeró lo contrario —qué errores SÍ
+ * merecían otro modelo— y las tres veces se quedó corta: primero faltó el 404,
+ * después el 503, y el 2026-08-17 el timeout, que dejó al bot mudo con dos
+ * respaldos sanos sin intentar. Enumerar lo que se reintenta hace que todo
+ * error nuevo caiga del lado del silencio, que es el peor lado. Enumerado al
+ * revés, cae del lado de degradar, que es recuperable.
  *
- * "fallo de red" NO está, y es deliberado: los modelos comparten host, así que
- * si la red falló, cambiar de modelo no la arregla.
+ * 400 es una petición mal armada por nosotros y sale igual en cualquier modelo.
+ * 401 y 403 son la llave, que es una sola para toda la lista: si no sirve para
+ * un modelo, no sirve para ninguno.
+ *
+ * Esto solo es seguro con `PRESUPUESTO_TOTAL_MS`: sin un tope de tiempo,
+ * "reintentar por defecto" convierte un error raro en un minuto de espera.
  */
-const SINTOMAS_DEL_MODELO = ["HTTP 404", "HTTP 429", "HTTP 503", "fallo de timeout"] as const;
+const CULPA_NUESTRA = ["HTTP 400", "HTTP 401", "HTTP 403"] as const;
 
 export function otroModeloPuedeAyudar(error: string): boolean {
-  return SINTOMAS_DEL_MODELO.some((sintoma) => error.includes(sintoma));
+  return !CULPA_NUESTRA.some((codigo) => error.includes(codigo));
 }
 
 /**
