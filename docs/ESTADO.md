@@ -196,7 +196,7 @@ operativo no cierra es construir sobre algo que todavía se cae.
    Se cerró metiéndole el día a la clave: `aviso:<pedido>:<riesgo>:<hoy>`, en `core/vigia/reglas.ts` como `claveAviso()`, más una regla que se salta el pedido que ya tenga un aviso sin decidir. **El índice no se tocó y no hubo migración sobre la D1 viva.** La semántica queda en una frase: un aviso por promesa y por día, se apruebe o se descarte.
 
    `claveAviso()` vive en el núcleo porque la usan el vigía **y** el resembrado de la demo. Antes era el mismo literal escrito en dos archivos, sostenido por un comentario; este cambio los habría desincronizado en silencio.
-4. **No hay bandeja de conversaciones.** El dueño aprueba mensajes hacia su cliente sin poder leer lo que el cliente escribió, y `pausarConversacion` —tomar el control del chat— es código que nadie llama. `listarConversaciones` y `listarTicketsAbiertos`, igual.
+4. ~~**No hay bandeja de conversaciones.**~~ ✅ cerrado 2026-08-16 en el PR #5, **sin desplegar todavía**. El dueño lee el hilo completo mientras decide, y puede tomar el chat y devolverlo. `pausarConversacion` y `listarConversaciones` ya tienen quien las llame; `listarTicketsAbiertos` **sigue sin llamadores** y es el último de esta familia.
 
 5. **`seed.sql` borra `mi-optica`, el negocio real.** Sus `DELETE` cubren los dos negocios. Hoy es inofensivo porque `mi-optica` solo ha tenido conversaciones de prueba, pero con un cliente conectado un `npm run seed:remote` distraído le borra el historial. Se arregla acotando sus `DELETE` a `demo-optica` y sembrando lo de `mi-optica` por separado.
 
@@ -307,7 +307,13 @@ commits reales. No volver a subir por API: crearía otra historia paralela.
 
 **Ojo con el clasificador de permisos de Claude Code:** bloquea `git checkout`,
 `git merge` y editar `.claude/settings.local.json`. `git push` sí lo permite.
-Las fusiones de rama las corre Diego a mano.
+
+**`git switch` sí funciona** — comprobado el 2026-08-16, se usó varias veces
+para cambiar de rama. Y **fusionar un PR por la API de GitHub también**, con
+`GITHUB_MERGE_A_PULL_REQUEST` de Composio: así se fusionó el #4. Eso **no**
+contradice la regla de "no subir por API" de más abajo, que es sobre *crear
+commits* — fusionar combina refs que ya están en el remoto y no crea historia
+paralela. Diego sigue decidiendo **cuándo** se fusiona.
 
 ## Lo que está bloqueado en el humano
 
@@ -340,10 +346,17 @@ Dos arreglos desplegados y verificados contra el servidor, versión `cf538280`:
   tarjetas idénticas porque la clave del escalado se armaba con texto que
   redacta el modelo. Ahora: mientras el dueño no conteste, no se le apila otra.
 
-**Las once tarjetas viejas siguen en la bandeja.** El arreglo impide que nazcan
-nuevas, no borra las que hay. Se descartan desde el panel, con un clic cada una.
-No con SQL suelto contra producción: eso es exactamente la costumbre que
-produjo el "cabo suelto" de la conversación que desaparecía sola.
+**Las once tarjetas viejas se descartaron el 2026-08-16**, por `POST
+/panel/decidir` con `decision=rechazar` — la ruta del panel, auditada, sin SQL
+suelto. Quedan 2 pendientes en `mi-optica`, las dos de tipo `crear_pedido`.
+
+**Y el arreglo del escalado quedó verificado en producción ese mismo día.**
+Diego le escribió a `@Chunnobot` preguntando por lentes de contacto de colores;
+el agente corrió (2 llamadas a Gemini, mensaje guardado a las 02:39 UTC del 17),
+decidió que necesitaba un humano —lo dice su propia respuesta— y **no apiló una
+decimosegunda tarjeta**. El control importa: el mensaje cayó en
+`conv_3702871df986458a9e58`, que es justo la conversación que tenía las once, y
+la supresión es por conversación.
 
 ### Cómo verificar el arreglo del escalado cuando haya tráfico real
 
@@ -357,18 +370,29 @@ npx wrangler d1 execute chuno --remote --command \
   "SELECT COUNT(*) FROM propuestas WHERE negocio_id='mi-optica' AND estado='propuesta' AND tipo='enviar_aviso' AND json_extract(payload_json,'\$.pedidoId') IS NULL"
 ```
 
-### La bandeja de conversaciones — 2 de 5
+### La bandeja de conversaciones — 5 de 5, sin desplegar
 
 | # | Tarea | Estado |
 |---|---|---|
 | 1 | Ventana de pausa en el núcleo | ✅ mergeado |
-| 2 | Lista de conversaciones | 🟢 PR #4, abierto y revisado |
-| 3 | Hilo con las decisiones al lado | pendiente |
-| 4 | Pausar y reanudar desde el hilo | pendiente |
-| 5 | Verificación contra producción y docs | pendiente |
+| 2 | Lista de conversaciones | ✅ PR #4 fusionado el 2026-08-16 |
+| 3 | Hilo con las decisiones al lado | 🟢 PR #5 |
+| 4 | Pausar y reanudar desde el hilo | 🟢 PR #5 |
+| 5 | Conteo exacto y docs | 🟢 PR #5 |
 
-**La lista todavía no enlaza al hilo, a propósito:** la ruta del hilo es la
-tarea 3, y una lista que abre en 404 es peor que una que no abre.
+**Todo lo de la 3, 4 y 5 vive en el PR #5, en una sola rama a propósito.** Los
+botones de pausa van dentro de `vistaHilo`, que solo existe ahí: una rama
+aparte habría quedado apilada. Aplanar en vez de apilar.
+
+**Falta desplegarlo y verificarlo contra producción.** Nada de esto se ha
+subido a Cloudflare; el Worker vivo sigue en `cf538280`.
+
+Lo que cambió respecto de lo planeado: **el conteo por conversación se hace en
+SQL, no en memoria.** Filtrar `listarPendientes` —que corta en 50, de la más
+vieja a la más nueva— no solo daba globos por debajo del real: en el hilo
+escondía tarjetas que el dueño tenía que decidir. La regla de qué payload
+cuelga de una conversación quedó como `TIPOS_CON_CONVERSACION` en el núcleo y
+las dos consultas arman su `IN` desde ella, para no duplicarla en SQL.
 
 ### Subproyectos del asistente
 
@@ -381,8 +405,14 @@ se descompuso en tres, porque son tres specs y no uno:
 - **B — Autonomía graduable por negocio.** Sin empezar. `UMBRAL_CONFIANZA` es
   hoy una constante global igual para todos los negocios, y ahí está el
   verdadero "el bot manda todo a la bandeja". Toca la tensión con la regla 11.
-- **C — Voz colombiana.** Sin empezar. Humanizer sobre el prompt base, los
-  avisos del vigía y los textos del panel.
+- **C — Voz colombiana.** Sin empezar como subproyecto, pero **ya se cerró su
+  primer pedazo el 2026-08-16** (en el PR #5): el bot decía "Le voy a consultar
+  al dueño para confirmarte bien" cada vez que no sabía algo. No era estilo,
+  era una contradicción del prompt — `prompt.ts` le pedía mencionar al dueño y
+  dos renglones después le prohibía explicar su proceso. Ahora dice "dame un
+  momento y ya te confirmo" y no cuenta a quién le pregunta. **Sin desplegar y
+  sin verificar con el bot vivo.** Queda el resto: humanizer sobre el prompt
+  base, los avisos del vigía y los textos del panel.
 
 **Ojo con A:** el saludo con el nombre del negocio **ya existe** (commit
 `6fe7954`), y `prompt.ts:77` ya inyecta el tono. Lo que falta es la pantalla
