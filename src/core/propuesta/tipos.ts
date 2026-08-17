@@ -119,6 +119,34 @@ export function estaPendiente(propuesta: Propuesta): boolean {
 }
 
 /**
+ * Cuántas decisiones esperan al dueño en cada conversación.
+ *
+ * Lo usa la lista de conversaciones para poner el globo con el número. Cuenta
+ * solo las pendientes: una propuesta ya resuelta no espera nada, y contarla
+ * mandaría al dueño a una conversación donde no hay nada que hacer.
+ *
+ * `cambiar_estado` y `cambiar_fecha` llevan `pedidoId` y no `conversacionId`,
+ * así que quedan fuera por comprobación explícita de tipo y no por accidente:
+ * agrupar a ciegas por una propiedad que no existe en todas las variantes es
+ * como se cuela un `undefined` de llave en un Map.
+ */
+export function contarPendientesPorConversacion(
+  propuestas: readonly Propuesta[],
+): Map<string, number> {
+  const cuenta = new Map<string, number>();
+
+  for (const p of propuestas) {
+    if (p.estado !== "propuesta") continue;
+    if (p.payload.tipo !== "enviar_aviso" && p.payload.tipo !== "crear_pedido") continue;
+
+    const id = p.payload.conversacionId;
+    cuenta.set(id, (cuenta.get(id) ?? 0) + 1);
+  }
+
+  return cuenta;
+}
+
+/**
  * ¿Esta conversación ya tiene una pregunta esperando respuesta del dueño?
  *
  * El agente escala cuando el cliente pregunta algo que no está en el

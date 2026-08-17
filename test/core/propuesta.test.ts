@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   PayloadPropuestaSchema,
   PropuestaSchema,
+  contarPendientesPorConversacion,
   estaPendiente,
   resolver,
   yaHayEscalacionPendiente,
@@ -193,5 +194,69 @@ describe("yaHayEscalacionPendiente", () => {
 
   it("sin nada pendiente, no bloquea", () => {
     expect(yaHayEscalacionPendiente([], "conv_1")).toBe(false);
+  });
+});
+
+describe("contarPendientesPorConversacion", () => {
+  function enConversacion(id: string, conversacionId: string, estado = "propuesta"): Propuesta {
+    return propuesta({
+      id,
+      estado: estado as Propuesta["estado"],
+      // Escrito completo y no como `{...avisoOriginal, conversacionId}`: esparcir
+      // un valor tipado como la unión rompe el estrechamiento del discriminante
+      // y `tsc` lo rechaza aunque los tests pasen.
+      payload: {
+        tipo: "enviar_aviso",
+        conversacionId,
+        pedidoId: "ped_1",
+        texto: "Hola Marta, tus gafas se demoran dos días más. ¿Te sirve el sábado?",
+      },
+    });
+  }
+
+  it("agrupa las decisiones pendientes por conversación", () => {
+    const cuenta = contarPendientesPorConversacion([
+      enConversacion("p1", "conv_1"),
+      enConversacion("p2", "conv_1"),
+      enConversacion("p3", "conv_2"),
+    ]);
+
+    expect(cuenta.get("conv_1")).toBe(2);
+    expect(cuenta.get("conv_2")).toBe(1);
+  });
+
+  /**
+   * El globo de la lista dice "esperan tu decisión". Una propuesta ya resuelta
+   * no espera nada, y contarla mandaría al dueño a una conversación donde no
+   * hay nada que hacer.
+   */
+  it("no cuenta las que ya se resolvieron", () => {
+    const cuenta = contarPendientesPorConversacion([
+      enConversacion("p1", "conv_1"),
+      enConversacion("p2", "conv_1", "aplicada"),
+      enConversacion("p3", "conv_1", "descartada"),
+    ]);
+
+    expect(cuenta.get("conv_1")).toBe(1);
+  });
+
+  /**
+   * `cambiar_estado` y `cambiar_fecha` llevan pedidoId y NO conversacionId.
+   * Agrupar a ciegas por una propiedad que no existe en todas las variantes es
+   * como se cuela un `undefined` de llave en un Map.
+   */
+  it("ignora las propuestas que no cuelgan de una conversación", () => {
+    const cuenta = contarPendientesPorConversacion([
+      enConversacion("p1", "conv_1"),
+      propuesta({ id: "p2", payload: { tipo: "cambiar_estado", pedidoId: "ped_1", hacia: "listo" } }),
+    ]);
+
+    expect(cuenta.size).toBe(1);
+    expect(cuenta.has("conv_1")).toBe(true);
+  });
+
+  it("una conversación sin nada pendiente no aparece en el mapa", () => {
+    expect(contarPendientesPorConversacion([]).size).toBe(0);
+    expect(contarPendientesPorConversacion([]).get("conv_1")).toBeUndefined();
   });
 });

@@ -122,6 +122,8 @@ const ICONOS: Record<string, string> = {
   registro:
     '<circle cx="10" cy="10" r="7"/><path d="M10 6v4.2l2.8 1.8"/>',
   comenzar: '<path d="M10 4v12M4 10h12"/>',
+  conversaciones:
+    '<path d="M17 12a1.5 1.5 0 0 1-1.5 1.5H7L3.5 17V5A1.5 1.5 0 0 1 5 3.5h10.5A1.5 1.5 0 0 1 17 5z"/><path d="M7 7.5h6M7 10.5h4"/>',
 };
 
 function icono(clave: string): string {
@@ -141,6 +143,7 @@ function icono(clave: string): string {
 const PROPOSITO: Record<string, string> = {
   inicio: "Lo que tienes que atender hoy, antes de que un cliente reclame.",
   bandeja: "Nada sale hacia un cliente sin que tú lo apruebes. Esto espera tu criterio.",
+  conversaciones: "Lo que tus clientes escribieron, tal cual. Aquí está el porqué de cada decisión.",
   pedidos: "Cada promesa que hiciste, con su fecha y su riesgo.",
   clientes: "Se llenó solo con lo que la gente escribió en el chat. Nadie capturó nada.",
   conocimiento: "Lo que el asistente sabe de tu negocio. Si no está aquí, no lo dice.",
@@ -154,6 +157,9 @@ const GRUPOS: readonly { rotulo: string; items: readonly { ruta: string; texto: 
     items: [
       { ruta: "/inicio", texto: "Inicio", clave: "inicio" },
       { ruta: "/bandeja", texto: "Decisiones", clave: "bandeja" },
+      // Justo debajo de Decisiones y no en "Tu negocio": es su contexto. El
+      // dueño que ve una tarjeta y no entiende de dónde salió, baja una línea.
+      { ruta: "/conversaciones", texto: "Conversaciones", clave: "conversaciones" },
       { ruta: "/pedidos", texto: "Pedidos", clave: "pedidos" },
     ],
   },
@@ -560,12 +566,45 @@ td .acciones { flex-wrap: nowrap; }
   .riesgo { flex-wrap: wrap; }
   .riesgo .cuando { margin-left: 0; width: 100%; text-align: left; }
 }
+
+/* La lista de conversaciones. Misma gramática que .riesgo: la barra de la
+   izquierda marca lo que pide atención, y solo eso. */
+.conversaciones { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.conversacion {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--tarjeta); border: 1px solid var(--borde);
+  border-left: 3px solid transparent; border-radius: var(--radio-s);
+  padding: 13px 16px; box-shadow: var(--sombra);
+}
+.conversacion.con-pendientes { border-left-color: var(--lima); }
+.conversacion-quien { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.conversacion-quien .canal { font-size: 12.5px; color: var(--suave); }
+.conversacion-marcas { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.conversacion-marcas .marca-texto { font-size: 13px; color: var(--suave); }
+.marca-pausa {
+  font-size: 12.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+  background: var(--fondo-2); color: var(--suave); border: 1px solid var(--borde);
+}
+.nota-lista { margin: 12px 2px 0; font-size: 13px; color: var(--suave); }
+.conversacion-cuando { margin-left: auto; text-align: right; white-space: nowrap; color: var(--suave); font-size: 13px; }
+@media (max-width: 560px) {
+  .conversacion { flex-wrap: wrap; }
+  .conversacion-cuando { margin-left: 0; width: 100%; text-align: left; }
+}
 `;
 
 export function pagina(opciones: {
   titulo: string;
   negocio: string;
-  activo: "inicio" | "bandeja" | "pedidos" | "clientes" | "conocimiento" | "registro" | "comenzar";
+  activo:
+    | "inicio"
+    | "bandeja"
+    | "conversaciones"
+    | "pedidos"
+    | "clientes"
+    | "conocimiento"
+    | "registro"
+    | "comenzar";
   pendientes: number;
   contenido: string;
   base: string;

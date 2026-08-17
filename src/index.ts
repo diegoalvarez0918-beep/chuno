@@ -37,9 +37,10 @@ import {
 import { estructurarConLLM } from "./onboarding/estructurar";
 import { materializarConfiguracion } from "./onboarding/materializar";
 import { vistaEntrevista, vistaEntrevistaDemo } from "./admin/vistas-onboarding";
-import { guardarMensaje, obtenerOCrearConversacion } from "./db/repos/conversacion";
+import { guardarMensaje, listarConversaciones, obtenerOCrearConversacion } from "./db/repos/conversacion";
 import { guardarPedido, listarPedidos, obtenerPedido } from "./db/repos/pedido";
 import { contarPendientes, listarPendientes } from "./db/repos/propuesta";
+import { contarPendientesPorConversacion } from "./core/propuesta/tipos";
 import { auditar, listarAuditoria, purgarMensajesViejos } from "./db/repos/varios";
 import { guardarLead, listarContactos, listarLeads, obtenerLead } from "./db/repos/crm";
 import { borrarFaq, borrarItemCatalogo, fijarImagenCatalogo, guardarFaq, guardarItemCatalogo, listarCatalogo, listarFaq, obtenerItemCatalogo } from "./db/repos/catalogo";
@@ -48,6 +49,7 @@ import { vistaConocimiento } from "./admin/vistas-conocimiento";
 import { calcularMetricas } from "./db/repos/metricas";
 import { vistaMetricas } from "./admin/vistas-metricas";
 import { vistaClientes } from "./admin/vistas-clientes";
+import { vistaConversaciones } from "./admin/vistas-conversaciones";
 
 export { AgenteConversacion };
 
@@ -434,6 +436,53 @@ function montarPanel(opciones: {
         activo: "bandeja",
         pendientes: propuestas.length,
         contenido: vistaBandeja(propuestas, `${base}/decidir${d.consulta}`),
+        base,
+        consulta: d.consulta,
+        selector: d.selector,
+      }),
+    );
+  });
+
+  /**
+   * Las conversaciones del negocio.
+   *
+   * Cierra el lazo que faltaba: hasta ahora el dueño aprobaba mensajes hacia su
+   * cliente sin poder leer lo que el cliente escribió. `listarConversaciones`
+   * llevaba escrita desde el primer día sin que nadie la llamara.
+   *
+   * Se registra también en la demo: sus chats son sembrados y ficticios, y ver
+   * de dónde sale una decisión es justo lo que hay que poder mostrar.
+   */
+  app.get(`${base}/conversaciones`, async (c) => {
+    const d = await datosPanel(c);
+    if (!d) return c.text("Negocio no configurado", 404);
+
+    /**
+     * Tres consultas y no dos, a propósito.
+     *
+     * `listarPendientes` corta en 50 y sirve para agrupar por conversación, pero
+     * el globo de la barra lateral tiene que decir el total de verdad. Contarlo
+     * con `length` sobre una lista truncada haría que un negocio con más de 50
+     * decisiones viera "50" para siempre — un indicador que miente se deja de
+     * mirar, y entonces no sirve ni cuando el problema es real.
+     */
+    const [conversaciones, propuestas, totalPendientes] = await Promise.all([
+      listarConversaciones(c.env.DB, d.negocioId),
+      listarPendientes(c.env.DB, d.negocioId),
+      contarPendientes(c.env.DB, d.negocioId),
+    ]);
+
+    return c.html(
+      pagina({
+        titulo: "Conversaciones",
+        negocio: d.negocio.nombre,
+        activo: "conversaciones",
+        pendientes: totalPendientes,
+        contenido: vistaConversaciones(
+          conversaciones,
+          contarPendientesPorConversacion(propuestas),
+          ahoraISO(),
+        ),
         base,
         consulta: d.consulta,
         selector: d.selector,
