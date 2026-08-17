@@ -2,10 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   PayloadPropuestaSchema,
   PropuestaSchema,
-  contarPendientesPorConversacion,
-  esDeConversacion,
+  TIPOS_CON_CONVERSACION,
   estaPendiente,
-  pendientesDeConversacion,
   resolver,
   yaHayEscalacionPendiente,
   type PayloadPropuesta,
@@ -199,179 +197,30 @@ describe("yaHayEscalacionPendiente", () => {
   });
 });
 
-describe("contarPendientesPorConversacion", () => {
-  function enConversacion(id: string, conversacionId: string, estado = "propuesta"): Propuesta {
-    return propuesta({
-      id,
-      estado: estado as Propuesta["estado"],
-      // Escrito completo y no como `{...avisoOriginal, conversacionId}`: esparcir
-      // un valor tipado como la unión rompe el estrechamiento del discriminante
-      // y `tsc` lo rechaza aunque los tests pasen.
-      payload: {
-        tipo: "enviar_aviso",
-        conversacionId,
-        pedidoId: "ped_1",
-        texto: "Hola Marta, tus gafas se demoran dos días más. ¿Te sirve el sábado?",
-      },
-    });
-  }
-
-  it("agrupa las decisiones pendientes por conversación", () => {
-    const cuenta = contarPendientesPorConversacion([
-      enConversacion("p1", "conv_1"),
-      enConversacion("p2", "conv_1"),
-      enConversacion("p3", "conv_2"),
-    ]);
-
-    expect(cuenta.get("conv_1")).toBe(2);
-    expect(cuenta.get("conv_2")).toBe(1);
-  });
-
+describe("TIPOS_CON_CONVERSACION", () => {
   /**
-   * El globo de la lista dice "esperan tu decisión". Una propuesta ya resuelta
-   * no espera nada, y contarla mandaría al dueño a una conversación donde no
-   * hay nada que hacer.
+   * El test que sostiene la decisión de diseño.
+   *
+   * La lista se consume desde dos consultas SQL, así que si alguien agrega un
+   * payload con `conversacionId` y no lo mete aquí, sus propuestas
+   * desaparecerían del hilo y del globo sin que nada fallara. Este test lo
+   * amarra al esquema en vez de a la memoria de quien lo escriba.
    */
-  it("no cuenta las que ya se resolvieron", () => {
-    const cuenta = contarPendientesPorConversacion([
-      enConversacion("p1", "conv_1"),
-      enConversacion("p2", "conv_1", "aplicada"),
-      enConversacion("p3", "conv_1", "descartada"),
-    ]);
+  it("coincide exactamente con los payloads que llevan conversacionId", () => {
+    for (const opcion of PayloadPropuestaSchema.options) {
+      const tipo: string = opcion.shape.tipo.value;
+      const llevaCampo = "conversacionId" in opcion.shape;
 
-    expect(cuenta.get("conv_1")).toBe(1);
-  });
-
-  /**
-   * `cambiar_estado` y `cambiar_fecha` llevan pedidoId y NO conversacionId.
-   * Agrupar a ciegas por una propiedad que no existe en todas las variantes es
-   * como se cuela un `undefined` de llave en un Map.
-   */
-  it("ignora las propuestas que no cuelgan de una conversación", () => {
-    const cuenta = contarPendientesPorConversacion([
-      enConversacion("p1", "conv_1"),
-      propuesta({ id: "p2", payload: { tipo: "cambiar_estado", pedidoId: "ped_1", hacia: "listo" } }),
-    ]);
-
-    expect(cuenta.size).toBe(1);
-    expect(cuenta.has("conv_1")).toBe(true);
-  });
-
-  it("una conversación sin nada pendiente no aparece en el mapa", () => {
-    expect(contarPendientesPorConversacion([]).size).toBe(0);
-    expect(contarPendientesPorConversacion([]).get("conv_1")).toBeUndefined();
-  });
-});
-
-describe("esDeConversacion", () => {
-  function aviso(id: string, conversacionId: string, estado = "propuesta"): Propuesta {
-    return propuesta({
-      id,
-      estado: estado as Propuesta["estado"],
-      payload: {
-        tipo: "enviar_aviso",
-        conversacionId,
-        pedidoId: null,
-        texto: "Hola Felipe, dame un momento y ya te confirmo lo de los lentes.",
-      },
-    });
-  }
-
-  function encargo(id: string, conversacionId: string): Propuesta {
-    return propuesta({
-      id,
-      payload: {
-        tipo: "crear_pedido",
-        conversacionId,
-        clienteNombre: "Felipe",
-        items: [{ descripcion: "Lentes monofocales", cantidad: 1 }],
-        montoCentavos: null,
-        fechaComprometida: null,
-        notas: null,
-      },
-    });
-  }
-
-  it("reconoce el aviso y el encargo de esa conversación", () => {
-    expect(esDeConversacion(aviso("p1", "conv_1"), "conv_1")).toBe(true);
-    expect(esDeConversacion(encargo("p2", "conv_1"), "conv_1")).toBe(true);
-  });
-
-  it("rechaza los de otra conversación", () => {
-    expect(esDeConversacion(aviso("p1", "conv_2"), "conv_1")).toBe(false);
-    expect(esDeConversacion(encargo("p2", "conv_2"), "conv_1")).toBe(false);
-  });
-
-  /**
-   * `cambiar_estado` y `cambiar_fecha` llevan pedidoId y NO conversacionId.
-   * Quedan fuera por comprobación explícita de tipo y no por accidente.
-   */
-  it("rechaza las propuestas que no cuelgan de una conversación", () => {
-    const cambio = propuesta({
-      id: "p3",
-      payload: { tipo: "cambiar_estado", pedidoId: "ped_1", hacia: "listo" },
-    });
-    const fecha = propuesta({
-      id: "p4",
-      payload: { tipo: "cambiar_fecha", pedidoId: "ped_1", fechaComprometida: "2026-09-01" },
-    });
-
-    expect(esDeConversacion(cambio, "conv_1")).toBe(false);
-    expect(esDeConversacion(fecha, "conv_1")).toBe(false);
-  });
-});
-
-describe("pendientesDeConversacion", () => {
-  function aviso(id: string, conversacionId: string, estado = "propuesta"): Propuesta {
-    return propuesta({
-      id,
-      estado: estado as Propuesta["estado"],
-      payload: {
-        tipo: "enviar_aviso",
-        conversacionId,
-        pedidoId: null,
-        texto: "Hola Felipe, dame un momento y ya te confirmo lo de los lentes.",
-      },
-    });
-  }
-
-  it("trae solo las de esa conversación y solo las pendientes", () => {
-    const todas = [
-      aviso("p1", "conv_1"),
-      aviso("p2", "conv_1", "aplicada"),
-      aviso("p3", "conv_1", "descartada"),
-      aviso("p4", "conv_2"),
-    ];
-
-    expect(pendientesDeConversacion(todas, "conv_1").map((p) => p.id)).toEqual(["p1"]);
-  });
-
-  it("una conversación sin nada pendiente devuelve lista vacía", () => {
-    expect(pendientesDeConversacion([], "conv_1")).toEqual([]);
-  });
-
-  /**
-   * El test que sostiene la decisión de diseño. El globo de la lista sale del
-   * contador y la página sale del filtro: si alguna vez dejaran de coincidir,
-   * el dueño vería "3 esperan tu decisión" sobre una pantalla con 5 tarjetas y
-   * no tendría forma de saber cuál miente.
-   */
-  it("el contador y el filtro coinciden sobre la misma entrada", () => {
-    const todas = [
-      aviso("p1", "conv_1"),
-      aviso("p2", "conv_1"),
-      aviso("p3", "conv_2"),
-      aviso("p4", "conv_1", "aplicada"),
-      propuesta({
-        id: "p5",
-        payload: { tipo: "cambiar_estado", pedidoId: "ped_1", hacia: "listo" },
-      }),
-    ];
-
-    const cuenta = contarPendientesPorConversacion(todas);
-
-    for (const conv of ["conv_1", "conv_2", "conv_inexistente"]) {
-      expect(pendientesDeConversacion(todas, conv).length).toBe(cuenta.get(conv) ?? 0);
+      expect(
+        (TIPOS_CON_CONVERSACION as readonly string[]).includes(tipo),
+        `${tipo} ${llevaCampo ? "lleva" : "no lleva"} conversacionId`,
+      ).toBe(llevaCampo);
     }
+  });
+
+  it("deja fuera los que cuelgan de un pedido", () => {
+    const fuera: readonly string[] = TIPOS_CON_CONVERSACION;
+    expect(fuera).not.toContain("cambiar_estado");
+    expect(fuera).not.toContain("cambiar_fecha");
   });
 });

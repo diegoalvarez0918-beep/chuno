@@ -43,10 +43,16 @@ import {
   listarConversaciones,
   obtenerConversacion,
   obtenerOCrearConversacion,
+  pausarConversacion,
 } from "./db/repos/conversacion";
+import { PAUSA_POR_DEFECTO_MINUTOS, hastaCuandoPausar } from "./core/conversacion/pausa";
 import { guardarPedido, listarPedidos, obtenerPedido } from "./db/repos/pedido";
-import { contarPendientes, listarPendientes } from "./db/repos/propuesta";
-import { contarPendientesPorConversacion, pendientesDeConversacion } from "./core/propuesta/tipos";
+import {
+  contarPendientes,
+  contarPendientesPorConversacion,
+  listarPendientes,
+  listarPendientesDeConversacion,
+} from "./db/repos/propuesta";
 import { auditar, listarAuditoria, purgarMensajesViejos } from "./db/repos/varios";
 import { guardarLead, listarContactos, listarLeads, obtenerLead } from "./db/repos/crm";
 import { borrarFaq, borrarItemCatalogo, fijarImagenCatalogo, guardarFaq, guardarItemCatalogo, listarCatalogo, listarFaq, obtenerItemCatalogo } from "./db/repos/catalogo";
@@ -464,17 +470,15 @@ function montarPanel(opciones: {
     if (!d) return c.text("Negocio no configurado", 404);
 
     /**
-     * Tres consultas y no dos, a propósito.
-     *
-     * `listarPendientes` corta en 50 y sirve para agrupar por conversación, pero
-     * el globo de la barra lateral tiene que decir el total de verdad. Contarlo
-     * con `length` sobre una lista truncada haría que un negocio con más de 50
-     * decisiones viera "50" para siempre — un indicador que miente se deja de
-     * mirar, y entonces no sirve ni cuando el problema es real.
+     * Los dos números salen de sendos COUNT en SQL, nunca del largo de una
+     * lista. `listarPendientes` corta en 50 de la más vieja a la más nueva:
+     * contar sobre esa página escondía las decisiones recientes, que son justo
+     * las que el dueño necesita ver. Un indicador que miente se deja de mirar,
+     * y entonces no sirve ni cuando el problema es real.
      */
-    const [conversaciones, propuestas, totalPendientes] = await Promise.all([
+    const [conversaciones, porConversacion, totalPendientes] = await Promise.all([
       listarConversaciones(c.env.DB, d.negocioId),
-      listarPendientes(c.env.DB, d.negocioId),
+      contarPendientesPorConversacion(c.env.DB, d.negocioId),
       contarPendientes(c.env.DB, d.negocioId),
     ]);
 
@@ -486,7 +490,7 @@ function montarPanel(opciones: {
         pendientes: totalPendientes,
         contenido: vistaConversaciones(
           conversaciones,
-          contarPendientesPorConversacion(propuestas),
+          porConversacion,
           ahoraISO(),
           (id) => `${base}/conversaciones/${encodeURIComponent(id)}${d.consulta}`,
         ),
@@ -512,9 +516,9 @@ function montarPanel(opciones: {
     const conversacion = await obtenerConversacion(c.env.DB, d.negocioId, conversacionId);
     if (!conversacion) return c.text("Esa conversación no existe", 404);
 
-    const [mensajes, propuestas, totalPendientes] = await Promise.all([
+    const [mensajes, pendientes, totalPendientes] = await Promise.all([
       leerHilo(c.env.DB, d.negocioId, conversacionId),
-      listarPendientes(c.env.DB, d.negocioId),
+      listarPendientesDeConversacion(c.env.DB, d.negocioId, conversacionId),
       contarPendientes(c.env.DB, d.negocioId),
     ]);
 
@@ -527,14 +531,53 @@ function montarPanel(opciones: {
         contenido: vistaHilo({
           conversacion,
           mensajes,
-          pendientes: pendientesDeConversacion(propuestas, conversacionId),
+          pendientes,
           accionDecidir: `${base}/decidir${d.consulta}`,
+          accionPausa: `${base}/conversaciones/${encodeURIComponent(conversacionId)}/pausa${d.consulta}`,
           ahora: ahoraISO(),
         }),
         base,
         consulta: d.consulta,
         selector: d.selector,
       }),
+    );
+  });
+
+  /**
+   * El dueño toma el chat, o se lo devuelve al asistente.
+   *
+   * `pausarConversacion` llevaba escrita desde el primer día sin que nadie la
+   * llamara: la comprobación existía y el agente ya la respetaba, pero no había
+   * pantalla desde donde pausar.
+   *
+   * Reanudar no es una operación distinta ni una columna nueva — es pausar
+   * hasta *ahora*, y `estaPausada` compara con `>` estricto. Un solo camino de
+   * escritura para las dos acciones es un camino menos donde equivocarse.
+   *
+   * No se veta en la demo: la pausa es reversible y además se vence sola. Los
+   * vetos de la demo son para lo que degrada el tablero sin vuelta atrás.
+   */
+  app.post(`${base}/conversaciones/:id/pausa`, async (c) => {
+    const negocioId = negocioDe(c);
+    const conversacionId = c.req.param("id");
+
+    const conversacion = await obtenerConversacion(c.env.DB, negocioId, conversacionId);
+    if (!conversacion) return c.text("Esa conversación no existe", 404);
+
+    const accion = String((await c.req.formData()).get("accion") ?? "");
+    if (accion !== "pausar" && accion !== "reanudar") {
+      return c.text("Petición inválida", 400);
+    }
+
+    const ahora = ahoraISO();
+    const hasta = hastaCuandoPausar(ahora, accion === "pausar" ? PAUSA_POR_DEFECTO_MINUTOS : 0);
+
+    await pausarConversacion(c.env.DB, negocioId, conversacionId, hasta);
+    await auditar(c.env.DB, negocioId, `conversacion_${accion}`, {}, "admin");
+
+    return c.redirect(
+      `${base}/conversaciones/${encodeURIComponent(conversacionId)}${consultaDe(c, negocioId)}`,
+      303,
     );
   });
 

@@ -119,68 +119,20 @@ export function estaPendiente(propuesta: Propuesta): boolean {
 }
 
 /**
- * De qué conversación cuelga una propuesta, o `null` si no cuelga de ninguna.
+ * Los tipos de propuesta que cuelgan de una conversación.
  *
- * El único lugar del proyecto donde vive esa regla. `cambiar_estado` y
- * `cambiar_fecha` llevan `pedidoId` y no `conversacionId`: quedan fuera por
- * comprobación explícita de tipo, no por accidente. Agrupar a ciegas por una
- * propiedad que no existe en todas las variantes es como se cuela un
- * `undefined` de llave en un Map.
- */
-function conversacionDe(propuesta: Propuesta): string | null {
-  const p = propuesta.payload;
-  return p.tipo === "enviar_aviso" || p.tipo === "crear_pedido" ? p.conversacionId : null;
-}
-
-/**
- * ¿Esta propuesta cuelga de esta conversación?
+ * La regla vive aquí, en una línea, porque la consumen las dos consultas que
+ * alimentan la bandeja de conversaciones —el globo con el número y las
+ * tarjetas del hilo— y un test que la amarra al esquema de arriba.
  *
- * Vive en el núcleo porque la usan dos consumidores: el contador que alimenta
- * el globo de la lista y el filtro que alimenta el hilo. Escrita dos veces se
- * desincronizan el día que alguien agregue un tipo de propuesta nuevo, y el
- * dueño vería un número que no cuadra con lo que tiene delante.
- */
-export function esDeConversacion(propuesta: Propuesta, conversacionId: string): boolean {
-  return conversacionDe(propuesta) === conversacionId;
-}
-
-/**
- * Las decisiones que esperan al dueño en una conversación, en el orden en que
- * llegaron.
+ * `cambiar_estado` y `cambiar_fecha` no aparecen: llevan `pedidoId` y no
+ * `conversacionId`. Quedan fuera por decisión explícita, no por accidente.
  *
- * Solo las pendientes: una propuesta ya resuelta no espera nada, y mostrarla
- * entre las accionables le pediría al dueño decidir algo que ya decidió.
+ * **Se cuenta en SQL y no en memoria.** Filtrar sobre una página de resultados
+ * ya truncada daba números por debajo del real sin que nada lo dijera, y en el
+ * hilo llegaba a esconder tarjetas que el dueño tenía que decidir.
  */
-export function pendientesDeConversacion(
-  propuestas: readonly Propuesta[],
-  conversacionId: string,
-): Propuesta[] {
-  return propuestas.filter((p) => p.estado === "propuesta" && esDeConversacion(p, conversacionId));
-}
-
-/**
- * Cuántas decisiones esperan al dueño en cada conversación.
- *
- * Lo usa la lista de conversaciones para poner el globo con el número. Sale del
- * mismo `conversacionDe` que el filtro del hilo, y por eso los dos no pueden
- * discrepar.
- */
-export function contarPendientesPorConversacion(
-  propuestas: readonly Propuesta[],
-): Map<string, number> {
-  const cuenta = new Map<string, number>();
-
-  for (const p of propuestas) {
-    if (p.estado !== "propuesta") continue;
-
-    const id = conversacionDe(p);
-    if (id === null) continue;
-
-    cuenta.set(id, (cuenta.get(id) ?? 0) + 1);
-  }
-
-  return cuenta;
-}
+export const TIPOS_CON_CONVERSACION = ["crear_pedido", "enviar_aviso"] as const;
 
 /**
  * ¿Esta conversación ya tiene una pregunta esperando respuesta del dueño?
