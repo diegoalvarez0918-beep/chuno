@@ -37,10 +37,16 @@ import {
 import { estructurarConLLM } from "./onboarding/estructurar";
 import { materializarConfiguracion } from "./onboarding/materializar";
 import { vistaEntrevista, vistaEntrevistaDemo } from "./admin/vistas-onboarding";
-import { guardarMensaje, listarConversaciones, obtenerOCrearConversacion } from "./db/repos/conversacion";
+import {
+  guardarMensaje,
+  leerHilo,
+  listarConversaciones,
+  obtenerConversacion,
+  obtenerOCrearConversacion,
+} from "./db/repos/conversacion";
 import { guardarPedido, listarPedidos, obtenerPedido } from "./db/repos/pedido";
 import { contarPendientes, listarPendientes } from "./db/repos/propuesta";
-import { contarPendientesPorConversacion } from "./core/propuesta/tipos";
+import { contarPendientesPorConversacion, pendientesDeConversacion } from "./core/propuesta/tipos";
 import { auditar, listarAuditoria, purgarMensajesViejos } from "./db/repos/varios";
 import { guardarLead, listarContactos, listarLeads, obtenerLead } from "./db/repos/crm";
 import { borrarFaq, borrarItemCatalogo, fijarImagenCatalogo, guardarFaq, guardarItemCatalogo, listarCatalogo, listarFaq, obtenerItemCatalogo } from "./db/repos/catalogo";
@@ -49,7 +55,7 @@ import { vistaConocimiento } from "./admin/vistas-conocimiento";
 import { calcularMetricas } from "./db/repos/metricas";
 import { vistaMetricas } from "./admin/vistas-metricas";
 import { vistaClientes } from "./admin/vistas-clientes";
-import { vistaConversaciones } from "./admin/vistas-conversaciones";
+import { vistaConversaciones, vistaHilo } from "./admin/vistas-conversaciones";
 
 export { AgenteConversacion };
 
@@ -490,6 +496,47 @@ function montarPanel(opciones: {
     );
   });
 
+  /**
+   * El hilo de una conversación.
+   *
+   * `obtenerConversacion` ya filtra por `negocio_id`, así que un id de otro
+   * negocio devuelve null y sale por el mismo 404 que un id inexistente: desde
+   * afuera no se distingue "no existe" de "no es tuyo", que es como debe ser.
+   */
+  app.get(`${base}/conversaciones/:id`, async (c) => {
+    const d = await datosPanel(c);
+    if (!d) return c.text("Negocio no configurado", 404);
+
+    const conversacionId = c.req.param("id");
+    const conversacion = await obtenerConversacion(c.env.DB, d.negocioId, conversacionId);
+    if (!conversacion) return c.text("Esa conversación no existe", 404);
+
+    const [mensajes, propuestas, totalPendientes] = await Promise.all([
+      leerHilo(c.env.DB, d.negocioId, conversacionId),
+      listarPendientes(c.env.DB, d.negocioId),
+      contarPendientes(c.env.DB, d.negocioId),
+    ]);
+
+    return c.html(
+      pagina({
+        titulo: conversacion.clienteNombre?.trim() || "Conversación",
+        negocio: d.negocio.nombre,
+        activo: "conversaciones",
+        pendientes: totalPendientes,
+        contenido: vistaHilo({
+          conversacion,
+          mensajes,
+          pendientes: pendientesDeConversacion(propuestas, conversacionId),
+          accionDecidir: `${base}/decidir${d.consulta}`,
+          ahora: ahoraISO(),
+        }),
+        base,
+        consulta: d.consulta,
+        selector: d.selector,
+      }),
+    );
+  });
+
   app.get(`${base}/pedidos`, async (c) => {
     const d = await datosPanel(c);
     if (!d) return c.text("Negocio no configurado", 404);
@@ -607,8 +654,21 @@ function montarPanel(opciones: {
       formulario.get("aprender") === "si",
     );
 
-    // Redirección después del POST: recargar la página no repite la decisión.
-    return c.redirect(`${base}/bandeja${consultaDe(c, negocioId)}`, 303);
+    /**
+     * Quien decide desde el hilo vuelve al hilo: está trabajando ahí.
+     *
+     * Viaja el **id** de la conversación y no la URL de destino. Con la URL,
+     * quien mande el POST elegiría a dónde rebota el navegador del dueño
+     * después de una acción autenticada; con el id, el peor caso es un 404.
+     *
+     * Redirección después del POST: recargar la página no repite la decisión.
+     */
+    const volverA = String(formulario.get("conversacion") ?? "");
+    const destino = volverA
+      ? `${base}/conversaciones/${encodeURIComponent(volverA)}${consultaDe(c, negocioId)}`
+      : `${base}/bandeja${consultaDe(c, negocioId)}`;
+
+    return c.redirect(destino, 303);
   });
 }
 
