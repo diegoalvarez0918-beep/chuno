@@ -162,11 +162,20 @@ export async function guardarMensaje(
  * cabe en una ventana de contexto y tampoco aporta. Se traen los últimos y se
  * devuelven en orden natural de lectura.
  */
+/**
+ * Cuántos mensajes trae el hilo.
+ *
+ * Lo exporta para que la pantalla pueda avisar cuando hay más. Una lista
+ * cortada en silencio se lee como "esto es todo lo que tengo", y el dueño que
+ * busca un mensaje viejo y no lo encuentra concluye que se perdió.
+ */
+export const LIMITE_HILO = 30;
+
 export async function leerHilo(
   db: D1Database,
   negocioId: string,
   conversacionId: string,
-  limite = 30,
+  limite = LIMITE_HILO,
 ): Promise<MensajeHilo[]> {
   const { results } = await db
     .prepare(

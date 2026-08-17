@@ -39,13 +39,30 @@ export function vistaBandeja(propuestas: readonly Propuesta[], accionDecidir: st
   return propuestas.map((p) => tarjetaPropuesta(p, accionDecidir)).join("");
 }
 
-function tarjetaPropuesta(propuesta: Propuesta, accionDecidir: string): string {
+/**
+ * Una decisión, con su formulario.
+ *
+ * La comparten la bandeja y el hilo. `volverAConversacion` viaja como el **id**
+ * de la conversación y nunca como una URL: el servidor reconstruye el destino.
+ * Si el destino viajara armado, quien mande el POST elegiría a dónde rebota el
+ * navegador del dueño después de una acción autenticada.
+ */
+export function tarjetaPropuesta(
+  propuesta: Propuesta,
+  accionDecidir: string,
+  volverAConversacion?: string,
+): string {
   const urgente = propuesta.payload.tipo === "enviar_aviso";
+
+  const vuelta = volverAConversacion
+    ? `<input type="hidden" name="conversacion" value="${esc(volverAConversacion)}">`
+    : "";
 
   return `<div class="tarjeta ${urgente ? "urgente" : ""}">
     <p class="motivo">${esc(propuesta.motivo)}</p>
     <form method="post" action="${accionDecidir}">
       <input type="hidden" name="id" value="${esc(propuesta.id)}">
+      ${vuelta}
       ${cuerpoPropuesta(propuesta)}
       <div class="acciones">
         <button class="primario" name="decision" value="aprobar">${esc(

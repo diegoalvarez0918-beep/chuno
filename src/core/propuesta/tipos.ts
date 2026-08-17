@@ -119,16 +119,51 @@ export function estaPendiente(propuesta: Propuesta): boolean {
 }
 
 /**
+ * De qué conversación cuelga una propuesta, o `null` si no cuelga de ninguna.
+ *
+ * El único lugar del proyecto donde vive esa regla. `cambiar_estado` y
+ * `cambiar_fecha` llevan `pedidoId` y no `conversacionId`: quedan fuera por
+ * comprobación explícita de tipo, no por accidente. Agrupar a ciegas por una
+ * propiedad que no existe en todas las variantes es como se cuela un
+ * `undefined` de llave en un Map.
+ */
+function conversacionDe(propuesta: Propuesta): string | null {
+  const p = propuesta.payload;
+  return p.tipo === "enviar_aviso" || p.tipo === "crear_pedido" ? p.conversacionId : null;
+}
+
+/**
+ * ¿Esta propuesta cuelga de esta conversación?
+ *
+ * Vive en el núcleo porque la usan dos consumidores: el contador que alimenta
+ * el globo de la lista y el filtro que alimenta el hilo. Escrita dos veces se
+ * desincronizan el día que alguien agregue un tipo de propuesta nuevo, y el
+ * dueño vería un número que no cuadra con lo que tiene delante.
+ */
+export function esDeConversacion(propuesta: Propuesta, conversacionId: string): boolean {
+  return conversacionDe(propuesta) === conversacionId;
+}
+
+/**
+ * Las decisiones que esperan al dueño en una conversación, en el orden en que
+ * llegaron.
+ *
+ * Solo las pendientes: una propuesta ya resuelta no espera nada, y mostrarla
+ * entre las accionables le pediría al dueño decidir algo que ya decidió.
+ */
+export function pendientesDeConversacion(
+  propuestas: readonly Propuesta[],
+  conversacionId: string,
+): Propuesta[] {
+  return propuestas.filter((p) => p.estado === "propuesta" && esDeConversacion(p, conversacionId));
+}
+
+/**
  * Cuántas decisiones esperan al dueño en cada conversación.
  *
- * Lo usa la lista de conversaciones para poner el globo con el número. Cuenta
- * solo las pendientes: una propuesta ya resuelta no espera nada, y contarla
- * mandaría al dueño a una conversación donde no hay nada que hacer.
- *
- * `cambiar_estado` y `cambiar_fecha` llevan `pedidoId` y no `conversacionId`,
- * así que quedan fuera por comprobación explícita de tipo y no por accidente:
- * agrupar a ciegas por una propiedad que no existe en todas las variantes es
- * como se cuela un `undefined` de llave en un Map.
+ * Lo usa la lista de conversaciones para poner el globo con el número. Sale del
+ * mismo `conversacionDe` que el filtro del hilo, y por eso los dos no pueden
+ * discrepar.
  */
 export function contarPendientesPorConversacion(
   propuestas: readonly Propuesta[],
@@ -137,9 +172,10 @@ export function contarPendientesPorConversacion(
 
   for (const p of propuestas) {
     if (p.estado !== "propuesta") continue;
-    if (p.payload.tipo !== "enviar_aviso" && p.payload.tipo !== "crear_pedido") continue;
 
-    const id = p.payload.conversacionId;
+    const id = conversacionDe(p);
+    if (id === null) continue;
+
     cuenta.set(id, (cuenta.get(id) ?? 0) + 1);
   }
 

@@ -3,7 +3,9 @@ import {
   PayloadPropuestaSchema,
   PropuestaSchema,
   contarPendientesPorConversacion,
+  esDeConversacion,
   estaPendiente,
+  pendientesDeConversacion,
   resolver,
   yaHayEscalacionPendiente,
   type PayloadPropuesta,
@@ -258,5 +260,118 @@ describe("contarPendientesPorConversacion", () => {
   it("una conversación sin nada pendiente no aparece en el mapa", () => {
     expect(contarPendientesPorConversacion([]).size).toBe(0);
     expect(contarPendientesPorConversacion([]).get("conv_1")).toBeUndefined();
+  });
+});
+
+describe("esDeConversacion", () => {
+  function aviso(id: string, conversacionId: string, estado = "propuesta"): Propuesta {
+    return propuesta({
+      id,
+      estado: estado as Propuesta["estado"],
+      payload: {
+        tipo: "enviar_aviso",
+        conversacionId,
+        pedidoId: null,
+        texto: "Hola Felipe, dame un momento y ya te confirmo lo de los lentes.",
+      },
+    });
+  }
+
+  function encargo(id: string, conversacionId: string): Propuesta {
+    return propuesta({
+      id,
+      payload: {
+        tipo: "crear_pedido",
+        conversacionId,
+        clienteNombre: "Felipe",
+        items: [{ descripcion: "Lentes monofocales", cantidad: 1 }],
+        montoCentavos: null,
+        fechaComprometida: null,
+        notas: null,
+      },
+    });
+  }
+
+  it("reconoce el aviso y el encargo de esa conversación", () => {
+    expect(esDeConversacion(aviso("p1", "conv_1"), "conv_1")).toBe(true);
+    expect(esDeConversacion(encargo("p2", "conv_1"), "conv_1")).toBe(true);
+  });
+
+  it("rechaza los de otra conversación", () => {
+    expect(esDeConversacion(aviso("p1", "conv_2"), "conv_1")).toBe(false);
+    expect(esDeConversacion(encargo("p2", "conv_2"), "conv_1")).toBe(false);
+  });
+
+  /**
+   * `cambiar_estado` y `cambiar_fecha` llevan pedidoId y NO conversacionId.
+   * Quedan fuera por comprobación explícita de tipo y no por accidente.
+   */
+  it("rechaza las propuestas que no cuelgan de una conversación", () => {
+    const cambio = propuesta({
+      id: "p3",
+      payload: { tipo: "cambiar_estado", pedidoId: "ped_1", hacia: "listo" },
+    });
+    const fecha = propuesta({
+      id: "p4",
+      payload: { tipo: "cambiar_fecha", pedidoId: "ped_1", fechaComprometida: "2026-09-01" },
+    });
+
+    expect(esDeConversacion(cambio, "conv_1")).toBe(false);
+    expect(esDeConversacion(fecha, "conv_1")).toBe(false);
+  });
+});
+
+describe("pendientesDeConversacion", () => {
+  function aviso(id: string, conversacionId: string, estado = "propuesta"): Propuesta {
+    return propuesta({
+      id,
+      estado: estado as Propuesta["estado"],
+      payload: {
+        tipo: "enviar_aviso",
+        conversacionId,
+        pedidoId: null,
+        texto: "Hola Felipe, dame un momento y ya te confirmo lo de los lentes.",
+      },
+    });
+  }
+
+  it("trae solo las de esa conversación y solo las pendientes", () => {
+    const todas = [
+      aviso("p1", "conv_1"),
+      aviso("p2", "conv_1", "aplicada"),
+      aviso("p3", "conv_1", "descartada"),
+      aviso("p4", "conv_2"),
+    ];
+
+    expect(pendientesDeConversacion(todas, "conv_1").map((p) => p.id)).toEqual(["p1"]);
+  });
+
+  it("una conversación sin nada pendiente devuelve lista vacía", () => {
+    expect(pendientesDeConversacion([], "conv_1")).toEqual([]);
+  });
+
+  /**
+   * El test que sostiene la decisión de diseño. El globo de la lista sale del
+   * contador y la página sale del filtro: si alguna vez dejaran de coincidir,
+   * el dueño vería "3 esperan tu decisión" sobre una pantalla con 5 tarjetas y
+   * no tendría forma de saber cuál miente.
+   */
+  it("el contador y el filtro coinciden sobre la misma entrada", () => {
+    const todas = [
+      aviso("p1", "conv_1"),
+      aviso("p2", "conv_1"),
+      aviso("p3", "conv_2"),
+      aviso("p4", "conv_1", "aplicada"),
+      propuesta({
+        id: "p5",
+        payload: { tipo: "cambiar_estado", pedidoId: "ped_1", hacia: "listo" },
+      }),
+    ];
+
+    const cuenta = contarPendientesPorConversacion(todas);
+
+    for (const conv of ["conv_1", "conv_2", "conv_inexistente"]) {
+      expect(pendientesDeConversacion(todas, conv).length).toBe(cuenta.get(conv) ?? 0);
+    }
   });
 });

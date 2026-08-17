@@ -571,11 +571,17 @@ td .acciones { flex-wrap: nowrap; }
    izquierda marca lo que pide atención, y solo eso. */
 .conversaciones { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .conversacion {
-  display: flex; align-items: center; gap: 14px;
   background: var(--tarjeta); border: 1px solid var(--borde);
   border-left: 3px solid transparent; border-radius: var(--radio-s);
-  padding: 13px 16px; box-shadow: var(--sombra);
+  box-shadow: var(--sombra);
 }
+/* El relleno vive en el enlace y no en el li, para que toda la fila sea
+   clicable y no solo el texto. */
+.conversacion-enlace {
+  display: flex; align-items: center; gap: 14px;
+  padding: 13px 16px; color: inherit; text-decoration: none;
+}
+.conversacion:hover { border-color: var(--suave); }
 .conversacion.con-pendientes { border-left-color: var(--lima); }
 .conversacion-quien { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .conversacion-quien .canal { font-size: 12.5px; color: var(--suave); }
@@ -588,8 +594,37 @@ td .acciones { flex-wrap: nowrap; }
 .nota-lista { margin: 12px 2px 0; font-size: 13px; color: var(--suave); }
 .conversacion-cuando { margin-left: auto; text-align: right; white-space: nowrap; color: var(--suave); font-size: 13px; }
 @media (max-width: 560px) {
-  .conversacion { flex-wrap: wrap; }
+  .conversacion-enlace { flex-wrap: wrap; }
   .conversacion-cuando { margin-left: 0; width: 100%; text-align: left; }
+}
+
+/* ─────────────────────────────────────────────────────────────── el hilo ── */
+/* Dos columnas en escritorio. En pantalla angosta se apila y las decisiones
+   SUBEN: el dueño en el mostrador necesita actuar, no leer. Quien quiera el
+   contexto baja; quien ya sabe qué pasó, decide sin scroll. */
+.hilo-armazon { display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start; }
+.hilo-cabecera { margin: 0 0 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hilo-cabecera .canal { font-size: 13px; color: var(--suave); }
+.hilo { display: grid; gap: 10px; }
+.mensaje {
+  max-width: 78%; padding: 10px 14px; border-radius: var(--radio-s);
+  background: var(--tarjeta); border: 1px solid var(--borde);
+}
+/* pre-wrap porque el asistente responde con saltos de línea y listas, y
+   anywhere porque un cliente pega URLs que si no desbordan la columna. */
+.mensaje p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mensaje .quien { display: block; font-size: 12px; color: var(--suave); margin-bottom: 3px; }
+.mensaje .cuando { display: block; font-size: 12px; color: var(--suave); margin-top: 4px; }
+.mensaje.agente, .mensaje.dueno { margin-left: auto; background: var(--fondo-2); }
+.hilo-decisiones { position: sticky; top: 16px; display: grid; gap: 12px; }
+.hilo-decisiones .rotulo {
+  font-size: 12.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--suave);
+}
+@media (max-width: 900px) {
+  .hilo-armazon { grid-template-columns: 1fr; }
+  .hilo-decisiones { position: static; order: -1; }
+  .mensaje { max-width: 88%; }
 }
 `;
 
