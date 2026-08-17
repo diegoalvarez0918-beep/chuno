@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { handshakeIncompleto, resolverHandshake } from "../../src/core/meta/entrada";
+import {
+  firmaConFormaValida,
+  firmaValida,
+  handshakeIncompleto,
+  resolverHandshake,
+} from "../../src/core/meta/entrada";
 
 const params = (entradas: Record<string, string>) => new URLSearchParams(entradas);
 
@@ -56,5 +61,58 @@ describe("handshakeIncompleto", () => {
     expect(
       handshakeIncompleto(params({ "hub.mode": "subscribe", "hub.challenge": "1" })),
     ).toBe(true);
+  });
+});
+
+/**
+ * Vector generado FUERA de este código, con:
+ *   printf '%s' '<cuerpo>' | openssl dgst -sha256 -hmac 'secreto-de-prueba' -r
+ *
+ * Si el valor esperado lo produjera nuestra propia función, el test compararía
+ * la implementación consigo misma y no probaría absolutamente nada.
+ */
+const CUERPO = '{"object":"whatsapp_business_account","entry":[]}';
+const SECRETO = "secreto-de-prueba";
+const FIRMA = "sha256=7684209d20e98f747cbaa9c37e9dbcf89184b73c4b7be662da88d486fab52681";
+
+describe("firmaValida", () => {
+  it("acepta el vector calculado con openssl", async () => {
+    expect(await firmaValida(CUERPO, FIRMA, SECRETO)).toBe(true);
+  });
+
+  it("rechaza con otro secreto", async () => {
+    expect(await firmaValida(CUERPO, FIRMA, "secreto-equivocado")).toBe(false);
+  });
+
+  it("rechaza si el cuerpo cambió en un solo byte", async () => {
+    expect(await firmaValida(CUERPO.replace("entry", "entrY"), FIRMA, SECRETO)).toBe(false);
+  });
+
+  it("rechaza sin cabecera", async () => {
+    expect(await firmaValida(CUERPO, null, SECRETO)).toBe(false);
+  });
+
+  it("rechaza sin el prefijo sha256=", async () => {
+    expect(await firmaValida(CUERPO, FIRMA.slice("sha256=".length), SECRETO)).toBe(false);
+  });
+
+  it("rechaza un hex de largo equivocado", async () => {
+    expect(await firmaValida(CUERPO, "sha256=abc123", SECRETO)).toBe(false);
+  });
+
+  it("rechaza un hex con caracteres que no son hex", async () => {
+    expect(await firmaValida(CUERPO, `sha256=${"z".repeat(64)}`, SECRETO)).toBe(false);
+  });
+});
+
+describe("firmaConFormaValida", () => {
+  it("acepta una cabecera bien formada sin verificar el HMAC", () => {
+    expect(firmaConFormaValida(FIRMA)).toBe(true);
+  });
+
+  it("rechaza null, prefijo ausente y largo equivocado", () => {
+    expect(firmaConFormaValida(null)).toBe(false);
+    expect(firmaConFormaValida("abc")).toBe(false);
+    expect(firmaConFormaValida("sha256=abc")).toBe(false);
   });
 });
