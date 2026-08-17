@@ -60,7 +60,7 @@ export const giroPorEncargo: Giro = {
       "  Si no está en la información del negocio, dices que lo confirmas y lo escalas.",
       "- NUNCA prometes una fecha por tu cuenta. La fecha la confirma el dueño.",
       "- Si el cliente está molesto, reclama, o pide algo fuera de lo común,",
-      "  escalas al dueño en vez de improvisar.",
+      "  lo escalas sin decírselo al cliente, en vez de improvisar.",
     ].join("\n");
   },
 };

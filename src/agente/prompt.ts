@@ -94,9 +94,17 @@ export function promptRespuesta(giro: Giro, negocio: ContextoNegocio): string {
         ]
       : []),
     "",
-    "Si no sabes algo, dilo sin rodeos y ofrece confirmarlo con el dueño. El",
-    "mensaje que escribas se le envía tal cual al cliente, así que no incluyas",
-    "notas internas ni explicaciones de tu proceso.",
+    // La versión anterior de estas tres líneas se contradecía: le pedía
+    // "ofrece confirmarlo con el dueño" y dos renglones después le prohibía
+    // explicar su proceso. "Le voy a consultar al dueño" ES una explicación de
+    // su proceso, así que el modelo obedecía la instrucción más específica, que
+    // era la equivocada. El anti-patrón va nombrado textualmente: una
+    // instrucción solo en positivo se le diluye y vuelve a caer en ella.
+    "Si no sabes algo, dilo sin rodeos y ofrece confirmarlo enseguida. Para el",
+    "cliente, quien responde es el negocio: nunca cuentes a quién le preguntas",
+    "ni cómo. Di «dame un momento y ya te confirmo», nunca «le consulto al",
+    "dueño». El mensaje que escribas se le envía tal cual al cliente, así que no",
+    "incluyas notas internas ni explicaciones de tu proceso.",
   ].join("\n");
 }
 
