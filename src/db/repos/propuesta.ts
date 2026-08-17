@@ -1,5 +1,6 @@
 import {
   PropuestaSchema,
+  TIPOS_CON_CONVERSACION,
   type PayloadPropuesta,
   type Propuesta,
 } from "../../core/propuesta/tipos";
@@ -129,6 +130,68 @@ export async function listarPendientes(
        ORDER BY creado_en ASC LIMIT ?`,
     )
     .bind(negocioId, limite)
+    .all<FilaPropuesta>();
+
+  return results.map(aPropuesta);
+}
+
+/**
+ * Los `?` de la cláusula IN, tantos como tipos haya.
+ *
+ * Se arma desde `TIPOS_CON_CONVERSACION` y no se escribe a mano para que
+ * agregar un tipo nuevo no exija acordarse de tocar dos consultas.
+ */
+const MARCAS_TIPO = TIPOS_CON_CONVERSACION.map(() => "?").join(", ");
+
+/**
+ * Cuántas decisiones esperan al dueño en cada conversación.
+ *
+ * Cuenta en SQL a propósito. Hacerlo en memoria sobre `listarPendientes` —que
+ * corta en 50, de la más vieja a la más nueva— daba cuentas por debajo del real
+ * sin que nada lo dijera, y lo que se caía eran justo las decisiones recientes,
+ * que son las que el dueño necesita ver.
+ */
+export async function contarPendientesPorConversacion(
+  db: D1Database,
+  negocioId: string,
+): Promise<Map<string, number>> {
+  const { results } = await db
+    .prepare(
+      `SELECT json_extract(payload_json, '$.conversacionId') AS conv, COUNT(*) AS n
+       FROM propuestas
+       WHERE negocio_id = ? AND estado = 'propuesta' AND tipo IN (${MARCAS_TIPO})
+       GROUP BY conv`,
+    )
+    .bind(negocioId, ...TIPOS_CON_CONVERSACION)
+    .all<{ conv: string | null; n: number }>();
+
+  const cuenta = new Map<string, number>();
+  for (const f of results) {
+    if (f.conv !== null) cuenta.set(f.conv, f.n);
+  }
+
+  return cuenta;
+}
+
+/**
+ * Las decisiones pendientes de una conversación, las más viejas arriba.
+ *
+ * Sin límite: son las de un solo hilo, y esconder una tarjeta en la pantalla
+ * donde el dueño decide es peor que traer de más.
+ */
+export async function listarPendientesDeConversacion(
+  db: D1Database,
+  negocioId: string,
+  conversacionId: string,
+): Promise<Propuesta[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT ${COLUMNAS} FROM propuestas
+       WHERE negocio_id = ? AND estado = 'propuesta' AND tipo IN (${MARCAS_TIPO})
+         AND json_extract(payload_json, '$.conversacionId') = ?
+       ORDER BY creado_en ASC`,
+    )
+    .bind(negocioId, ...TIPOS_CON_CONVERSACION, conversacionId)
     .all<FilaPropuesta>();
 
   return results.map(aPropuesta);
