@@ -488,6 +488,7 @@ function montarPanel(opciones: {
           conversaciones,
           contarPendientesPorConversacion(propuestas),
           ahoraISO(),
+          (id) => `${base}/conversaciones/${encodeURIComponent(id)}${d.consulta}`,
         ),
         base,
         consulta: d.consulta,

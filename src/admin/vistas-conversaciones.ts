@@ -34,6 +34,8 @@ export function vistaConversaciones(
   conversaciones: readonly Conversacion[],
   pendientesPorConversacion: ReadonlyMap<string, number>,
   ahora: string,
+  /** Cómo se arma el link al hilo. La vista no sabe de rutas ni de query. */
+  enlace: (id: string) => string,
 ): string {
   if (conversaciones.length === 0) return vacio();
 
@@ -60,12 +62,14 @@ export function vistaConversaciones(
         .join("");
 
       return `<li class="conversacion${pendientes > 0 ? " con-pendientes" : ""}">
-        <div class="conversacion-quien">
-          <strong>${esc(quien)}</strong>
-          <span class="canal">${esc(CANALES[c.canal] ?? c.canal)}</span>
-        </div>
-        <div class="conversacion-marcas">${marcas}</div>
-        <time class="conversacion-cuando">${esc(fechaCorta(c.actualizadoEn))}</time>
+        <a class="conversacion-enlace" href="${esc(enlace(c.id))}">
+          <div class="conversacion-quien">
+            <strong>${esc(quien)}</strong>
+            <span class="canal">${esc(CANALES[c.canal] ?? c.canal)}</span>
+          </div>
+          <div class="conversacion-marcas">${marcas}</div>
+          <time class="conversacion-cuando">${esc(fechaCorta(c.actualizadoEn))}</time>
+        </a>
       </li>`;
     })
     .join("");

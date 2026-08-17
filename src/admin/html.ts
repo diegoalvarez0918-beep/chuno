@@ -571,11 +571,17 @@ td .acciones { flex-wrap: nowrap; }
    izquierda marca lo que pide atención, y solo eso. */
 .conversaciones { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .conversacion {
-  display: flex; align-items: center; gap: 14px;
   background: var(--tarjeta); border: 1px solid var(--borde);
   border-left: 3px solid transparent; border-radius: var(--radio-s);
-  padding: 13px 16px; box-shadow: var(--sombra);
+  box-shadow: var(--sombra);
 }
+/* El relleno vive en el enlace y no en el li, para que toda la fila sea
+   clicable y no solo el texto. */
+.conversacion-enlace {
+  display: flex; align-items: center; gap: 14px;
+  padding: 13px 16px; color: inherit; text-decoration: none;
+}
+.conversacion:hover { border-color: var(--suave); }
 .conversacion.con-pendientes { border-left-color: var(--lima); }
 .conversacion-quien { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .conversacion-quien .canal { font-size: 12.5px; color: var(--suave); }
@@ -588,7 +594,7 @@ td .acciones { flex-wrap: nowrap; }
 .nota-lista { margin: 12px 2px 0; font-size: 13px; color: var(--suave); }
 .conversacion-cuando { margin-left: auto; text-align: right; white-space: nowrap; color: var(--suave); font-size: 13px; }
 @media (max-width: 560px) {
-  .conversacion { flex-wrap: wrap; }
+  .conversacion-enlace { flex-wrap: wrap; }
   .conversacion-cuando { margin-left: 0; width: 100%; text-align: left; }
 }
 
