@@ -19,6 +19,12 @@ import { DURACION_SESION_SEGUNDOS, firmarSesion, verificarSesion } from "./core/
 import { resembrarDemo } from "./crons/resembrar";
 import { crearCanalTelegram, registrarWebhook } from "./canales/telegram";
 import type { Canal } from "./canales/tipos";
+import {
+  firmaConFormaValida,
+  firmaValida,
+  handshakeIncompleto,
+  resolverHandshake,
+} from "./core/meta/entrada";
 import { crearNegocio, escribirSetting, leerSetting, listarNegocios, obtenerNegocio } from "./db/repos/negocio";
 import { leerCredencial } from "./db/repos/credencial";
 import { crearProveedorGemini } from "./llm/gemini";
@@ -1038,6 +1044,76 @@ app.post("/webhook/telegram/:negocioId", async (c) => {
   }
 
   return atenderTelegram(c, negocioId, canal, await leerCuerpo());
+});
+
+// ──────────────────────────────────────────────────────────────────  Meta  ──
+
+/**
+ * La puerta de la familia Meta (WhatsApp, Messenger, Instagram).
+ *
+ * La app de Meta es del PROPIO negocio —su app, su Callback URL, su Worker—
+ * porque Messenger e Instagram no admiten un webhook por cliente y un relay
+ * central nuestro rompería las reglas 7 y 8.
+ *
+ * Aquí solo está la puerta: interpretar los mensajes es D2.
+ */
+app.get("/webhook/meta/:negocioId", async (c) => {
+  const parametros = new URL(c.req.url).searchParams;
+
+  // Lo barato primero: una petición sin los parámetros de Meta no puede
+  // costarnos una consulta a D1 más un descifrado.
+  if (handshakeIncompleto(parametros)) return c.text("petición inválida", 400);
+
+  const token = await leerCredencial(
+    c.env.DB,
+    c.req.param("negocioId"),
+    "meta_verify_token",
+    c.env.CLAVE_CIFRADO,
+  );
+  // Sin credencial responde igual que con token equivocado: desde afuera no se
+  // puede distinguir un negocio que no existe de uno mal configurado.
+  if (!token) return c.text("prohibido", 403);
+
+  const r = resolverHandshake(parametros, token);
+  if (!r.ok) {
+    return r.error === "token_no_coincide"
+      ? c.text("prohibido", 403)
+      : c.text("petición inválida", 400);
+  }
+
+  return c.text(r.valor);
+});
+
+app.post("/webhook/meta/:negocioId", async (c) => {
+  const cabecera = c.req.header("x-hub-signature-256") ?? null;
+
+  // Lo barato primero, otra vez: sin una cabecera con forma de firma no hay
+  // consulta ni descifrado. Sin esto la puerta es un amplificador — el atacante
+  // gasta un paquete y nosotros una consulta.
+  if (!firmaConFormaValida(cabecera)) return c.text("no autorizado", 401);
+
+  const appSecret = await leerCredencial(
+    c.env.DB,
+    c.req.param("negocioId"),
+    "meta_app_secret",
+    c.env.CLAVE_CIFRADO,
+  );
+  if (!appSecret) return c.text("no autorizado", 401);
+
+  if (!(await firmaValida(await c.req.text(), cabecera, appSecret))) {
+    return c.text("no autorizado", 401);
+  }
+
+  /**
+   * Autenticado. D1 llega hasta aquí a propósito.
+   *
+   * Y queda escrito para D2: la respuesta se manda YA y el trabajo se difiere.
+   * Meta agrega hasta 1000 actualizaciones por POST; procesarlas dentro de la
+   * petición agota el presupuesto del Worker, Meta lo lee como fallo y
+   * reintenta durante 36 horas. El resultado no es lentitud, es una tormenta de
+   * duplicados que llega justo cuando hay tráfico.
+   */
+  return c.text("ok");
 });
 
 /** Le dice a Telegram a dónde mandar los mensajes. Se corre una sola vez. */
