@@ -104,10 +104,13 @@ src/
   db/           schema.sql + repos tipados, siempre filtrados por negocio
   admin/        panel server-rendered
   crons/        vigía, purga
-test/core/      lo único que se prueba con vitest, y a propósito
+test/core/      el dominio puro
+test/canales/   solo lo puro de los adaptadores: interpretar y autenticar
 ```
 
 **`src/core/` es sagrado.** No importa nada de Cloudflare, no hace red y no llama al LLM. Si algo ahí necesita `env`, `fetch` o la hora del sistema, está en la capa equivocada — la hora entra como parámetro. Ese aislamiento es lo que hace que el dominio se pruebe en milisegundos y lo que permite portarlo a otra plataforma sin reescribirlo.
+
+**Lo que se prueba con vitest es lo puro, no una carpeta.** `src/core/` lo es entero; de los adaptadores de canal lo son `interpretar` y `autenticar`, y por eso tienen tests. Lo que hace red —`enviar`, `enviarFoto`— se verifica de punta a punta contra el Worker, nunca con dobles.
 
 **Estados del pedido:** `borrador → confirmado → en_proceso → listo → entregado`, más `cancelado` desde cualquier no-terminal. Las transiciones inválidas se rechazan en `core/pedido/estado.ts`, nunca en el prompt.
 

@@ -10,7 +10,10 @@ import type { Canal, MensajeEntrante } from "./tipos";
  */
 export const canalDemo: Canal = {
   id: "demo",
-  interpretar: (): MensajeEntrante | null => null,
+  interpretar: (): MensajeEntrante[] => [],
+  // La demo no recibe webhooks de nadie. Devolver false y no true es la
+  // respuesta segura si algún día alguien la enruta por error.
+  autenticar: async () => false,
   enviar: async () => ok(undefined),
   enviarFoto: async () => ok(undefined),
 };

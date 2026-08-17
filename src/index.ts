@@ -17,7 +17,8 @@ import { landing } from "./publico/landing";
 import { vistaEntrar } from "./publico/entrar";
 import { DURACION_SESION_SEGUNDOS, firmarSesion, verificarSesion } from "./core/sesion";
 import { resembrarDemo } from "./crons/resembrar";
-import { crearCanalTelegram, registrarWebhook, webhookAutentico } from "./canales/telegram";
+import { crearCanalTelegram, registrarWebhook } from "./canales/telegram";
+import type { Canal } from "./canales/tipos";
 import { crearNegocio, escribirSetting, leerSetting, listarNegocios, obtenerNegocio } from "./db/repos/negocio";
 import { leerCredencial } from "./db/repos/credencial";
 import { crearProveedorGemini } from "./llm/gemini";
@@ -945,50 +946,72 @@ app.get("/demo/comenzar", (c) =>
 async function atenderTelegram(
   c: Context<{ Bindings: Env }>,
   negocioId: string,
-  botToken: string,
+  canal: Canal,
+  cuerpoCrudo: string,
 ): Promise<Response> {
-  const canal = crearCanalTelegram(botToken);
-  const entrante = canal.interpretar(await c.req.json());
+  let cuerpo: unknown;
+  try {
+    cuerpo = JSON.parse(cuerpoCrudo);
+  } catch {
+    // Autenticado pero ilegible: no hay nada que procesar y reintentar no lo
+    // arregla. 200 para que el canal no entre en bucle.
+    return c.text("ok");
+  }
 
   // Siempre 200: un error nuestro no debe hacer que Telegram reintente en bucle.
-  if (!entrante) return c.text("ok");
-
-  const conversacion = await obtenerOCrearConversacion(
-    c.env.DB,
-    negocioId,
-    entrante.canal,
-    entrante.canalChatId,
-    entrante.autorNombre,
-  );
-
-  // El mensaje se guarda de inmediato: si el agente falla después, el hilo del
-  // cliente no se pierde.
-  await guardarMensaje(c.env.DB, negocioId, conversacion.id, "cliente", entrante.texto);
-
-  const agente = idDeConversacion(c.env.AGENTE, negocioId, conversacion.id);
-  await agente.fetch("https://agente/mensaje", {
-    method: "POST",
-    body: JSON.stringify({
+  for (const entrante of canal.interpretar(cuerpo)) {
+    const conversacion = await obtenerOCrearConversacion(
+      c.env.DB,
       negocioId,
-      conversacionId: conversacion.id,
-      canalChatId: entrante.canalChatId,
-      // El objeto no puede deducir su propia URL pública, y la necesita para
-      // armar el link de la foto que Telegram va a descargar.
-      origen: new URL(c.req.url).origin,
-    }),
-  });
+      entrante.canal,
+      entrante.canalChatId,
+      entrante.autorNombre,
+    );
+
+    // El mensaje se guarda de inmediato: si el agente falla después, el hilo del
+    // cliente no se pierde.
+    await guardarMensaje(c.env.DB, negocioId, conversacion.id, "cliente", entrante.texto);
+
+    const agente = idDeConversacion(c.env.AGENTE, negocioId, conversacion.id);
+    await agente.fetch("https://agente/mensaje", {
+      method: "POST",
+      body: JSON.stringify({
+        negocioId,
+        conversacionId: conversacion.id,
+        canalChatId: entrante.canalChatId,
+        // El objeto no puede deducir su propia URL pública, y la necesita para
+        // armar el link de la foto que Telegram va a descargar.
+        origen: new URL(c.req.url).origin,
+      }),
+    });
+  }
 
   return c.text("ok");
 }
 
+/**
+ * El cuerpo se lee una sola vez y solo si hace falta.
+ *
+ * Memoizado aquí y no delegado a la caché de Hono, para no depender de cómo la
+ * implemente: el canal decide si necesita el cuerpo para autenticar, y si no lo
+ * necesita, un POST anónimo no nos cuesta leerlo.
+ */
+function lectorDeCuerpo(c: Context<{ Bindings: Env }>): () => Promise<string> {
+  let cuerpo: string | null = null;
+  return async () => (cuerpo ??= await c.req.text());
+}
+
 app.post("/webhook/telegram", async (c) => {
+  const canal = crearCanalTelegram(c.env.TELEGRAM_BOT_TOKEN);
+  const leerCuerpo = lectorDeCuerpo(c);
+
   // Primero la autenticidad, antes de leer o escribir nada. La URL del Worker es
   // pública; sin este chequeo cualquiera inyecta mensajes falsos.
-  if (!webhookAutentico(c.req.raw, c.env.TELEGRAM_WEBHOOK_SECRET)) {
+  if (!(await canal.autenticar(c.req.raw, leerCuerpo, c.env.TELEGRAM_WEBHOOK_SECRET))) {
     return c.text("no autorizado", 401);
   }
 
-  return atenderTelegram(c, c.env.NEGOCIO_TELEGRAM, c.env.TELEGRAM_BOT_TOKEN);
+  return atenderTelegram(c, c.env.NEGOCIO_TELEGRAM, canal, await leerCuerpo());
 });
 
 // Multi-bot: los negocios creados por el onboarding reciben aquí, cada uno con
@@ -1002,14 +1025,19 @@ app.post("/webhook/telegram/:negocioId", async (c) => {
     "telegram_webhook_secret",
     c.env.CLAVE_CIFRADO,
   );
-  if (!secreto || !webhookAutentico(c.req.raw, secreto)) {
-    return c.text("no autorizado", 401);
-  }
+  if (!secreto) return c.text("no autorizado", 401);
 
   const token = await leerCredencial(c.env.DB, negocioId, "telegram_token", c.env.CLAVE_CIFRADO);
   if (!token) return c.text("ok");
 
-  return atenderTelegram(c, negocioId, token);
+  const canal = crearCanalTelegram(token);
+  const leerCuerpo = lectorDeCuerpo(c);
+
+  if (!(await canal.autenticar(c.req.raw, leerCuerpo, secreto))) {
+    return c.text("no autorizado", 401);
+  }
+
+  return atenderTelegram(c, negocioId, canal, await leerCuerpo());
 });
 
 /** Le dice a Telegram a dónde mandar los mensajes. Se corre una sola vez. */
