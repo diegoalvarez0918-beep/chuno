@@ -1,3 +1,8 @@
+import {
+  msParaElSiguienteIntento,
+  otroModeloPuedeAyudar,
+  PRESUPUESTO_TOTAL_MS,
+} from "../core/llm/reintento";
 import { fallo, ok, type Resultado } from "../core/resultado";
 import type {
   MensajeLLM,
@@ -20,7 +25,6 @@ import type {
  */
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models";
-const TIMEOUT_MS = 20_000;
 
 /** Verificados contra la capa gratuita: responden y devuelven JSON limpio. */
 export const MODELOS_POR_DEFECTO = [
@@ -61,31 +65,45 @@ export function crearProveedorGemini(
 ): ProveedorLLM {
   const lista = modelos.length > 0 ? modelos : MODELOS_POR_DEFECTO;
 
-  /** Recorre los modelos hasta que uno responda. */
+  /**
+   * Recorre los modelos hasta que uno responda, dentro de un presupuesto total.
+   *
+   * El presupuesto existe porque al otro lado hay alguien esperando en un chat:
+   * tres modelos a veinte segundos son un minuto de silencio, y vale más el
+   * mensaje de respaldo a los treinta segundos que la respuesta buena a los
+   * sesenta. Qué error merece otro modelo y cuánto puede durar cada intento lo
+   * decide `core/llm/reintento.ts`, que sí está probado.
+   */
   async function llamar(cuerpo: unknown): Promise<Resultado<string, string>> {
     let ultimoError = "sin modelos configurados";
+    const limite = Date.now() + PRESUPUESTO_TOTAL_MS;
 
     for (const modelo of lista) {
-      const intento = await llamarModelo(modelo, cuerpo);
+      const msDisponibles = msParaElSiguienteIntento(limite - Date.now());
+      if (msDisponibles === null) {
+        // El motivo dice POR QUÉ se dejó de intentar, no solo que se dejó: la
+        // auditoría es la herramienta de diagnóstico de este proyecto.
+        ultimoError = `${ultimoError} (presupuesto agotado, quedaban modelos por probar)`;
+        break;
+      }
+
+      const intento = await llamarModelo(modelo, cuerpo, msDisponibles);
       if (intento.ok) return intento;
 
       ultimoError = intento.error;
-
-      // 404 = modelo jubilado. 429 = cuota agotada. 503 = ese modelo está
-      // saturado ahora mismo (visto en producción el 2026-07-30, tumbando la
-      // extracción entera). En los tres, el siguiente modelo puede funcionar.
-      // Cualquier otro error es nuestro y no lo arregla cambiar de modelo, así
-      // que no seguimos gastando tiempo.
-      const reintentable = ["HTTP 404", "HTTP 429", "HTTP 503"];
-      if (!reintentable.some((codigo) => intento.error.includes(codigo))) break;
+      if (!otroModeloPuedeAyudar(intento.error)) break;
     }
 
     return fallo(ultimoError);
   }
 
-  async function llamarModelo(modelo: string, cuerpo: unknown): Promise<Resultado<string, string>> {
+  async function llamarModelo(
+    modelo: string,
+    cuerpo: unknown,
+    timeoutMs: number,
+  ): Promise<Resultado<string, string>> {
     const control = new AbortController();
-    const reloj = setTimeout(() => control.abort(), TIMEOUT_MS);
+    const reloj = setTimeout(() => control.abort(), timeoutMs);
 
     try {
       const respuesta = await fetch(`${BASE}/${modelo}:generateContent`, {
