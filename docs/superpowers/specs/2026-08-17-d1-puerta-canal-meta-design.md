@@ -59,11 +59,22 @@ export interface MensajeEntrante {
 export interface Canal {
   readonly id: string;
   interpretar(cuerpo: unknown): MensajeEntrante[];
-  /** Autentica el webhook ANTES de leer nada. Recibe el cuerpo CRUDO porque
-   *  la firma de Meta se calcula sobre esos bytes exactos, y el secreto por
-   *  parámetro para que construir el canal solo para enviar no obligue a ir
-   *  a buscar una credencial de entrada que no se va a usar. */
-  autenticar(peticion: Request, cuerpoCrudo: string, secreto: string): Promise<boolean>;
+  /** Autentica el webhook ANTES de procesar nada.
+   *
+   *  El cuerpo entra como FUNCIÓN y no como cadena: Telegram autentica con una
+   *  cabecera y nunca lo necesita, así que un POST anónimo se rechaza sin que
+   *  lleguemos a leerlo. Meta sí lo necesita —su firma se calcula sobre esos
+   *  bytes exactos— pero solo lo lee después de comprobar que la cabecera
+   *  tiene forma de firma. Así "rechaza lo barato primero" vive dentro de cada
+   *  canal, que es donde está ese conocimiento, y no repartido por las rutas.
+   *
+   *  El secreto va por parámetro para que construir el canal solo para enviar
+   *  no obligue a ir a buscar una credencial de entrada que no se va a usar. */
+  autenticar(
+    peticion: Request,
+    leerCuerpo: () => Promise<string>,
+    secreto: string,
+  ): Promise<boolean>;
   enviar(canalChatId: string, texto: string): Promise<Resultado<void, string>>;
   enviarFoto(canalChatId: string, urlFoto: string, pie: string): Promise<Resultado<void, string>>;
 }
