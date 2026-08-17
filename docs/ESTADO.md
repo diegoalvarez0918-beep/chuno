@@ -1,13 +1,16 @@
 # Estado del proyecto
 
 > Traspaso entre sesiones. Léelo después de `CLAUDE.md` y antes de tocar nada.
-> Última actualización: **2026-08-15**. 177 tests verdes, typecheck limpio.
+> Última actualización: **2026-08-17**. 175 tests verdes, typecheck limpio.
 >
-> **Desplegado y verificado en producción** (versión `cf538280`): el arreglo del
-> vigía y el del escalado. **Sin desplegar:** la lista de conversaciones, que
-> vive en el PR #4.
+> **`main` está en `c0e1853` y el repo no tiene ramas muertas** — solo `main`,
+> local y remoto. Los PR #4, #5 y #6 están fusionados.
 >
-> **Dónde quedamos:** ver "Traspaso del 2026-08-15" al final de este archivo.
+> **Desplegado en producción:** versión `cf538280`, que trae el arreglo del
+> vigía y el del escalado. **TODO lo de la bandeja de conversaciones está en
+> `main` pero SIN DESPLEGAR**, incluido el arreglo del prompt.
+>
+> **Dónde quedamos:** ver "Traspaso del 2026-08-17" al final de este archivo.
 >
 > **Entregado al concurso:** video no listado `https://youtu.be/owZTkUv2oaY`
 > (93 s, sin narración) y herramienta `https://chuno.vozdigital-ai.workers.dev`.
@@ -99,7 +102,7 @@ Cloudflare está autenticado por OAuth en `~/.wrangler`. GitHub va por llave SSH
 | 1 | CRM autoalimentado y panel de métricas | ✅ cerrada |
 | 2 | Conocimiento estructurado: catálogo y preguntas frecuentes | ✅ cerrada |
 | 3 | Onboarding conversacional (`/comenzar`) | ✅ cerrada |
-| 4 | Ingesta multicanal — familia Meta (WhatsApp, Instagram, Messenger) | pendiente · bloqueado por trámite de Meta |
+| 4 | Ingesta multicanal — familia Meta (WhatsApp, Instagram, Messenger) | **siguiente** · descompuesta en D1–D4, ver el traspaso del 2026-08-17. **D1 y D2 no están bloqueados** |
 | 5 | Marca blanca | pendiente |
 | 6 | Entrega del concurso: video, links, votos | los dos links, listos y desplegados · faltan video y votos |
 | 7-8 | Herramientas con escritura, RAG con embeddings | después del concurso |
@@ -446,3 +449,85 @@ nunca la ve.
 
 **Pendiente de eso:** mover `TOPE_LLM_DIARIO` de variable global a la tabla
 `settings`, porque si Plogy paga los tokens ese tope es su techo de factura.
+
+---
+
+## Traspaso del 2026-08-17
+
+### Lo que quedó en `main`, sin desplegar
+
+`main` = `c0e1853`. 175 tests, typecheck limpio, sin ramas muertas.
+
+- **La bandeja de conversaciones, completa.** Hilo con las decisiones al lado,
+  pausar y reanudar el chat, y la lista enlazando al hilo.
+- **El conteo por conversación pasó a SQL.** Filtrar `listarPendientes` —que
+  corta en 50— no solo daba globos por debajo del real: **el hilo escondía
+  tarjetas que el dueño tenía que decidir.** La regla de qué payload cuelga de
+  una conversación quedó como `TIPOS_CON_CONVERSACION` en el núcleo y las dos
+  consultas arman su `IN` desde ella.
+- **El agente dejó de decirle al cliente que consulta al dueño.** Era una
+  contradicción del prompt, no estilo. Detalle en `APRENDIZAJES.md`.
+
+**Lo único pendiente de esa tanda: desplegar.** El prompt no lo cubre ningún
+test — se verifica escribiéndole a `@Chunnobot` y viendo si dice "dame un
+momento y ya te confirmo" en vez de nombrar al dueño. Esperar propagación y
+exigir que dos lecturas seguidas coincidan.
+
+### Lo que se midió sobre los canales de Meta, y cambia la Fase 4
+
+Verificado contra la documentación de Meta, no supuesto:
+
+| Canal | ¿Webhook por negocio? |
+|---|---|
+| Telegram | Sí, un bot y un webhook por negocio |
+| **WhatsApp** | **Sí** — `override_callback_uri` por WABA y por número |
+| **Messenger** | **No.** Solo la Callback URL de la app |
+| **Instagram** | **No.** Igual que Messenger |
+
+**Consecuencia:** un login OAuth alojado por nosotros obligaría a un relay
+central para FB/IG, y eso rompe las reglas 7 y 8. **La salida que no cuesta
+reglas es que la app de Meta sea del propio negocio** — su app, su Callback
+URL, su Worker. Es lo que hace Forja, y su página lo dice: *"cada red se
+conecta con tus propias cuentas"*, *"pega los tokens como secretos"*.
+
+**Forja no tiene login por OAuth.** Es single-tenant, un despliegue por
+negocio, y por eso nunca le apareció el problema de la URL única.
+
+**CHUNO porta esto mejor que Forja** porque ya es multi-tenant: rutas
+`/webhook/telegram/:negocioId` y credenciales cifradas por negocio en la tabla
+`credenciales`. Un despliegue puede hospedar varios clientes — que es
+justamente el "lo puedes revender" que Diego quiere.
+
+### Lo que sigue: la Fase 4, en cuatro subproyectos
+
+Aprobado por Diego el 2026-08-17. Va en ese orden.
+
+| | Qué | Bloqueo |
+|---|---|---|
+| **D1** | Abrir el contrato `Canal`: handshake GET de verificación y validación de firma `X-Hub-Signature-256` | **Ninguno**, se hace con tests puros |
+| **D2** | WhatsApp, Messenger e Instagram con credenciales por negocio y ruta `/webhook/meta/:negocioId` | Prueba en vivo necesita la app de Meta del negocio |
+| **D3** | Panel de **Conexiones**: conectar cada red, validando la credencial al guardarla | Depende de D2 |
+| **D4** | Skill para que "ármame un chatbot con CHUNO" funcione desde Claude Code | Depende de D3 |
+
+**D1 y D2 no están bloqueados por ningún trámite.** El contrato `Canal` de hoy
+(`interpretar`, `enviar`, `enviarFoto`) no cubre lo que Meta exige a la
+entrada; eso es D1.
+
+**Ojo con el panel de Conexiones:** "pega el token" falla en silencio. Que
+valide contra la API al guardar y registre el webhook, como ya hace
+`conectarTelegram` en `cli/chuno.mjs`.
+
+### Cabo suelto de marketing
+
+Diego trajo un texto de privacidad y un diagrama que son **la copia de Forja
+con el nombre cambiado**. No publicarlos tal cual: mencionan **Vectorize**, que
+CHUNO no usa por ser de pago, y dicen que no se guardan imágenes, cuando el
+catálogo sí guarda fotos en KV. Si esa página se quiere, se escribe desde el
+código de CHUNO.
+
+### Nota de flujo de trabajo
+
+**Diego fusiona los PR él mismo, a veces en medio de la sesión.** Pasó con el
+#5 y el #6. Antes de diagnosticar cualquier cosa rara con un PR, `git fetch` y
+mirar `origin/main` — la respuesta de la API de GitHub puede leerse como un
+fallo propio cuando en realidad el PR ya se fusionó.
