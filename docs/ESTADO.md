@@ -1,16 +1,15 @@
 # Estado del proyecto
 
 > Traspaso entre sesiones. Léelo después de `CLAUDE.md` y antes de tocar nada.
-> Última actualización: **2026-08-17, noche**. 212 tests verdes, typecheck limpio.
+> Última actualización: **2026-08-17, noche**. 223 tests verdes, typecheck limpio.
 >
-> **`main` está en `20ee0d5`.** Ramas vivas: solo `main` y
-> `feat/cerebro-configurable`, que lleva un spec sin fusionar. Los PR #7 al #11
-> están fusionados y sus ramas borradas.
+> **`main` está en `ff6c173` y el repo no tiene ramas muertas.** Los PR #7 al
+> #14 están fusionados y sus ramas borradas.
 >
-> **Desplegado en producción:** versión `367b768d`. Trae la Fase 4 D1 —la
-> puerta de entrada de Meta—, el respaldo de modelo ante timeout y el arreglo
-> del giro. Verificado contra el servidor con dos rondas coincidentes y control
-> negativo.
+> **Desplegado en producción:** versión `e17324cd`. Trae la Fase 4 D1 —la
+> puerta de entrada de Meta—, el respaldo de modelo ante timeout, el arreglo
+> del giro y **el cerebro configurable**. Verificado contra el servidor con dos
+> rondas coincidentes y control negativo.
 >
 > **Dónde quedamos:** ver "Traspaso del 2026-08-17 (noche)" al final.
 >
@@ -623,3 +622,58 @@ Verificado en la documentación de Anthropic.
 - **`CLAUDE.md` sigue mencionando `src/llm/anthropic.ts` y
   `src/canales/whatsapp.ts`, que no existen.** El primero lo corrige el spec del
   cerebro; el segundo lo crea D2.
+
+---
+
+## El cerebro configurable, cerrado el 2026-08-17
+
+Cada negocio puede traer su proveedor y su llave; el secreto del despliegue es
+el valor por defecto. Spec y plan en `docs/superpowers/`.
+
+**La regla que gobierna todo es el todo-o-nada** (`core/llm/configuracion.ts`):
+si el negocio tiene llave propia, TODA su configuración sale de sus ajustes; si
+no, toda sale del entorno. Nunca se mezclan — la llave de uno contra el endpoint
+del otro es el peor estado posible, y se lee como "la llave del cliente no
+sirve". La misma regla se aplica **dos veces**, al entorno y al negocio: una
+instalación declarada `compatible` sin `LLM_BASE_URL` se degrada igual.
+
+| Dónde | Qué |
+|---|---|
+| `credenciales` | `llm_api_key`, cifrada |
+| `settings` | `llm_proveedor`, `llm_base_url`, `llm_modelos`, `llm_tope_diario` |
+
+**El tope diario dejó de ser nuestro** cuando dejó de ser nuestra la factura:
+sale de la misma resolución que el proveedor.
+
+**Un solo adaptador compatible con OpenAI** cubre OpenRouter, OpenAI, Groq,
+DeepSeek y cualquier endpoint compatible, sin SDK. Usa `json_object` y no
+esquema estricto, porque OpenRouter documenta que el estricto no lo soportan
+todos los modelos y pedírselo a uno que no puede devuelve 400 — que la política
+de reintento clasifica como culpa nuestra. La frontera de seguridad sigue siendo
+Zod en `validar`.
+
+### Cómo se verificó
+
+En local, con controles: sin configuración de negocio el `uso_llm` siguió
+registrando Gemini —comportamiento idéntico al de antes—; con llave propia
+registró el modelo del negocio; y **quitándole la URL base volvió a Gemini**,
+que es el control negativo del todo-o-nada.
+
+En producción, con el webhook sintético: contra la línea base de 44/9 filas
+aparecieron tres a las 03:59:06 para dos llamadas —`3.6-flash` fallida,
+`3.1-flash-lite` exitosa dos veces— y **cero** `respuesta_fallida`. Es la
+primera observación del respaldo entre modelos funcionando en producción: esa
+misma mañana ese escenario dejaba al bot mudo.
+
+### Ojo con esto al hablar con clientes
+
+**Una suscripción de consumidor de Claude o de ChatGPT NO da acceso a la API.**
+Hace falta una API key con saldo. Verificado en la documentación de Anthropic.
+
+### Pendientes que deja
+
+- **La pantalla del panel** para configurar el cerebro sin terminal. Hoy solo se
+  configura en la instalación o sembrando `settings` a mano.
+- **`configuracionLLMDe` hace cinco lecturas a D1 por mensaje** (una credencial
+  y cuatro ajustes), en paralelo. Se pueden juntar en una sola consulta sobre
+  `settings`; no se hizo porque no hay medición que lo justifique todavía.
