@@ -179,6 +179,39 @@ En `test/core/llm-configuracion.test.ts`, sobre la parte pura:
 El adaptador nuevo no se prueba con dobles: hace red. Se verifica de punta a
 punta contra el Worker, como manda la constitución.
 
+## Qué hace Forja, y en qué nos separamos a propósito
+
+Verificado el 2026-08-17 contra su [repositorio](https://github.com/santmun/forja)
+y su [documentación](https://forjabots.com/en/docs/), porque "hazlo como X" en
+este proyecto se lee a X antes de aceptarlo — la vez anterior que se pidió eso,
+el modelo mental resultó equivocado.
+
+| | Forja | CHUNO |
+|---|---|---|
+| Proveedores | Anthropic, OpenAI y xAI | Gemini + cualquier endpoint compatible con OpenAI |
+| Configuración | `wrangler secret put ANTHROPIC_API_KEY` | Igual, más precedencia por negocio |
+| Abstracción | Vercel AI SDK | Interfaz propia, sin SDK |
+| Despliegue | Single-tenant | Multi-tenant |
+
+**Coincidimos en lo que importa:** la llave la pone el dueño desde la terminal,
+como secreto del despliegue, y paga lo suyo. *"Tú eliges y pagas solo lo que
+piensa"* describe también este spec.
+
+**Nos separamos en dos sitios, y los dos son decisiones ya tomadas:**
+
+1. **Sin SDK.** `llm/gemini.ts` lo dice desde el primer día: "una dependencia
+   menos que pueda romperse en el runtime de Workers". Adoptar el SDK de Forja
+   sería reabrir eso para ahorrar un archivo.
+2. **Con precedencia por negocio.** Forja no la tiene porque no la necesita: un
+   despliegue, un negocio, un secreto. En un despliegue por negocio CHUNO se
+   comporta idéntico a Forja y nadie nota la diferencia; la pieza extra solo
+   despierta cuando un mismo Worker hospeda a varios clientes con facturas
+   separadas, que es justamente lo que Forja no puede atender.
+
+Y un efecto lateral que conviene no perder: **un adaptador compatible con OpenAI
+cubre más proveedores que los tres de Forja** —esos tres vía OpenRouter, más
+Groq, DeepSeek o un servidor propio— y sin dependencias.
+
 ## Qué NO entra aquí
 
 - **La pantalla del panel** donde el dueño edite esto sin terminal. Es un
