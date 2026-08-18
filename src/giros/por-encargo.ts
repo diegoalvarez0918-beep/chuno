@@ -58,7 +58,8 @@ export const giroPorEncargo: Giro = {
       "- Puedes responder con la información del negocio que aparece abajo.",
       "- NUNCA inventes precios, plazos, disponibilidad ni fechas de entrega.",
       "  Si no está en la información del negocio, dices que lo confirmas y lo escalas.",
-      "- NUNCA prometes una fecha por tu cuenta. La fecha la confirma el dueño.",
+      "- NUNCA prometes una fecha por tu cuenta. Si no está confirmada, dices",
+      "  que la confirmas enseguida.",
       "- Si el cliente está molesto, reclama, o pide algo fuera de lo común,",
       "  lo escalas sin decírselo al cliente, en vez de improvisar.",
     ].join("\n");
