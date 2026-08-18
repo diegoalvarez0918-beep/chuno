@@ -1,19 +1,18 @@
 # Estado del proyecto
 
 > Traspaso entre sesiones. Léelo después de `CLAUDE.md` y antes de tocar nada.
-> Última actualización: **2026-08-17**. 175 tests verdes, typecheck limpio.
+> Última actualización: **2026-08-17, noche**. 212 tests verdes, typecheck limpio.
 >
-> **`main` está en `c0e1853` y el repo no tiene ramas muertas** — solo `main`,
-> local y remoto. Los PR #4, #5 y #6 están fusionados.
+> **`main` está en `20ee0d5`.** Ramas vivas: solo `main` y
+> `feat/cerebro-configurable`, que lleva un spec sin fusionar. Los PR #7 al #11
+> están fusionados y sus ramas borradas.
 >
-> **Desplegado en producción:** versión `b1ab9b86`, del 2026-08-17T13:59:20Z.
-> Trae la bandeja de conversaciones completa y el arreglo del prompt. Medido,
-> no supuesto: producción sirve el botón «Esta la atiendo yo», que existe solo
-> a partir de `c0e1853`, en dos lecturas seguidas y con control negativo en
-> cero. **Lo que sigue pendiente es la verificación de comportamiento del
-> prompt** — esa no la alcanza ningún test ni ningún `curl`.
+> **Desplegado en producción:** versión `367b768d`. Trae la Fase 4 D1 —la
+> puerta de entrada de Meta—, el respaldo de modelo ante timeout y el arreglo
+> del giro. Verificado contra el servidor con dos rondas coincidentes y control
+> negativo.
 >
-> **Dónde quedamos:** ver "Traspaso del 2026-08-17" al final de este archivo.
+> **Dónde quedamos:** ver "Traspaso del 2026-08-17 (noche)" al final.
 >
 > **Entregado al concurso:** video no listado `https://youtu.be/owZTkUv2oaY`
 > (93 s, sin narración) y herramienta `https://chuno.vozdigital-ai.workers.dev`.
@@ -105,7 +104,7 @@ Cloudflare está autenticado por OAuth en `~/.wrangler`. GitHub va por llave SSH
 | 1 | CRM autoalimentado y panel de métricas | ✅ cerrada |
 | 2 | Conocimiento estructurado: catálogo y preguntas frecuentes | ✅ cerrada |
 | 3 | Onboarding conversacional (`/comenzar`) | ✅ cerrada |
-| 4 | Ingesta multicanal — familia Meta (WhatsApp, Instagram, Messenger) | **siguiente** · descompuesta en D1–D4, ver el traspaso del 2026-08-17. **D1 y D2 no están bloqueados** |
+| 4 | Ingesta multicanal — familia Meta (WhatsApp, Instagram, Messenger) | **en curso** · D1 ✅ cerrado y verificado en producción · **D2 es lo siguiente**, y no está bloqueado |
 | 5 | Marca blanca | pendiente |
 | 6 | Entrega del concurso: video, links, votos | los dos links, listos y desplegados · faltan video y votos |
 | 7-8 | Herramientas con escritura, RAG con embeddings | después del concurso |
@@ -123,7 +122,7 @@ El motor de la entrevista es una máquina de estados pura en `src/core/onboardin
 ## Cómo verificar que todo sigue en pie
 
 ```bash
-npm test          # 152 tests deterministas, sin red ni LLM
+npm test          # 212 tests deterministas, sin red ni LLM
 npm run typecheck # limpio, sin any ni @ts-ignore
 curl -s -o /dev/null -w '%{http_code}\n' https://chuno.vozdigital-ai.workers.dev/demo/inicio
 ```
@@ -548,3 +547,79 @@ código de CHUNO.
 #5 y el #6. Antes de diagnosticar cualquier cosa rara con un PR, `git fetch` y
 mirar `origin/main` — la respuesta de la API de GitHub puede leerse como un
 fallo propio cuando en realidad el PR ya se fusionó.
+
+---
+
+## Traspaso del 2026-08-17 (noche)
+
+### Lo que quedó desplegado y verificado
+
+Producción está en `367b768d`. Tres cosas entraron:
+
+- **D1: la puerta de entrada de Meta.** `/webhook/meta/:negocioId` con handshake
+  GET y firma `X-Hub-Signature-256`, credenciales cifradas por negocio.
+  Verificado contra producción, **solo negativas y sin escribir un dato**, con
+  dos rondas seguidas coincidentes:
+
+  ```
+  meta GET sin params:    400      meta POST firma falsa:  401
+  meta GET token malo:    403      telegram sin secreto:   401
+  meta POST sin firma:    401      CONTROL ruta inventada: 404
+  ```
+
+  El control importa: si una ruta inventada diera lo mismo que las nuestras, no
+  estaríamos midiendo la puerta.
+
+- **El respaldo de modelo ante timeout**, con la lista **invertida**: ahora se
+  enumera lo que NO merece otro modelo (`HTTP 400`, `401`, `403`) y todo lo demás
+  degrada. Tres incidentes seguidos habían sido errores que nadie había
+  enumerado. Con presupuesto total de 30 s, porque "reintentar por defecto" sin
+  tope deja a un cliente esperando un minuto.
+
+- **El giro dejó de nombrar al dueño.** Era la mitad de la contradicción que el
+  arreglo del 16 no tocó.
+
+### El bot decía "le consulto al dueño" y el prompt NO era la causa
+
+Vale la pena leerlo entero en `APRENDIZAJES.md`, porque el método falló antes
+que el código: **se verificó el arreglo en la conversación más contaminada de la
+base.** `agente.ts:141` le pasa al modelo los últimos 20 mensajes del hilo y
+`comoMensajesLLM` mete los suyos como `rol: "modelo"` — o sea, como ejemplos de
+cómo habla él. Cinco de esos veinte eran anteriores al arreglo.
+
+Probado con control: mismo código y misma pregunta, en un hilo vacío el modelo
+escribió la frase correcta. **El arreglo funciona para todo cliente nuevo**, y
+`conv_3702…` se limpia sola cuando esos cinco salgan de la ventana de 20.
+
+**La técnica para observar una respuesta sin gastar un envío**, que sirve para
+cualquier prueba futura de prompt: `canalSaliente` devuelve el canal de la demo
+para cualquier canal que no sea `telegram`, y ese "envía" sin salir a ningún
+lado pero **sí guarda el mensaje**. Mandas el webhook sintético y le cambias el
+canal a la conversación antes de que venza el buffer de 15 s.
+
+### Lo que sigue
+
+| | Qué | Estado |
+|---|---|---|
+| **D2** | WhatsApp, Messenger e Instagram sobre la puerta de D1 | siguiente, sin bloqueos |
+| **Cerebro configurable** | Que cada negocio traiga su proveedor y su llave | **spec escrito, pendiente de revisión** en `feat/cerebro-configurable` |
+| D3 | Panel de Conexiones | depende de D2 |
+| D4 | Skill para Claude Code | depende de D3 |
+
+Diego decidió que **cada negocio paga su propia API** — su OpenRouter, su
+Claude, el que quiera. Eso convierte la llave global `GEMINI_API_KEY` en un
+problema real cuando un despliegue hospeda varios clientes, y de ahí sale el
+spec `docs/superpowers/specs/2026-08-17-cerebro-configurable-design.md`.
+
+**Ojo con lo que se le promete al cliente:** una suscripción de consumidor de
+Claude o de ChatGPT **no da acceso a la API**. Hace falta una API key con saldo.
+Verificado en la documentación de Anthropic.
+
+### Cabos sueltos
+
+- **Un envío local a un chat real devolvió `telegram: HTTP 400`** mientras
+  `getChat` decía que el chat existe y el bot lo alcanza. En producción los
+  envíos sí llegan. **No se diagnosticó** — queda anotado, no explicado.
+- **`CLAUDE.md` sigue mencionando `src/llm/anthropic.ts` y
+  `src/canales/whatsapp.ts`, que no existen.** El primero lo corrige el spec del
+  cerebro; el segundo lo crea D2.

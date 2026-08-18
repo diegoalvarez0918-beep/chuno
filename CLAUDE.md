@@ -49,7 +49,7 @@ Yo defino el qué y apruebo. Tú decides el cómo y ejecutas. La complejidad va 
 **Las herramientas deterministas del proyecto:**
 
 ```
-npm test          40+ tests sobre src/core — puros, sin red ni LLM
+npm test          212 tests puros — src/core y lo puro de los canales
 npm run typecheck sin any nuevos, sin @ts-ignore
 npx wrangler      despliegue, secretos, D1
 ```
@@ -183,5 +183,5 @@ APRENDIZAJES.md                   memoria entre sesiones
 
 **El hito 2 es el filtro.** Webhooks y secretos son donde se pierde el tiempo real. Si el bot no contesta, nada de lo demás importa.
 
-**Estado actual: Fase 1 cerrada. Sigue la Fase 2+3 (conocimiento estructurado + onboarding).**
+**Estado actual: Fases 0 a 3 cerradas. La Fase 4 va en curso — D1 cerrado y verificado, D2 es lo siguiente.**
 Detalle en `docs/ESTADO.md`; fases completas en `docs/superpowers/specs/2026-07-29-chuno-plataforma-design.md`.
