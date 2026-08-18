@@ -15,7 +15,10 @@ export type ClaveCredencial =
   // Solo las dos que necesita la puerta. El token de envío y el phone_number_id
   // los pide D2, cuando haya código que los use.
   | "meta_app_secret"
-  | "meta_verify_token";
+  | "meta_verify_token"
+  // La llave del cerebro del negocio. Va cifrada como cualquier otra: es el
+  // secreto con el que se le factura a alguien.
+  | "llm_api_key";
 
 export async function guardarCredencial(
   db: D1Database,

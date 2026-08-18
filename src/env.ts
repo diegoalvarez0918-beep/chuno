@@ -24,6 +24,12 @@ export interface Env {
   readonly NOMBRE_BOT: string;
   readonly LLM_PROVEEDOR: string;
   /**
+   * URL base cuando el proveedor es `compatible`. Sin ella la instalación no
+   * puede serlo, y `configuracionLLMDe` la degrada a Gemini en vez de mandarle
+   * la llave a un endpoint que no existe.
+   */
+  readonly LLM_BASE_URL?: string;
+  /**
    * Modelos separados por coma, en orden de preferencia. Es una variable y no
    * una constante del código para poder cambiar de modelo sin desplegar: Google
    * jubila modelos sin aviso y la cuota gratuita se agota por modelo.

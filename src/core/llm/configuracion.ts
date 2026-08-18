@@ -1,5 +1,3 @@
-import { TOPE_DIARIO } from "../limites";
-
 /**
  * De dónde sale la configuración del cerebro de un negocio.
  *
@@ -76,6 +74,3 @@ export function resolverConfiguracionLLM(
 
   return deLaInstalacion;
 }
-
-/** El tope del código, para quien arme la configuración de la instalación. */
-export const TOPE_DIARIO_POR_DEFECTO = TOPE_DIARIO;

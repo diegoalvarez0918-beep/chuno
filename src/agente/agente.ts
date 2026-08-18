@@ -7,15 +7,14 @@ import {
   type ExtraccionPedido,
 } from "../core/pedido/extraccion";
 import { canalSaliente } from "../canales/salida";
-import { crearProveedorGemini } from "../llm/gemini";
+import { configuracionLLMDe, crearProveedor } from "../llm/proveedor";
 import { hoyEnZona, inicioDelDiaISO } from "../db/id";
-import { modelos, numero, type Env } from "../env";
+import { numero, type Env } from "../env";
 import { obtenerGiro } from "../giros";
 import type { ContextoNegocio } from "../giros/tipos";
 import { CLAVE_AGENDA } from "../core/conocimiento/agenda";
 import {
   HILO_MAXIMO,
-  TOPE_DIARIO,
   TOPE_POR_CONVERSACION,
   hayCuotaHoy,
   registrarEnVentana,
@@ -132,8 +131,13 @@ export class AgenteConversacion extends DurableObject<Env> {
       return;
     }
 
+    // Una sola resolución para las dos cosas que dependen de ella: el techo de
+    // gasto y con qué modelo se piensa. Si el negocio trae su llave, trae su
+    // techo — el tope dejó de ser nuestro cuando dejó de ser nuestra la factura.
+    const configLLM = await configuracionLLMDe(this.env, negocioId);
+
     const usadasHoy = await contarUsoDesde(db, negocioId, inicioDelDiaISO(negocio.zonaHoraria));
-    if (!hayCuotaHoy(usadasHoy, numero(this.env.TOPE_LLM_DIARIO, TOPE_DIARIO))) {
+    if (!hayCuotaHoy(usadasHoy, configLLM.topeDiario)) {
       await auditar(db, negocioId, "tope_diario", { usadasHoy }, "agente");
       return;
     }
@@ -162,9 +166,7 @@ export class AgenteConversacion extends DurableObject<Env> {
     // lo que pase: contabilizar el gasto no puede costar un viaje a la base por
     // cada llamada al modelo, y una llamada que falló igual consumió cuota.
     const usos: UsoLLM[] = [];
-    const llm = crearProveedorGemini(this.env.GEMINI_API_KEY, modelos(this.env), (u) =>
-      usos.push(u),
-    );
+    const llm = crearProveedor(configLLM, (u) => usos.push(u));
 
     try {
 
