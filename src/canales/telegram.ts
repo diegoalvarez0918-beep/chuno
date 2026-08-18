@@ -17,6 +17,7 @@ const TIMEOUT_MS = 10_000;
 /** Solo la parte del update de Telegram que nos interesa. */
 interface UpdateTelegram {
   message?: {
+    message_id?: number;
     chat?: { id?: number };
     text?: string;
     from?: { first_name?: string; last_name?: string; is_bot?: boolean };
@@ -27,7 +28,7 @@ export function crearCanalTelegram(botToken: string): Canal {
   return {
     id: "telegram",
 
-    interpretar(cuerpo: unknown): MensajeEntrante | null {
+    interpretar(cuerpo: unknown): MensajeEntrante[] {
       const update = cuerpo as UpdateTelegram;
       const mensaje = update?.message;
 
@@ -36,25 +37,45 @@ export function crearCanalTelegram(botToken: string): Canal {
 
       // Sin texto no hay nada que procesar: fotos, stickers y eventos de sistema
       // se ignoran en silencio. Ignorar no es fallar.
-      if (typeof chatId !== "number" || !texto) return null;
+      if (typeof chatId !== "number" || !texto) return [];
 
       // Un bot hablándole a otro bot es un bucle esperando a pasar.
-      if (mensaje?.from?.is_bot) return null;
+      if (mensaje?.from?.is_bot) return [];
 
       const nombre = [mensaje?.from?.first_name, mensaje?.from?.last_name]
         .filter(Boolean)
         .join(" ")
         .trim();
 
-      return {
-        canal: "telegram",
-        canalChatId: String(chatId),
-        // Se recorta en el borde y no adentro: lo que se guarda en la base es
-        // lo mismo que ve el modelo, y así un mensaje enorme no puede inflar
-        // ni el costo de la llamada ni el tamaño del hilo para siempre.
-        texto: recortarTexto(texto),
-        autorNombre: nombre || null,
-      };
+      // Un update de Telegram trae un mensaje, nunca un lote: la lista siempre
+      // sale con cero o con uno. La forma es la de Meta porque el contrato es
+      // uno solo, no porque Telegram la necesite.
+      return [
+        {
+          canal: "telegram",
+          canalChatId: String(chatId),
+          // Se recorta en el borde y no adentro: lo que se guarda en la base es
+          // lo mismo que ve el modelo, y así un mensaje enorme no puede inflar
+          // ni el costo de la llamada ni el tamaño del hilo para siempre.
+          texto: recortarTexto(texto),
+          autorNombre: nombre || null,
+          idExterno: typeof mensaje?.message_id === "number" ? String(mensaje.message_id) : null,
+        },
+      ];
+    },
+
+    /**
+     * Compara el secreto que llegó en la cabecera contra el nuestro.
+     *
+     * `leerCuerpo` no se llama: Telegram firma con una cabecera, así que un POST
+     * anónimo se rechaza sin que paguemos la lectura de su cuerpo.
+     *
+     * `secret_token` es la palabra clave que Telegram devuelve en cada llamada.
+     * Sin ella, cualquiera que descubra la URL del Worker inyecta mensajes falsos.
+     */
+    async autenticar(peticion: Request, _leerCuerpo: () => Promise<string>, secreto: string) {
+      const recibido = peticion.headers.get("x-telegram-bot-api-secret-token");
+      return typeof recibido === "string" && recibido === secreto;
     },
 
     async enviar(canalChatId: string, texto: string): Promise<Resultado<void, string>> {
@@ -146,10 +167,4 @@ export async function registrarWebhook(
   } catch {
     return fallo("no se pudo contactar a Telegram");
   }
-}
-
-/** Compara el secreto que llegó en la cabecera contra el nuestro. */
-export function webhookAutentico(peticion: Request, secreto: string): boolean {
-  const recibido = peticion.headers.get("x-telegram-bot-api-secret-token");
-  return typeof recibido === "string" && recibido === secreto;
 }

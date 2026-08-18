@@ -9,7 +9,13 @@ import { ahoraISO } from "../id";
  * token de un bot jamás pasa por aquí en claro más tiempo que el necesario.
  */
 
-export type ClaveCredencial = "telegram_token" | "telegram_webhook_secret";
+export type ClaveCredencial =
+  | "telegram_token"
+  | "telegram_webhook_secret"
+  // Solo las dos que necesita la puerta. El token de envío y el phone_number_id
+  // los pide D2, cuando haya código que los use.
+  | "meta_app_secret"
+  | "meta_verify_token";
 
 export async function guardarCredencial(
   db: D1Database,
