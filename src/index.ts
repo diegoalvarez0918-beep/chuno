@@ -27,7 +27,7 @@ import {
 } from "./core/meta/entrada";
 import { crearNegocio, escribirSetting, leerSetting, listarNegocios, obtenerNegocio } from "./db/repos/negocio";
 import { leerCredencial } from "./db/repos/credencial";
-import { crearProveedorGemini } from "./llm/gemini";
+import { configuracionLLMDe, crearProveedor } from "./llm/proveedor";
 import {
   aplicarRespuesta,
   armarConfiguracion,
@@ -914,7 +914,7 @@ app.post("/panel/comenzar/:negocioId", async (c) => {
   // Fallback probabilístico SOLO para catálogo y FAQ, y solo si el parser
   // determinista no pudo. La salida del modelo ya viene validada contra Zod.
   if (!r.ok && (estado.paso === "catalogo" || estado.paso === "faq")) {
-    const llm = crearProveedorGemini(c.env.GEMINI_API_KEY, modelos(c.env));
+    const llm = crearProveedor(await configuracionLLMDe(c.env, negocioId));
     r = await estructurarConLLM(llm, estado.paso, texto);
   }
 

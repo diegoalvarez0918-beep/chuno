@@ -277,11 +277,45 @@ function aplicarEsquema(nombreBase) {
 
 async function cargarSecretos() {
   paso(6, TOTAL, "Guardando tus llaves");
-  log(c.suave("      Se guardan cifradas en Cloudflare, nunca en un archivo del proyecto."));
+
+  log(c.suave("      El cerebro es tuyo: tú eliges el proveedor y pagas solo lo que piensa."));
+  log(c.suave("      1) Gemini — tiene capa gratuita, es la opción para arrancar."));
+  log(c.suave("      2) Otro compatible con OpenAI — OpenRouter, OpenAI, Groq, el que uses.\n"));
+
+  const eleccion = await preguntar("      ¿Cuál? (1 o 2): ");
+  const proveedor = eleccion.trim() === "2" ? "compatible" : "gemini";
+
+  let baseUrl = "";
+  let listaModelos = "";
+
+  if (proveedor === "compatible") {
+    baseUrl = await preguntar("      URL base (ej. https://openrouter.ai/api/v1): ");
+    if (!baseUrl) morir("Sin URL base no sé a dónde mandarle las preguntas.");
+
+    listaModelos = await preguntar("      Modelos, del preferido al último, separados por coma: ");
+    if (!listaModelos) {
+      morir("Sin modelos no hay nada que intentar.", "Pon varios: si el primero está caído o saturado, el asistente pasa al siguiente.");
+    }
+  }
+
+  log(c.suave("\n      Las llaves se guardan cifradas en Cloudflare, nunca en un archivo del proyecto."));
   log(c.suave("      Lo que escribas aquí no se ve en pantalla.\n"));
 
-  const gemini = await preguntar("      Llave de Gemini (aistudio.google.com/apikey): ", { oculto: true });
-  if (!gemini) morir("Sin llave de Gemini el asistente no puede pensar.");
+  const pista = proveedor === "gemini"
+    ? "Llave de Gemini (aistudio.google.com/apikey): "
+    : "Llave del proveedor: ";
+
+  const llaveLLM = await preguntar(`      ${pista}`, { oculto: true });
+  if (!llaveLLM) morir("Sin llave el asistente no puede pensar.");
+
+  // Se valida ANTES de guardar, igual que el webhook de Telegram. Una llave
+  // mala tiene que doler aquí, que es cuando hay alguien mirando la pantalla;
+  // si se descubre en producción, el que se entera es un cliente sin respuesta.
+  const validacion = await validarLlaveLLM(proveedor, llaveLLM, baseUrl, listaModelos);
+  if (!validacion.ok) {
+    morir(`La llave no funcionó: ${validacion.error}`, "Revisa que esté completa y que la cuenta tenga saldo o cuota disponible.");
+  }
+  ok("Llave verificada contra el proveedor");
 
   const telegram = await preguntar("      Token del bot de Telegram (de @BotFather): ", { oculto: true });
   if (!telegram) morir("Sin token de Telegram el asistente no tiene por dónde atender.");
@@ -294,7 +328,7 @@ async function cargarSecretos() {
   const claveCifrado = randomBytes(32).toString("base64");
 
   const secretos = [
-    ["GEMINI_API_KEY", gemini],
+    ["GEMINI_API_KEY", llaveLLM],
     ["TELEGRAM_BOT_TOKEN", telegram],
     ["PANEL_PASSWORD", panel],
     ["TELEGRAM_WEBHOOK_SECRET", secretoWebhook],
@@ -308,7 +342,66 @@ async function cargarSecretos() {
     ok(nombre);
   }
 
+  ajustarCerebroEnWrangler(proveedor, baseUrl, listaModelos);
+
   return { telegram, secretoWebhook };
+}
+
+/**
+ * Una llamada mínima para comprobar que la llave sirve. No pide texto útil:
+ * solo que el proveedor conteste algo que no sea un error de autenticación.
+ */
+async function validarLlaveLLM(proveedor, llave, baseUrl, listaModelos) {
+  try {
+    if (proveedor === "gemini") {
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models", {
+        headers: { "x-goog-api-key": llave },
+      });
+      return r.ok ? { ok: true } : { ok: false, error: `HTTP ${r.status}` };
+    }
+
+    const modelo = listaModelos.split(",")[0].trim();
+    const r = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${llave}` },
+      body: JSON.stringify({
+        model: modelo,
+        messages: [{ role: "user", content: "ok" }],
+        max_tokens: 1,
+      }),
+    });
+    return r.ok ? { ok: true } : { ok: false, error: `HTTP ${r.status}` };
+  } catch {
+    return { ok: false, error: "no pude contactar al proveedor" };
+  }
+}
+
+/**
+ * Proveedor, URL y modelos NO son secretos: van como vars del Worker, que se
+ * leen sin descifrar nada y se ven en el dashboard cuando haya que revisarlas.
+ * La llave, y solo la llave, va como secreto.
+ */
+function ajustarCerebroEnWrangler(proveedor, baseUrl, listaModelos) {
+  const ruta = join(RAIZ, "wrangler.jsonc");
+  let texto = readFileSync(ruta, "utf8");
+
+  texto = texto.replace(/("LLM_PROVEEDOR":\s*")[^"]*(")/, `$1${proveedor}$2`);
+
+  if (proveedor === "compatible") {
+    texto = texto.replace(/("MODELOS_LLM":\s*")[^"]*(")/, `$1${listaModelos}$2`);
+
+    // LLM_BASE_URL no viene en la plantilla porque Gemini no la necesita: se
+    // inserta al lado del proveedor la primera vez que hace falta.
+    texto = /"LLM_BASE_URL":/.test(texto)
+      ? texto.replace(/("LLM_BASE_URL":\s*")[^"]*(")/, `$1${baseUrl}$2`)
+      : texto.replace(
+          /("LLM_PROVEEDOR":\s*"[^"]*",)/,
+          `$1\n    "LLM_BASE_URL": "${baseUrl}",`,
+        );
+  }
+
+  writeFileSync(ruta, texto);
+  ok(`El cerebro queda en "${proveedor}"`);
 }
 
 async function desplegar() {

@@ -1,3 +1,4 @@
+import { MODELOS_GEMINI } from "../core/llm/configuracion";
 import {
   msParaElSiguienteIntento,
   otroModeloPuedeAyudar,
@@ -26,12 +27,12 @@ import type {
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
-/** Verificados contra la capa gratuita: responden y devuelven JSON limpio. */
-export const MODELOS_POR_DEFECTO = [
-  "gemini-3.6-flash",
-  "gemini-3.1-flash-lite",
-  "gemini-flash-lite-latest",
-];
+/**
+ * La lista vive en el núcleo porque la necesitan dos: este adaptador y la regla
+ * de precedencia, que la usa como valor por defecto del negocio que solo trae
+ * llave. Escrita dos veces se desincroniza el día que se jubile un modelo.
+ */
+export const MODELOS_POR_DEFECTO: readonly string[] = MODELOS_GEMINI;
 
 interface RespuestaGemini {
   candidates?: Array<{
