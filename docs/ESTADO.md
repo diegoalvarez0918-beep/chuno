@@ -1,13 +1,19 @@
 # Estado del proyecto
 
 > Traspaso entre sesiones. Léelo después de `CLAUDE.md` y antes de tocar nada.
-> Última actualización: **2026-08-15**. 177 tests verdes, typecheck limpio.
+> Última actualización: **2026-08-17**. 175 tests verdes, typecheck limpio.
 >
-> **Desplegado y verificado en producción** (versión `cf538280`): el arreglo del
-> vigía y el del escalado. **Sin desplegar:** la lista de conversaciones, que
-> vive en el PR #4.
+> **`main` está en `c0e1853` y el repo no tiene ramas muertas** — solo `main`,
+> local y remoto. Los PR #4, #5 y #6 están fusionados.
 >
-> **Dónde quedamos:** ver "Traspaso del 2026-08-15" al final de este archivo.
+> **Desplegado en producción:** versión `b1ab9b86`, del 2026-08-17T13:59:20Z.
+> Trae la bandeja de conversaciones completa y el arreglo del prompt. Medido,
+> no supuesto: producción sirve el botón «Esta la atiendo yo», que existe solo
+> a partir de `c0e1853`, en dos lecturas seguidas y con control negativo en
+> cero. **Lo que sigue pendiente es la verificación de comportamiento del
+> prompt** — esa no la alcanza ningún test ni ningún `curl`.
+>
+> **Dónde quedamos:** ver "Traspaso del 2026-08-17" al final de este archivo.
 >
 > **Entregado al concurso:** video no listado `https://youtu.be/owZTkUv2oaY`
 > (93 s, sin narración) y herramienta `https://chuno.vozdigital-ai.workers.dev`.
@@ -99,7 +105,7 @@ Cloudflare está autenticado por OAuth en `~/.wrangler`. GitHub va por llave SSH
 | 1 | CRM autoalimentado y panel de métricas | ✅ cerrada |
 | 2 | Conocimiento estructurado: catálogo y preguntas frecuentes | ✅ cerrada |
 | 3 | Onboarding conversacional (`/comenzar`) | ✅ cerrada |
-| 4 | Ingesta multicanal — familia Meta (WhatsApp, Instagram, Messenger) | pendiente · bloqueado por trámite de Meta |
+| 4 | Ingesta multicanal — familia Meta (WhatsApp, Instagram, Messenger) | **siguiente** · descompuesta en D1–D4, ver el traspaso del 2026-08-17. **D1 y D2 no están bloqueados** |
 | 5 | Marca blanca | pendiente |
 | 6 | Entrega del concurso: video, links, votos | los dos links, listos y desplegados · faltan video y votos |
 | 7-8 | Herramientas con escritura, RAG con embeddings | después del concurso |
@@ -196,7 +202,7 @@ operativo no cierra es construir sobre algo que todavía se cae.
    Se cerró metiéndole el día a la clave: `aviso:<pedido>:<riesgo>:<hoy>`, en `core/vigia/reglas.ts` como `claveAviso()`, más una regla que se salta el pedido que ya tenga un aviso sin decidir. **El índice no se tocó y no hubo migración sobre la D1 viva.** La semántica queda en una frase: un aviso por promesa y por día, se apruebe o se descarte.
 
    `claveAviso()` vive en el núcleo porque la usan el vigía **y** el resembrado de la demo. Antes era el mismo literal escrito en dos archivos, sostenido por un comentario; este cambio los habría desincronizado en silencio.
-4. ~~**No hay bandeja de conversaciones.**~~ ✅ cerrado 2026-08-16 en el PR #5, **sin desplegar todavía**. El dueño lee el hilo completo mientras decide, y puede tomar el chat y devolverlo. `pausarConversacion` y `listarConversaciones` ya tienen quien las llame; `listarTicketsAbiertos` **sigue sin llamadores** y es el último de esta familia.
+4. ~~**No hay bandeja de conversaciones.**~~ ✅ cerrado 2026-08-16 en el PR #5, **desplegado el 2026-08-17**. El dueño lee el hilo completo mientras decide, y puede tomar el chat y devolverlo. `pausarConversacion` y `listarConversaciones` ya tienen quien las llame; `listarTicketsAbiertos` **sigue sin llamadores** y es el último de esta familia.
 
 5. **`seed.sql` borra `mi-optica`, el negocio real.** Sus `DELETE` cubren los dos negocios. Hoy es inofensivo porque `mi-optica` solo ha tenido conversaciones de prueba, pero con un cliente conectado un `npm run seed:remote` distraído le borra el historial. Se arregla acotando sus `DELETE` a `demo-optica` y sembrando lo de `mi-optica` por separado.
 
@@ -370,7 +376,7 @@ npx wrangler d1 execute chuno --remote --command \
   "SELECT COUNT(*) FROM propuestas WHERE negocio_id='mi-optica' AND estado='propuesta' AND tipo='enviar_aviso' AND json_extract(payload_json,'\$.pedidoId') IS NULL"
 ```
 
-### La bandeja de conversaciones — 5 de 5, sin desplegar
+### La bandeja de conversaciones — 5 de 5, desplegada el 2026-08-17
 
 | # | Tarea | Estado |
 |---|---|---|
@@ -384,8 +390,9 @@ npx wrangler d1 execute chuno --remote --command \
 botones de pausa van dentro de `vistaHilo`, que solo existe ahí: una rama
 aparte habría quedado apilada. Aplanar en vez de apilar.
 
-**Falta desplegarlo y verificarlo contra producción.** Nada de esto se ha
-subido a Cloudflare; el Worker vivo sigue en `cf538280`.
+**Desplegado el 2026-08-17 a las 13:59 UTC**, versión `b1ab9b86`. Lo que decía
+este párrafo —que nada se había subido a Cloudflare— era cierto al escribirlo y
+dejó de serlo horas después.
 
 Lo que cambió respecto de lo planeado: **el conteo por conversación se hace en
 SQL, no en memoria.** Filtrar `listarPendientes` —que corta en 50, de la más
@@ -410,8 +417,8 @@ se descompuso en tres, porque son tres specs y no uno:
   al dueño para confirmarte bien" cada vez que no sabía algo. No era estilo,
   era una contradicción del prompt — `prompt.ts` le pedía mencionar al dueño y
   dos renglones después le prohibía explicar su proceso. Ahora dice "dame un
-  momento y ya te confirmo" y no cuenta a quién le pregunta. **Sin desplegar y
-  sin verificar con el bot vivo.** Queda el resto: humanizer sobre el prompt
+  momento y ya te confirmo" y no cuenta a quién le pregunta. **Desplegado el
+  2026-08-17, sin verificar con el bot vivo.** Queda el resto: humanizer sobre el prompt
   base, los avisos del vigía y los textos del panel.
 
 **Ojo con A:** el saludo con el nombre del negocio **ya existe** (commit
@@ -446,3 +453,98 @@ nunca la ve.
 
 **Pendiente de eso:** mover `TOPE_LLM_DIARIO` de variable global a la tabla
 `settings`, porque si Plogy paga los tokens ese tope es su techo de factura.
+
+---
+
+## Traspaso del 2026-08-17
+
+### Lo que quedó en `main`, y se desplegó el 2026-08-17
+
+`main` = `c0e1853`. 175 tests, typecheck limpio, sin ramas muertas.
+
+- **La bandeja de conversaciones, completa.** Hilo con las decisiones al lado,
+  pausar y reanudar el chat, y la lista enlazando al hilo.
+- **El conteo por conversación pasó a SQL.** Filtrar `listarPendientes` —que
+  corta en 50— no solo daba globos por debajo del real: **el hilo escondía
+  tarjetas que el dueño tenía que decidir.** La regla de qué payload cuelga de
+  una conversación quedó como `TIPOS_CON_CONVERSACION` en el núcleo y las dos
+  consultas arman su `IN` desde ella.
+- **El agente dejó de decirle al cliente que consulta al dueño.** Era una
+  contradicción del prompt, no estilo. Detalle en `APRENDIZAJES.md`.
+
+**Desplegado el 2026-08-17 a las 13:59 UTC. Lo único pendiente de esa tanda:
+verificar el prompt con el bot vivo.** No lo cubre ningún test y tampoco un
+`curl`: el agente guarda su mensaje **solo si el envío sale bien**
+(`agente.ts:198`), así que el webhook sintético gasta Gemini y no deja texto —
+solo `envio_fallido` con el motivo. Hay que escribirle a `@Chunnobot` algo que
+no sepa y ver si dice "dame un momento y ya te confirmo" en vez de nombrar al
+dueño.
+
+Línea base medida en producción antes del despliegue, que es lo que le da valor
+al detector: de los 14 mensajes del agente de `mi-optica`, **9 nombran al
+dueño**, y el último es de las 13:52:14Z — siete minutos antes de desplegar.
+Cualquier mensaje posterior a esa marca salió del código nuevo.
+
+```bash
+npx wrangler d1 execute chuno --remote --command \
+  "SELECT creado_en, texto LIKE '%dueño%' AS nombra_dueno FROM mensajes WHERE negocio_id='mi-optica' AND autor='agente' AND creado_en > '2026-08-17T13:52:14.808Z' ORDER BY creado_en DESC LIMIT 3"
+```
+
+### Lo que se midió sobre los canales de Meta, y cambia la Fase 4
+
+Verificado contra la documentación de Meta, no supuesto:
+
+| Canal | ¿Webhook por negocio? |
+|---|---|
+| Telegram | Sí, un bot y un webhook por negocio |
+| **WhatsApp** | **Sí** — `override_callback_uri` por WABA y por número |
+| **Messenger** | **No.** Solo la Callback URL de la app |
+| **Instagram** | **No.** Igual que Messenger |
+
+**Consecuencia:** un login OAuth alojado por nosotros obligaría a un relay
+central para FB/IG, y eso rompe las reglas 7 y 8. **La salida que no cuesta
+reglas es que la app de Meta sea del propio negocio** — su app, su Callback
+URL, su Worker. Es lo que hace Forja, y su página lo dice: *"cada red se
+conecta con tus propias cuentas"*, *"pega los tokens como secretos"*.
+
+**Forja no tiene login por OAuth.** Es single-tenant, un despliegue por
+negocio, y por eso nunca le apareció el problema de la URL única.
+
+**CHUNO porta esto mejor que Forja** porque ya es multi-tenant: rutas
+`/webhook/telegram/:negocioId` y credenciales cifradas por negocio en la tabla
+`credenciales`. Un despliegue puede hospedar varios clientes — que es
+justamente el "lo puedes revender" que Diego quiere.
+
+### Lo que sigue: la Fase 4, en cuatro subproyectos
+
+Aprobado por Diego el 2026-08-17. Va en ese orden.
+
+| | Qué | Bloqueo |
+|---|---|---|
+| **D1** | Abrir el contrato `Canal`: handshake GET de verificación y validación de firma `X-Hub-Signature-256` | **Ninguno**, se hace con tests puros |
+| **D2** | WhatsApp, Messenger e Instagram con credenciales por negocio y ruta `/webhook/meta/:negocioId` | Prueba en vivo necesita la app de Meta del negocio |
+| **D3** | Panel de **Conexiones**: conectar cada red, validando la credencial al guardarla | Depende de D2 |
+| **D4** | Skill para que "ármame un chatbot con CHUNO" funcione desde Claude Code | Depende de D3 |
+
+**D1 y D2 no están bloqueados por ningún trámite.** El contrato `Canal` de hoy
+(`interpretar`, `enviar`, `enviarFoto`) no cubre lo que Meta exige a la
+entrada; eso es D1.
+
+**Ojo con el panel de Conexiones:** "pega el token" falla en silencio. Que
+valide contra la API al guardar y registre el webhook, como ya hace
+`conectarTelegram` en `cli/chuno.mjs`.
+
+### Cabo suelto de marketing
+
+Diego trajo un texto de privacidad y un diagrama que son **la copia de Forja
+con el nombre cambiado**. No publicarlos tal cual: mencionan **Vectorize**, que
+CHUNO no usa por ser de pago, y dicen que no se guardan imágenes, cuando el
+catálogo sí guarda fotos en KV. Si esa página se quiere, se escribe desde el
+código de CHUNO.
+
+### Nota de flujo de trabajo
+
+**Diego fusiona los PR él mismo, a veces en medio de la sesión.** Pasó con el
+#5 y el #6. Antes de diagnosticar cualquier cosa rara con un PR, `git fetch` y
+mirar `origin/main` — la respuesta de la API de GitHub puede leerse como un
+fallo propio cuando en realidad el PR ya se fusionó.
