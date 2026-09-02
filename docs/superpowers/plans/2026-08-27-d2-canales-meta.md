@@ -166,8 +166,13 @@ En `CREATE TABLE conversaciones`, después de `pausado_hasta`:
 para las bases que **ya existen**, porque `ALTER TABLE` no es idempotente:
 corrido dos veces, falla.
 
-**Se corren una sola vez, en orden**, y cada uno trae al lado la consulta que
-dice si ya se aplicó. Comprobar antes de correr:
+**Se corren una sola vez, en orden, y ANTES que `schema.sql`.** El orden
+inverso rompe: `schema.sql` crea un índice sobre `mensajes.id_externo`, y sobre
+una base que todavía no tiene esa columna eso falla con `no such column`.
+Comprobado con controles, no supuesto.
+
+Cada archivo trae al lado la consulta que dice si ya se aplicó. Comprobar antes
+de correr:
 
 ```bash
 npx wrangler d1 execute chuno --remote --json \
@@ -2145,8 +2150,32 @@ como se llaman hoy.
 npx wrangler d1 execute chuno --remote --json --command "SELECT name FROM pragma_table_info('mensajes') WHERE name='id_externo'"
 ```
 
-Vacío significa que la migración `002` no está aplicada. Aplicar solo las que
-falten, y `schema.sql` entero para la tabla `entrantes`, que es idempotente.
+Vacío significa que la migración `002` no está aplicada.
+
+**Las migraciones van PRIMERO, y `schema.sql` después. El orden inverso rompe.**
+Comprobado con controles el 2026-08-27: sobre una base con la forma de la viva,
+`CREATE UNIQUE INDEX ... ON mensajes (negocio_id, id_externo)` falla con
+`no such column: id_externo`, mientras que el mismo índice sobre una columna que
+sí existe pasa. Y `wrangler d1 execute --file` no es transaccional: una sentencia
+que falla a mitad deja aplicadas las anteriores.
+
+```bash
+# 1. Las migraciones que falten, en orden, una por una.
+npx wrangler d1 execute chuno --remote --file=src/db/migraciones/002-id-externo.sql
+npx wrangler d1 execute chuno --remote --file=src/db/migraciones/003-ultimo-cliente-en.sql
+
+# 2. Y SOLO entonces el esquema entero, que a esas alturas es idempotente:
+#    las tablas llevan IF NOT EXISTS y el índice ya lo creó la 002.
+npx wrangler d1 execute chuno --remote --file=src/db/schema.sql
+```
+
+Comprobar después que las tres cosas están:
+
+```bash
+npx wrangler d1 execute chuno --remote --json --command "SELECT (SELECT count(*) FROM pragma_table_info('mensajes') WHERE name='id_externo') AS id_externo, (SELECT count(*) FROM pragma_table_info('conversaciones') WHERE name='ultimo_cliente_en') AS ultimo_cliente, (SELECT count(*) FROM sqlite_master WHERE name='entrantes') AS bandeja"
+```
+
+Esperado: `1`, `1`, `1`.
 
 - [ ] **Paso 3: desplegar — solo si Diego lo pide**
 
