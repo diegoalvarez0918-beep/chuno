@@ -319,6 +319,14 @@ contradice la regla de "no subir por API" de más abajo, que es sobre *crear
 commits* — fusionar combina refs que ya están en el remoto y no crea historia
 paralela. Diego sigue decidiendo **cuándo** se fusiona.
 
+**`gh` NO está instalado, y `brew` tampoco** — comprobado el 2026-08-27. Ni
+`/opt/homebrew/bin`, ni `/usr/local/bin`, ni `~/.local/bin`. Instalar Homebrew
+pide la contraseña de Diego, así que no es algo que un agente pueda resolver
+solo. **No hace falta:** abrir un PR se hace con
+`GITHUB_CREATE_A_PULL_REQUEST` de Composio, y vale la misma distinción que la
+fusión — la rama la sube `git push`, y la API solo abre el PR sobre refs que ya
+existen en el remoto. Así se abrió el #16. No perder tiempo buscando `gh`.
+
 ## Lo que está bloqueado en el humano
 
 1. **Llamada con el dueño de la óptica** — quince minutos. De ahí sale el gancho del pitch y no lo puede hacer un agente.
