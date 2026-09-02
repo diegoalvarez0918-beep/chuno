@@ -677,3 +677,88 @@ Hace falta una API key con saldo. Verificado en la documentación de Anthropic.
 - **`configuracionLLMDe` hace cinco lecturas a D1 por mensaje** (una credencial
   y cuatro ajustes), en paralelo. Se pueden juntar en una sola consulta sobre
   `settings`; no se hizo porque no hay medición que lo justifique todavía.
+
+---
+
+## D2 diseñado, 2026-08-27 — spec y plan escritos, código sin empezar
+
+Spec: `docs/superpowers/specs/2026-08-27-d2-canales-meta-design.md`
+Plan: `docs/superpowers/plans/2026-08-27-d2-canales-meta.md` (10 tareas)
+
+Nada de esto está implementado todavía. `main` sigue funcionalmente igual que lo
+desplegado; lo único que cambió es documentación.
+
+### Las tres cosas que se midieron y cambian el diseño
+
+**1. Los tres canales de Meta tienen ventana de 24 horas. Telegram no tiene
+ninguna.** Fuera de ella, WhatsApp exige plantilla pre-aprobada y Messenger e
+Instagram exigen etiqueta; la de agente humano da 7 días. Esto **choca de frente
+con el diferenciador #1**: el vigía es proactivo por definición, y la bandeja de
+aprobación mete latencia humana justo dentro de la ventana. Se modela como
+concepto del dominio con tres salidas —libre, plantilla/etiqueta, y "no se
+puede"—, y la tercera le dice al dueño que el aviso no sale por ahí en vez de
+fingir que salió.
+
+**2. Queues *baja* el techo de la reventa, no lo sube.** Parece la herramienta
+correcta y no lo es. Los topes gratuitos son **por cuenta de Cloudflare**, así
+que se reparten entre todos los negocios del despliegue:
+
+| | Tope gratuito | Costo por mensaje | Techo del despliegue |
+|---|---|---|---|
+| D1 | 100.000 filas escritas/día | ~5 filas por intercambio | ~20.000 intercambios/día |
+| Queues | 10.000 operaciones/día | 3 (escritura, lectura, borrado) | ~3.300 mensajes/día |
+
+Queues **no reemplaza** las escrituras a D1, se le suma: el consumidor sigue
+escribiendo mensaje, conversación y uso. Así que meterlo mueve el cuello de
+botella de D1 a Queues, y sigue así en el plan de pago. Como CHUNO se vende para
+**muchos negocios con poco tráfico cada uno**, ese es el tope equivocado.
+
+Y el argumento que no depende del volumen: **Queues entrega *at least once***, o
+sea que la tabla de idempotencia hace falta igual. Una vez que existe, ya es una
+bandeja durable — un mecanismo en vez de dos.
+
+**3. D1 admite 100 parámetros vinculados por consulta.** Con cinco columnas son
+20 filas por sentencia: el lote de 1000 de Meta son 50 sentencias en un `batch()`.
+
+### La decisión que da forma a todo lo demás
+
+**El `INSERT` en `entrantes` va ANTES del 200.** La durabilidad no sale de que el
+Worker sobreviva, sale de que la fila esté escrita antes de prometerle nada a
+Meta. Con `waitUntil` a secas, un Worker que muere a mitad pierde el lote **en
+silencio**, porque Meta ya recibió su 200 y no reintenta.
+
+Y de ahí sale la única inversión de regla del proyecto: cuando falla el
+`INSERT`, la ruta devuelve **500**. En todas partes devolvemos 200 para que el
+canal no entre en bucle; aquí, y solo aquí, queremos el reintento de 36 horas de
+Meta.
+
+### Deuda que D2 destapa y paga
+
+**La D1 de producción tiene `catalogo.imagen_clave` y el repo no sabe
+reproducirla**, porque su `ALTER` quedó en `.tmp/`, que está en `.gitignore`.
+Comprobado contra la base viva. D2 agrega dos columnas más, así que crea
+`src/db/migraciones/` con los archivos numerados y su comprobación por
+`pragma_table_info`.
+
+### Cómo se acordó cerrarlo
+
+WhatsApp **en vivo** con el número de pruebas que Meta regala; Messenger e
+Instagram con sintético, porque su trámite es más largo y lo que queda sin
+ejercer es el endpoint de envío, no el diseño.
+
+La prueba que importa no es que llegue el mensaje: es **reenviar el mismo lote y
+ver que no aparece una segunda fila**, y luego cambiarle un carácter al
+`id_externo` y ver que sí aparecen dos. Sin ese segundo control, "no se duplicó"
+podría significar que el segundo envío nunca llegó.
+
+### Lo que queda anotado sin resolver
+
+- **El precio de las plantillas de WhatsApp para Colombia no está verificado.**
+  Tienen costo por mensaje y lo paga el negocio. Hay que mirarlo antes de que D3
+  lo prometa en una pantalla.
+- **Instagram es el punto de menos certeza:** su documentación de envío no
+  nombra la etiqueta de agente humano. El código trata el rechazo de Meta como
+  fallo normal en vez de reventar.
+- **No se mapea ningún código de error de Meta a "ventana cerrada" todavía**, a
+  propósito: no hemos visto uno real, e inventarse el número sería el detector
+  sin control que ya costó un diagnóstico falso.
