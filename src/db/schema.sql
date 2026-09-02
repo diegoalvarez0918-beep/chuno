@@ -35,6 +35,12 @@ CREATE TABLE IF NOT EXISTS conversaciones (
   -- Cuando el agente escala a un humano, se pausa para no interrumpir al dueño
   -- mientras atiende. ISO 8601, o NULL si el bot está activo.
   pausado_hasta  TEXT,
+  -- Última señal de vida del CLIENTE, para la ventana de 24 h de Meta. Se
+  -- escribe con CUALQUIER evento suyo, incluidos los que no sabemos procesar
+  -- (una foto, un sticker): Meta reinicia su ventana con todos ellos, y un
+  -- reloj nuestro más conservador que el suyo nos haría pagar una plantilla
+  -- pudiendo escribir gratis. Telegram no tiene ventana y deja esto en NULL.
+  ultimo_cliente_en TEXT,
   creado_en      TEXT NOT NULL,
   actualizado_en TEXT NOT NULL
 );
@@ -49,6 +55,12 @@ CREATE TABLE IF NOT EXISTS mensajes (
   conversacion_id TEXT NOT NULL REFERENCES conversaciones(id) ON DELETE CASCADE,
   autor           TEXT NOT NULL CHECK (autor IN ('cliente', 'agente', 'dueno')),
   texto           TEXT NOT NULL,
+  -- Id del mensaje en su canal de origen. Es lo que hace que reprocesar un lote
+  -- no duplique, y por eso el drenaje puede marcar una fila como procesada
+  -- DESPUÉS de que el agente acuse recibo: al revés, un fallo al despertarlo
+  -- dejaría el mensaje guardado y sin respuesta. NULL en lo que escribimos
+  -- nosotros, que no viene de ningún canal.
+  id_externo      TEXT,
   creado_en       TEXT NOT NULL
 );
 
@@ -56,6 +68,16 @@ CREATE TABLE IF NOT EXISTS mensajes (
 CREATE INDEX IF NOT EXISTS idx_msg_hilo
   ON mensajes (negocio_id, conversacion_id, creado_en);
 CREATE INDEX IF NOT EXISTS idx_msg_purga ON mensajes (creado_en);
+
+-- El descarte de duplicados. Único pero permisivo de hecho: SQLite admite
+-- muchos NULL en un índice único, así que los mensajes del agente y del dueño
+-- nunca chocan entre sí.
+--
+-- OJO CON EL ORDEN al aplicar esto a una base que ya existe: este índice
+-- necesita la columna id_externo, y si `schema.sql` corre antes que la
+-- migración 002 falla con "no such column". Ver src/db/migraciones/LEEME.md.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_msg_externo
+  ON mensajes (negocio_id, id_externo);
 
 -- ----------------------------------------------------------------- pedidos ---
 -- El objeto que separa a CHUNO de un chatbot.
@@ -269,3 +291,32 @@ CREATE TABLE IF NOT EXISTS entrevistas (
   creado_en      TEXT NOT NULL,
   actualizado_en TEXT NOT NULL
 );
+
+-- --------------------------------------------------------------- entrantes ---
+-- La bandeja de entrada de los canales que llegan en lote (la familia Meta).
+--
+-- Existe por una razón y solo una: Meta manda hasta 1000 actualizaciones por
+-- POST y reintenta durante 36 horas ante fallo, así que hay que responder 200
+-- YA. Si respondiéramos 200 y procesáramos después, un Worker que muere a mitad
+-- pierde el lote EN SILENCIO — porque Meta ya se fue tranquilo y no reintenta.
+-- Escribir aquí ANTES de responder mueve la durabilidad del proceso a la base.
+--
+-- Y la llave primaria compuesta ES el índice de idempotencia: la segunda
+-- entrega del mismo lote choca contra ella y el INSERT OR IGNORE la descarta.
+-- Sin eso, el reintento de Meta no es una red sino una tormenta de duplicados.
+CREATE TABLE IF NOT EXISTS entrantes (
+  negocio_id    TEXT NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
+  canal         TEXT NOT NULL,               -- whatsapp | messenger | instagram
+  id_externo    TEXT NOT NULL,               -- wamid o mid
+  -- El MensajeEntrante ya normalizado, como JSON. Se guarda interpretado y no
+  -- crudo porque interpretar es puro y barato: hacerlo en la ruta deja la
+  -- bandeja pequeña y el drenaje tonto.
+  carga         TEXT NOT NULL,
+  creado_en     TEXT NOT NULL,
+  procesado_en  TEXT,                        -- NULL mientras esté pendiente
+  PRIMARY KEY (negocio_id, canal, id_externo)
+);
+
+-- Lo que barre el cron: los pendientes de un negocio.
+CREATE INDEX IF NOT EXISTS idx_entrantes_pendientes
+  ON entrantes (negocio_id, procesado_en);
