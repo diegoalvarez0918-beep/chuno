@@ -121,6 +121,40 @@ describe("marcas de actividad de Messenger e Instagram", () => {
     expect(marcasMensajeria(eco)).toEqual([]);
   });
 
+  // Un postback (botón tocado) y una reacción SÍ reinician la ventana de Meta y
+  // no traen campo `message`. Exigirlo dejaba nuestro reloj más conservador que
+  // el suyo, que es exactamente lo que hace pagar una plantilla sin necesidad.
+  it("marca un postback, que no trae campo message", () => {
+    const postback = {
+      entry: [{ messaging: [{ sender: { id: "A" }, timestamp: MS, postback: { title: "Sí" } }] }],
+    };
+
+    expect(marcasMensajeria(postback)).toEqual([{ canalChatId: "A", enISO: new Date(MS).toISOString() }]);
+  });
+
+  it("marca una reacción", () => {
+    const reaccion = {
+      entry: [{ messaging: [{ sender: { id: "A" }, timestamp: MS, reaction: { emoji: "❤️" } }] }],
+    };
+
+    expect(marcasMensajeria(reaccion)).toHaveLength(1);
+  });
+
+  it("no marca un `message` que no es objeto: es un payload malformado", () => {
+    const raro = { entry: [{ messaging: [{ sender: { id: "A" }, timestamp: MS, message: "basura" }] }] };
+
+    expect(marcasMensajeria(raro)).toEqual([]);
+    expect(interpretarMensajeria(raro, "messenger")).toEqual([]);
+  });
+
+  it("no marca una lectura", () => {
+    const lectura = {
+      entry: [{ messaging: [{ sender: { id: "X" }, timestamp: MS, read: { watermark: MS } }] }],
+    };
+
+    expect(marcasMensajeria(lectura)).toEqual([]);
+  });
+
   it("no marca una entrega, que no es actividad del cliente", () => {
     const entrega = {
       entry: [{ messaging: [{ sender: { id: "X" }, timestamp: MS, delivery: { mids: ["m.A"] } }] }],

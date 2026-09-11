@@ -41,4 +41,16 @@ describe("trocear", () => {
   it("se niega si una sola fila ya excede el tope", () => {
     expect(() => trocear([1], 101)).toThrow();
   });
+
+  // `Math.floor(100 / 0)` es Infinity, que NO es menor que 1: sin una guarda
+  // propia, cero columnas se cuela y devuelve el lote entero en un solo trozo
+  // — justo lo que esta función existe para impedir.
+  it("se niega con cero columnas en vez de devolver un trozo gigante", () => {
+    expect(() => trocear([1, 2, 3], 0)).toThrow();
+  });
+
+  it("se niega con columnas negativas o fraccionarias", () => {
+    expect(() => trocear([1], -5)).toThrow();
+    expect(() => trocear([1], 2.5)).toThrow();
+  });
 });

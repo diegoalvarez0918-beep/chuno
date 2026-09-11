@@ -33,13 +33,42 @@ function horaDelEvento(evento: Evento): string | null {
   return Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : null;
 }
 
+function esObjeto(valor: unknown): valor is Record<string, unknown> {
+  return typeof valor === "object" && valor !== null;
+}
+
 /**
- * Un evento del cliente que cuenta para la ventana: ni eco nuestro, ni acuse
- * de entrega o de lectura.
+ * Qué NO cuenta como actividad del cliente, enumerado en negativo a propósito.
+ *
+ * Enumerar lo que SÍ cuenta deja cada tipo de evento nuevo de Meta del lado del
+ * silencio: el reloj se cierra antes que el suyo y pagamos una plantilla que no
+ * hacía falta. Es la misma forma de lista que ya falló tres veces con los
+ * errores reintentables del LLM, y se arregló invirtiéndola. Enumerando lo que
+ * no cuenta, un evento desconocido cae del lado recuperable — intentamos texto
+ * libre y, si Meta lo rechaza, la propuesta queda pendiente con su motivo.
+ */
+const ACUSES_NUESTROS = ["delivery", "read"] as const;
+
+/**
+ * ¿Este evento prueba que el cliente dio señales de vida?
+ *
+ * Un postback (botón tocado) y una reacción SÍ reinician la ventana de 24 h de
+ * Meta y NO traen campo `message`, así que exigirlo dejaba el reloj corto.
  */
 function esDelCliente(evento: Evento): boolean {
-  // Sin `message` es una entrega, una lectura o un postback.
-  return Boolean(evento?.message) && !evento.message?.is_echo;
+  // Acuses de recibo de NUESTROS envíos: no son actividad de nadie.
+  if (ACUSES_NUESTROS.some((campo) => campo in evento)) return false;
+
+  if ("message" in evento) {
+    const mensaje: unknown = evento.message;
+    // Un `message` que no es objeto es un payload malformado: ni se interpreta
+    // ni tiene por qué mover el reloj de la ventana.
+    if (!esObjeto(mensaje)) return false;
+    // El eco es un mensaje NUESTRO que Meta nos devuelve, no del cliente.
+    if (mensaje.is_echo === true) return false;
+  }
+
+  return true;
 }
 
 export function interpretarMensajeria(cuerpo: unknown, canal: string): MensajeEntrante[] {
