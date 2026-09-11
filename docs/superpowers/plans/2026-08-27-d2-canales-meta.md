@@ -266,7 +266,15 @@ así que la base viva tenía algo que el repo no sabía reproducir."
 
 ```ts
 import { describe, expect, it } from "vitest";
-import { PARAMETROS_MAXIMOS, trocear } from "../../src/core/meta/lote";
+import { trocear } from "../../src/core/meta/lote";
+
+/**
+ * El tope de D1, como literal a propósito. Importar `PARAMETROS_MAXIMOS` haría
+ * el test tautológico: mutar la constante movería los dos lados de la
+ * desigualdad y la comprobación se quedaría verde. Este número es de D1, no
+ * nuestro, y el test existe para afirmarlo.
+ */
+const TOPE_DE_D1 = 100;
 
 describe("trocear", () => {
   it("parte un lote de 1000 filas de 5 columnas en 50 trozos", () => {
@@ -274,13 +282,15 @@ describe("trocear", () => {
     expect(trocear(filas, 5)).toHaveLength(50);
   });
 
-  // La propiedad de verdad, y la que detecta la mutación: si alguien sube
-  // PARAMETROS_MAXIMOS o cambia el redondeo, algún trozo pasa el tope de D1 y
-  // esto se pone rojo. Contar trozos sin comprobar esto no mide nada.
+  // La propiedad de verdad: si alguien sube la constante o cambia el redondeo,
+  // algún trozo pasa el tope real de D1 y esto se pone rojo. Contar trozos sin
+  // comprobar esto no mide nada.
   it("ningún trozo excede el tope de parámetros de D1", () => {
     const filas = Array.from({ length: 1000 }, (_, i) => i);
-    for (const trozo of trocear(filas, 5)) {
-      expect(trozo.length * 5).toBeLessThanOrEqual(PARAMETROS_MAXIMOS);
+    for (const columnas of [1, 3, 5, 7, 50]) {
+      for (const trozo of trocear(filas, columnas)) {
+        expect(trozo.length * columnas).toBeLessThanOrEqual(TOPE_DE_D1);
+      }
     }
   });
 
@@ -398,6 +408,12 @@ npx vitest run test/core/meta-lote.test.ts test/core/meta-producto.test.ts
 Cambiar `PARAMETROS_MAXIMOS` a `105` y volver a correr. El test "ningún trozo
 excede el tope" **tiene que ponerse rojo**. Si pasa, el test no mide nada y hay
 que arreglarlo antes de seguir. Devolver el valor a `100`.
+
+**Esto ya pasó una vez, el 2026-09-10, y por eso el test de arriba usa un
+literal.** La primera versión importaba `PARAMETROS_MAXIMOS` y comparaba contra
+él: al mutar la constante se movían los dos lados de la desigualdad y el test
+sobrevivía. El único que el plan señalaba como detector era el único
+tautológico. La comprobación por mutación no es ceremonia — encontró eso.
 
 - [ ] **Paso 6: commit**
 
