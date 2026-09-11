@@ -770,3 +770,98 @@ podría significar que el segundo envío nunca llegó.
 - **No se mapea ningún código de error de Meta a "ventana cerrada" todavía**, a
   propósito: no hemos visto uno real, e inventarse el número sería el detector
   sin control que ya costó un diagnóstico falso.
+
+---
+
+## Traspaso del 2026-09-10 — D2 a mitad: recibe, todavía no contesta
+
+`main` = `42912ab`. **Nada de esto está desplegado.** Producción sigue en
+`e17324cd` y no conoce ninguna ruta de Meta más allá de la puerta de D1.
+
+### Lo que hay abierto
+
+| PR | Rama | Qué |
+|---|---|---|
+| #16 | `docs/d2-canales-meta` | spec, plan de 10 tareas, este traspaso y los aprendizajes |
+| #18 | `feat/d2-camino-de-entrada` | tareas 2 a 6: D2 **recibe** los tres canales |
+
+Las dos salen de `main` directo, ninguna apilada. La tarea 1 —esquema,
+bandeja y migraciones— ya se fusionó en el #17.
+
+### Dónde va D2
+
+| | Tarea | Estado |
+|---|---|---|
+| 1 | Esquema, bandeja `entrantes`, migraciones | ✅ fusionada |
+| 2 | `trocear` y `productoDeMeta` | ✅ en el #18 |
+| 3 | Intérprete de WhatsApp | ✅ en el #18 |
+| 4 | Intérprete de Messenger e Instagram | ✅ en el #18 |
+| 5 | Bandeja, id externo, `atender` compartido | ✅ en el #18 |
+| 6 | Ruta, drenaje y barrido del cron | ✅ en el #18 |
+| **7** | **La ventana de 24 h como núcleo puro** | **siguiente** |
+| 8 | Los tres envíos y `canalSaliente` | pendiente |
+| 9 | Credenciales y CLI que valida contra el Graph | pendiente |
+| 10 | Runbook de la app de Meta y cierre en producción | pendiente |
+
+**D2 recibe mensajes pero no contesta por Meta.** La tarea 8 es la que enchufa
+el envío; hasta entonces `canalSaliente` devuelve el canal de la demo para todo
+lo que no sea Telegram, así que un mensaje de WhatsApp se guarda, despierta al
+agente, y su respuesta no sale a ningún lado.
+
+### Lo verificado, y cómo
+
+Contra el **Worker local**, con webhooks firmados de verdad — no con dobles, que
+es la regla del proyecto para lo que hace red. Lote firmado → 200 y sus filas ·
+el mismo lote otra vez → 200 **sin duplicar** · firma falsa, ausente y de otro
+secreto → 401 · `object` ajeno y cuerpo ilegible → 200 sin escribir · Instagram
+→ 200 · eco de Instagram → 200 sin escribir · **ruta inventada → 404 como
+control**.
+
+Y la propiedad que cuesta dinero, de punta a punta: una foto —que `interpretar`
+descarta— movió el reloj de la ventana hacia adelante.
+
+Las pruebas corrieron con `--var BUFFER_SEGUNDOS:3600`, así el drenaje escribe
+pero el Durable Object no llega a llamar al modelo. **Cero cuota gastada.** Es
+la técnica para probar la entrada sin pagar el cerebro.
+
+### Tres bugs que encontró la verificación, no la lectura
+
+1. **El primer mensaje de cada conversación nueva se quedaba sin reloj de
+   ventana.** Las marcas se aplicaban antes del drenaje y
+   `marcarActividadCliente` solo actualiza, nunca crea. La primera respuesta a
+   un cliente nuevo habría salido como plantilla de pago, o no habría salido.
+2. **El reloj ignoraba postbacks y reacciones**, que sí reinician la ventana de
+   Meta. Arreglado invirtiendo la lista.
+3. **`trocear` tenía una guarda que no guardaba:** `Math.floor(100/0)` es
+   `Infinity`, que no es menor que 1.
+
+Y un test que no medía nada: importaba la constante que quería proteger. Detalle
+de los tres en `APRENDIZAJES.md`.
+
+### Al desplegar, ojo con esto
+
+- **`URL_PUBLICA` es una variable nueva** en `wrangler.jsonc` y en `Env`. Un
+  `scheduled()` no tiene petición de la que deducir su URL, y sin ella una foto
+  drenada por el cron lleva un link roto. También hay que ponerla en `.dev.vars`
+  para el desarrollo local.
+- **Las migraciones van ANTES que `schema.sql`.** Comprobado con código de
+  salida 1: el índice único sobre `mensajes.id_externo` falla con
+  `no such column` si el esquema corre primero. Ver `src/db/migraciones/LEEME.md`.
+- La D1 **remota** todavía no tiene nada de D2 aplicado. Eso es la tarea 10.
+
+### Entorno
+
+**`gh` no está instalado y `brew` tampoco.** Los PR se abren con
+`GITHUB_CREATE_A_PULL_REQUEST` de Composio; la rama la sube `git push`, así que
+no contradice la regla de "no subir por API". No perder tiempo buscando `gh`.
+
+### Sigue pendiente, sin tocar
+
+- La pantalla del panel para configurar el cerebro sin terminal.
+- **`APRENDIZAJES.md` va por 49 entradas** y su propia regla dice consolidar
+  pasando de 25. Se agrandó esta sesión; la consolidación sigue sin hacerse.
+- `configuracionLLMDe` hace cinco lecturas a D1 por mensaje, sin medición que
+  justifique juntarlas.
+- **Sin diagnosticar:** un envío local a un chat real dio `telegram: HTTP 400`
+  mientras `getChat` decía que el chat existe. En producción los envíos llegan.
+  Inquieta más ahora, porque la tarea 8 agrega tres caminos de envío nuevos.
