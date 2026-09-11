@@ -22,6 +22,13 @@ export interface Env {
 
   // Vars (wrangler.jsonc)
   readonly NOMBRE_BOT: string;
+  /**
+   * URL pública del Worker. Existe porque el `scheduled()` NO tiene petición de
+   * la que deducirla, y la necesita para armar el link de la foto que el canal
+   * va a descargar: sin ella, lo que drene el cron saldría con un link roto y
+   * nadie se enteraría hasta que un cliente lo abriera.
+   */
+  readonly URL_PUBLICA: string;
   readonly LLM_PROVEEDOR: string;
   /**
    * URL base cuando el proveedor es `compatible`. Sin ella la instalación no

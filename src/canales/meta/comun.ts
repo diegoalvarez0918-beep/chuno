@@ -6,6 +6,30 @@
  * del payload y el endpoint de envío.
  */
 
+import { firmaConFormaValida, firmaValida } from "../../core/meta/entrada";
+
+/**
+ * La autenticación de los tres productos, en un solo cuerpo.
+ *
+ * La llama la ruta directamente —tiene que autenticar ANTES de saber qué
+ * producto es, y un canal no se construye sin producto— y los tres canales la
+ * asignarán como su `autenticar`. Misma función, un llamador real en
+ * producción: nada de un método que solo ejerciten los tests.
+ *
+ * El cuerpo entra como función porque leerlo cuesta: primero se comprueba que
+ * la cabecera tenga forma de firma, y solo entonces se lee.
+ */
+export async function autenticarMeta(
+  peticion: Request,
+  leerCuerpo: () => Promise<string>,
+  appSecret: string,
+): Promise<boolean> {
+  const cabecera = peticion.headers.get("x-hub-signature-256");
+  if (!firmaConFormaValida(cabecera)) return false;
+
+  return firmaValida(await leerCuerpo(), cabecera, appSecret);
+}
+
 /**
  * Un evento del cliente, con su hora, sirva o no su contenido.
  *
