@@ -18,7 +18,7 @@ import { vistaEntrar } from "./publico/entrar";
 import { DURACION_SESION_SEGUNDOS, firmarSesion, verificarSesion } from "./core/sesion";
 import { resembrarDemo } from "./crons/resembrar";
 import { crearCanalTelegram, registrarWebhook } from "./canales/telegram";
-import type { Canal } from "./canales/tipos";
+import type { Canal, MensajeEntrante } from "./canales/tipos";
 import {
   firmaConFormaValida,
   firmaValida,
@@ -945,9 +945,62 @@ app.get("/demo/comenzar", (c) =>
 // ───────────────────────────────────────────────────────────────  Telegram  ──
 
 /**
- * Lo que pasa cuando llega un mensaje, sea del bot global o de un bot por
- * negocio: normalizar, guardar y despertar al Durable Object. La autenticación
- * ya ocurrió — cada ruta valida SU secreto antes de llamar aquí.
+ * Lo que pasa cuando llega un mensaje, venga de Telegram o de la familia Meta:
+ * normalizar ya ocurrió, aquí se guarda y se despierta al Durable Object. La
+ * autenticación también ocurrió — cada ruta valida SU secreto antes de llamar.
+ *
+ * Recibe los mensajes ya interpretados y no el cuerpo crudo, porque los dos
+ * llamadores llegan aquí por caminos distintos: Telegram interpreta en la ruta
+ * y Meta interpreta antes de encolar, para que la bandeja guarde algo pequeño
+ * y el drenaje sea tonto.
+ */
+async function atender(
+  env: Env,
+  negocioId: string,
+  mensajes: readonly MensajeEntrante[],
+  origen: string,
+): Promise<void> {
+  for (const entrante of mensajes) {
+    const conversacion = await obtenerOCrearConversacion(
+      env.DB,
+      negocioId,
+      entrante.canal,
+      entrante.canalChatId,
+      entrante.autorNombre,
+    );
+
+    // El mensaje se guarda de inmediato: si el agente falla después, el hilo del
+    // cliente no se pierde. Con su id externo, para que reprocesar no duplique.
+    await guardarMensaje(
+      env.DB,
+      negocioId,
+      conversacion.id,
+      "cliente",
+      entrante.texto,
+      entrante.idExterno,
+    );
+
+    const agente = idDeConversacion(env.AGENTE, negocioId, conversacion.id);
+    await agente.fetch("https://agente/mensaje", {
+      method: "POST",
+      body: JSON.stringify({
+        negocioId,
+        conversacionId: conversacion.id,
+        canalChatId: entrante.canalChatId,
+        // El objeto no puede deducir su propia URL pública, y la necesita para
+        // armar el link de la foto que el canal va a descargar.
+        origen,
+      }),
+    });
+  }
+}
+
+/**
+ * Interpreta el cuerpo ya autenticado de Telegram y lo atiende.
+ *
+ * Siempre 200: un error nuestro no debe hacer que Telegram reintente en bucle.
+ * Telegram manda una actualización por POST, sin lotes, así que no pasa por la
+ * bandeja de `entrantes` — pagar una bandeja donde no hay lote sería ceremonia.
  */
 async function atenderTelegram(
   c: Context<{ Bindings: Env }>,
@@ -964,34 +1017,7 @@ async function atenderTelegram(
     return c.text("ok");
   }
 
-  // Siempre 200: un error nuestro no debe hacer que Telegram reintente en bucle.
-  for (const entrante of canal.interpretar(cuerpo)) {
-    const conversacion = await obtenerOCrearConversacion(
-      c.env.DB,
-      negocioId,
-      entrante.canal,
-      entrante.canalChatId,
-      entrante.autorNombre,
-    );
-
-    // El mensaje se guarda de inmediato: si el agente falla después, el hilo del
-    // cliente no se pierde.
-    await guardarMensaje(c.env.DB, negocioId, conversacion.id, "cliente", entrante.texto);
-
-    const agente = idDeConversacion(c.env.AGENTE, negocioId, conversacion.id);
-    await agente.fetch("https://agente/mensaje", {
-      method: "POST",
-      body: JSON.stringify({
-        negocioId,
-        conversacionId: conversacion.id,
-        canalChatId: entrante.canalChatId,
-        // El objeto no puede deducir su propia URL pública, y la necesita para
-        // armar el link de la foto que Telegram va a descargar.
-        origen: new URL(c.req.url).origin,
-      }),
-    });
-  }
-
+  await atender(c.env, negocioId, canal.interpretar(cuerpo), new URL(c.req.url).origin);
   return c.text("ok");
 }
 
