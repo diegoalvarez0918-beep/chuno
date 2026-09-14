@@ -90,13 +90,26 @@ La URL pública sale de `wrangler.jsonc` (`URL_PUBLICA`). Hoy es
 
 ## 6. Guardar las credenciales de entrada en CHUNO
 
-> ⚠️ **Este paso todavía no tiene comando.** Ver "Lo que falta" al final.
-> Hasta que exista, el circuito se corta aquí: la puerta de entrada queda
-> cerrada y Meta no puede registrar el webhook.
+```bash
+npx chuno-cli conectar-app-meta mi-optica --app-id <App ID del paso 2>
+```
 
-El App Secret del paso 2 y el verify token del paso 3 tienen que quedar
-guardados —**cifrados**— para el negocio, como `meta_app_secret` y
-`meta_verify_token`.
+Te pide el **App Secret** y el **verify token** con el eco apagado —no se pasan
+por bandera, porque los argumentos quedan en el historial del shell— y los
+guarda cifrados.
+
+Antes de guardar nada, valida el par **App ID + App Secret** contra el Graph.
+Si Meta no lo reconoce, no escribe y te lo dice. No puede decirte cuál de los
+dos está mal, y no lo finge: Meta los recibe pegados como un solo token de
+aplicación y los valida juntos.
+
+Al terminar hace algo más, y es lo que de verdad cierra este paso: **llama a tu
+propio Worker con el mismo handshake que hará Meta** y comprueba que devuelve
+el challenge. Si dice *"la puerta abre"*, el paso 7 va a funcionar. Si no, te
+dice por qué — normalmente que el Worker todavía no está desplegado con D2.
+
+Esta es una app por negocio, y sus credenciales valen para WhatsApp, Messenger
+e Instagram a la vez: los tres comparten Callback URL, App Secret y firma.
 
 ## 7. Registrar el webhook en Meta
 
@@ -206,25 +219,18 @@ que salió, no.
 
 ---
 
-## Lo que falta para que este runbook se pueda seguir entero
+## Si algo no funciona
 
-**El paso 6 no tiene comando.** `meta_app_secret` y `meta_verify_token` se leen
-en las dos rutas de Meta (`src/index.ts`), y sin ellas el webhook responde 403
-al handshake y 401 a todo POST — pero **ningún código del repo las escribe**.
-Los únicos llamadores de `guardarCredencial` guardan `telegram_token` y
-`telegram_webhook_secret`, en `src/onboarding/materializar.ts`.
+**Nunca metas credenciales con SQL suelto contra producción.** Es lo que el
+proyecto decidió no repetir después del rastro que costó una sesión de
+diagnóstico (traspaso del 2026-08-15). Si un comando no cubre tu caso, el
+arreglo es el comando, no un `INSERT` a mano.
 
-Es el patrón que ya está registrado en `APRENDIZAJES.md`: núcleo probado, cero
-llamadores. D1 se cerró y se verificó en producción con puras respuestas
-negativas —400, 401, 403— y todas eran correctas justamente **porque no había
-credencial**. Nadie notó que tampoco había forma de ponerla.
-
-Se cierra con un comando hermano de `conectar-meta`, del estilo
-`chuno-cli conectar-app-meta <negocio>`, que pida el App ID, el App Secret y el
-verify token, los valide —el App Secret sí se puede comprobar contra el Graph
-usando `<app-id>|<app-secret>` como token de app— y los guarde cifrados.
-Reutiliza casi todo lo que ya existe.
-
-**Mientras tanto, no metas esas credenciales con SQL suelto contra
-producción.** Es lo que el proyecto decidió no volver a hacer después del rastro
-que costó una sesión de diagnóstico, en el traspaso del 2026-08-15.
+| Síntoma | Qué mirar |
+|---|---|
+| `conectar-app-meta` dice que Meta no reconoce el par | App ID y App Secret, los dos en Settings → Basic. Meta los valida juntos |
+| Dice "la puerta todavía no abre" con 404 | falta `npx wrangler deploy`: el Worker no conoce la ruta |
+| Dice "la puerta todavía no abre" con 403 | el verify token guardado no es el que escribiste, o el Worker sirve una versión vieja |
+| Meta no valida la Callback URL | corre el `curl` del paso 7: separa "nuestro Worker está mal" de "Meta no llegó" |
+| El webhook valida pero no llega nada | falta suscribir el campo `messages` en Webhook fields → Manage |
+| Llegan mensajes y el agente no contesta | mira `auditoria`. Si la ventana de 24 h está cerrada y no hay plantilla, es el comportamiento diseñado |

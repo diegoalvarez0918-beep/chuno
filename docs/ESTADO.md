@@ -801,8 +801,8 @@ bandeja y migraciones— ya se fusionó en el #17.
 | 7 | La ventana de 24 h como núcleo puro | ✅ en el #18 (2026-09-13) |
 | 8 | Los tres envíos y `canalSaliente` | ✅ en el #18 (2026-09-13) |
 | 9 | Credenciales y CLI que valida contra el Graph | ✅ en el #18 (2026-09-13) |
-| **10** | **Runbook de la app de Meta y cierre en producción** | **en curso** · runbook escrito · **bloqueada por el hueco de abajo** |
-| **11** | **`conectar-app-meta`: las credenciales de ENTRADA** | **nueva, y va antes que el resto de la 10** |
+| 11 | `conectar-app-meta`: las credenciales de ENTRADA | ✅ 2026-09-13 · la puerta ya abre |
+| **10** | **Migraciones de la D1 remota, despliegue y cierre** | **siguiente** · runbook ✅ escrito |
 
 **D2 ya tiene los dos sentidos escritos, sin desplegar.** `canalSaliente`
 recibe la conversación entera y resuelve la ventana de 24 h al construir el
@@ -816,32 +816,50 @@ propuesta vuelve a pendiente y el motivo queda auditado · ventana abierta con
 token falso → la petición llega al Graph y vuelve `whatsapp: HTTP 401 (código
 190)`, el código de Meta para token inválido.
 
-### 🚧 La puerta de Meta está cerrada con una llave que nadie puede fabricar
+### La puerta de Meta estuvo cerrada con una llave que nadie podía fabricar
 
-Hallado el 2026-09-13 al escribir el runbook, y es lo que bloquea la tarea 10.
+Hallado y cerrado el 2026-09-13. Queda escrito porque la forma del fallo se
+repite.
 
-`meta_app_secret` y `meta_verify_token` se **leen** en las dos rutas de
+`meta_app_secret` y `meta_verify_token` se **leían** en las dos rutas de
 `/webhook/meta/:negocioId` —sin ellas, 403 al handshake y 401 a todo POST— y
-**ningún código del repo las escribe**. Los únicos llamadores de
-`guardarCredencial` guardan `telegram_token` y `telegram_webhook_secret`, en
-`src/onboarding/materializar.ts`. Ni el panel, ni el onboarding, ni un seed.
+**ningún código del repo las escribía**. Ni el panel, ni el onboarding, ni un
+seed. D1 llevaba desde agosto en producción con la puerta tapiada.
 
 **Lo que lo hizo invisible:** D1 se verificó en producción y pasó —400 sin
 parámetros, 403 con token malo, 401 sin firma— y las tres respuestas eran
 correctas **porque no había credencial**, que da exactamente el mismo 403 que
 un negocio bien configurado con el token equivocado. Una tanda de puras
-negativas no distingue "bien cerrado" de "imposible de abrir". Medido otra vez
-contra producción hoy: `mi-optica` sigue dando 403 al handshake.
+negativas no distingue "bien cerrado" de "imposible de abrir".
 
-**Se cierra con** un comando hermano, `chuno-cli conectar-app-meta <negocio>`,
-que pida App ID, App Secret y verify token, los valide —el App Secret **sí** se
-comprueba contra el Graph usando `<app-id>|<app-secret>` como token de app— y
-los guarde cifrados. Reutiliza `claveDeCifrado`, `d1` y el cifrado que ya
-existen; son unas 60 líneas.
+**Cerrado con `chuno-cli conectar-app-meta`** (tarea 11), que pide App ID, App
+Secret y verify token, valida el par contra el Graph y los guarda cifrados.
 
-**Hasta entonces, no meter esas credenciales con SQL suelto contra
-producción** — es lo que el proyecto decidió no repetir tras el rastro que
-costó una sesión de diagnóstico (traspaso del 2026-08-15).
+### La puerta abre: el camino feliz que nunca se había medido
+
+Verificado el 2026-09-13 contra el Worker local, con las credenciales guardadas
+por el **SQL real del comando** y cifradas con el cifrado real del CLI:
+
+```
+handshake GET, verify token correcto  → 200 y devuelve el challenge
+POST firmado con el App Secret        → 200
+
+CONTROL  verify token equivocado      → 403
+CONTROL  negocio sin credencial       → 403   (indistinguible, a propósito)
+CONTROL  firma de otro secreto        → 401
+CONTROL  firma buena, cuerpo alterado → 401   (la firma cubre el cuerpo)
+CONTROL  sin cabecera de firma        → 401
+```
+
+**Ojo con un detector que mintió durante esta misma prueba:** la firma armada
+con `openssl dgst -hmac -hex | sed 's/^.*= /sha256=/'` sale **sin el prefijo**,
+porque esta versión de openssl imprime el hash pelado y el `sed` no encuentra
+qué sustituir. Eso dio un 401 que parecía del Worker y era de la prueba. Para
+firmar a mano, usa Node:
+
+```bash
+node -e "const c=require('node:crypto');console.log('sha256='+c.createHmac('sha256',process.argv[2]).update(process.argv[1]).digest('hex'))" "$CUERPO" "$SECRET"
+```
 
 ### Conectar un canal: `npx chuno-cli conectar-meta`
 

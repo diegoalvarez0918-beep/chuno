@@ -58,6 +58,19 @@ const CODIGOS_DEL_ID = [803];
 const sql = (v) => `'${String(v).replace(/'/g, "''")}'`;
 
 /**
+ * Una credencial cifrada.
+ *
+ * `ON CONFLICT` y no `INSERT` a secas porque reconectar un canal es normal:
+ * los tokens de Meta caducan y el de pruebas dura 24 horas.
+ */
+export function sqlGuardarCredencial(negocioId, clave, cifrado, ahora) {
+  return `INSERT INTO credenciales (negocio_id, clave, valor_cifrado, actualizado_en)
+       VALUES (${sql(negocioId)}, ${sql(clave)}, ${sql(cifrado)}, ${sql(ahora)})
+       ON CONFLICT (negocio_id, clave) DO UPDATE SET
+         valor_cifrado = excluded.valor_cifrado, actualizado_en = excluded.actualizado_en;`;
+}
+
+/**
  * El SQL que guarda un canal conectado: token cifrado y su id, en una sola
  * sentencia.
  *
@@ -66,16 +79,11 @@ const sql = (v) => `'${String(v).replace(/'/g, "''")}'`;
  * verificarlo— comprobaría la copia, no lo que se ejecuta de verdad.
  */
 export function sqlGuardarMeta(negocioId, cfg, cifrado, id, ahora) {
-  return `INSERT INTO credenciales (negocio_id, clave, valor_cifrado, actualizado_en)
-       VALUES (${sql(negocioId)}, ${sql(cfg.credencial)}, ${sql(cifrado)}, ${sql(ahora)})
-       ON CONFLICT (negocio_id, clave) DO UPDATE SET
-         valor_cifrado = excluded.valor_cifrado, actualizado_en = excluded.actualizado_en;
-     INSERT INTO settings (negocio_id, clave, valor)
-       VALUES (${sql(negocioId)}, ${sql(cfg.ajusteId)}, ${sql(id)})
-       ON CONFLICT (negocio_id, clave) DO UPDATE SET valor = excluded.valor;`;
+  return `${sqlGuardarCredencial(negocioId, cfg.credencial, cifrado, ahora)}
+     ${sqlGuardarAjuste(negocioId, cfg.ajusteId, id)}`;
 }
 
-/** Un ajuste suelto, para la plantilla y la etiqueta de agente humano. */
+/** Un ajuste suelto: el id de un producto, la plantilla, la etiqueta. */
 export function sqlGuardarAjuste(negocioId, clave, valor) {
   return `INSERT INTO settings (negocio_id, clave, valor)
        VALUES (${sql(negocioId)}, ${sql(clave)}, ${sql(valor)})
@@ -118,6 +126,96 @@ export function clasificarErrorMeta(status, cuerpo, id) {
       `Meta rechazó el par (HTTP ${status}, código ${codigo || "sin código"}). ` +
       "No puedo decirte cuál de los dos falló",
   };
+}
+
+/**
+ * Valida el par App ID + App Secret contra el Graph.
+ *
+ * Meta los acepta pegados como token de aplicación, `<app-id>|<app-secret>`,
+ * así que una lectura de la propia app prueba los dos de una.
+ *
+ * **No se puede decir cuál de los dos falló**, y el mensaje no lo finge:
+ * medido el 2026-09-13, un par inventado da `HTTP 400 código 190` igual que un
+ * token mal formado, porque Meta valida el token entero antes de mirar el
+ * objeto de la URL. Inventar aquí una atribución mandaría a revisar la mitad
+ * que estaba bien, que es justo el error que este comando existe para evitar.
+ */
+export async function validarAppMeta(appId, appSecret) {
+  const token = `${appId}|${appSecret}`;
+
+  let respuesta;
+  try {
+    respuesta = await fetch(
+      `${PRODUCTOS_META.whatsapp.graph}/${encodeURIComponent(appId)}?access_token=${encodeURIComponent(token)}`,
+    );
+  } catch {
+    return { ok: false, motivo: "no pude contactar a Meta; revisa tu conexión" };
+  }
+
+  if (respuesta.ok) return { ok: true };
+
+  const cuerpo = await respuesta.json().catch(() => ({}));
+  const codigo = Number(cuerpo?.error?.code);
+
+  return {
+    ok: false,
+    motivo: `Meta no reconoce ese App ID con ese App Secret (código ${
+      Number.isFinite(codigo) ? codigo : "sin código"
+    })`,
+  };
+}
+
+/**
+ * La URL del webhook de un negocio. Es lo que se pega en la Callback URL del
+ * App Dashboard, y lo que este comando llama para comprobarse a sí mismo.
+ */
+export function urlWebhookMeta(urlPublica, negocioId) {
+  return `${urlPublica.replace(/\/$/, "")}/webhook/meta/${encodeURIComponent(negocioId)}`;
+}
+
+/**
+ * Repite el handshake que hará Meta, contra nuestro propio Worker.
+ *
+ * Es el **camino feliz** de esta puerta, y hasta hoy no existía: D1 se
+ * verificó con puras negativas —400, 401, 403— que eran correctas porque no
+ * había credencial, y por eso nadie notó que tampoco había forma de ponerla.
+ * Una tanda de rechazos demuestra que la puerta no se abre de más, nunca que
+ * se abra.
+ *
+ * No es fatal si falla: el Worker puede no estar desplegado todavía, o estar
+ * sirviendo una versión vieja. Se informa y quien conecta decide.
+ */
+export async function comprobarHandshake(urlPublica, negocioId, verifyToken) {
+  const reto = `chuno-${Date.now()}`;
+  const url =
+    `${urlWebhookMeta(urlPublica, negocioId)}?hub.mode=subscribe` +
+    `&hub.verify_token=${encodeURIComponent(verifyToken)}&hub.challenge=${reto}`;
+
+  let respuesta;
+  try {
+    respuesta = await fetch(url);
+  } catch {
+    return { ok: false, motivo: "no pude contactar a tu Worker" };
+  }
+
+  // El challenge devuelto tal cual es la prueba de verdad: un 200 con otro
+  // cuerpo sería un endpoint que responde pero no es el nuestro.
+  const cuerpo = (await respuesta.text()).trim();
+  if (respuesta.ok && cuerpo === reto) return { ok: true };
+
+  if (respuesta.status === 403) {
+    return {
+      ok: false,
+      motivo:
+        "tu Worker respondió 403: tiene otro verify token guardado, o todavía " +
+        "sirve una versión anterior al despliegue",
+    };
+  }
+  if (respuesta.status === 404) {
+    return { ok: false, motivo: "tu Worker no conoce esa ruta: falta desplegar D2" };
+  }
+
+  return { ok: false, motivo: `tu Worker respondió HTTP ${respuesta.status}` };
 }
 
 /**

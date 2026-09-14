@@ -24,6 +24,40 @@ export declare function clasificarErrorMeta(
   id: string,
 ): ResultadoMeta;
 
+export declare function sqlGuardarCredencial(
+  negocioId: string,
+  clave: string,
+  cifrado: string,
+  ahora: string,
+): string;
+
+export declare function sqlGuardarMeta(
+  negocioId: string,
+  cfg: ProductoMeta,
+  cifrado: string,
+  id: string,
+  ahora: string,
+): string;
+
+export declare function sqlGuardarAjuste(
+  negocioId: string,
+  clave: string,
+  valor: string,
+): string;
+
+export declare function urlWebhookMeta(urlPublica: string, negocioId: string): string;
+
+export declare function validarAppMeta(
+  appId: string,
+  appSecret: string,
+): Promise<ResultadoMeta>;
+
+export declare function comprobarHandshake(
+  urlPublica: string,
+  negocioId: string,
+  verifyToken: string,
+): Promise<ResultadoMeta>;
+
 export declare function validarMeta(
   producto: "whatsapp" | "messenger" | "instagram",
   token: string,
