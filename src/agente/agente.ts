@@ -30,7 +30,7 @@ import {
   obtenerConversacion,
 } from "../db/repos/conversacion";
 import { yaHayEncargoVivo } from "../core/pedido/dedupe";
-import { yaHayEscalacionPendiente } from "../core/propuesta/tipos";
+import { alcanzoTopeDeEscalaciones } from "../core/propuesta/tipos";
 import { crearPedido, listarPedidosDeConversacion } from "../db/repos/pedido";
 import { crearPropuesta, listarPendientes } from "../db/repos/propuesta";
 import { auditar, buscarConocimiento, crearTicket } from "../db/repos/varios";
@@ -314,7 +314,19 @@ export class AgenteConversacion extends DurableObject<Env> {
     // verdad tapa el hueco: aquella se arma con el texto de la pregunta tal como
     // lo redacta el modelo, y el modelo lo parafrasea distinto en cada pasada.
     const pendientes = await listarPendientes(this.env.DB, negocioId);
-    if (yaHayEscalacionPendiente(pendientes, conversacionId)) return false;
+    if (alcanzoTopeDeEscalaciones(pendientes, conversacionId)) {
+      // El freno tiene que dejar rastro. Sin esto, el cliente recibe un "ya te
+      // confirmo" que el dueño nunca ve, y desde afuera es idéntico a que el
+      // agente no hubiera corrido. Fue justo lo que pasó el 2026-09-14.
+      await auditar(
+        this.env.DB,
+        negocioId,
+        "escalado_frenado",
+        { conversacionId, motivo: "el dueño ya tiene el tope de preguntas sin contestar" },
+        "agente",
+      );
+      return false;
+    }
 
     const primerNombre = clienteNombre.split(" ")[0] ?? clienteNombre;
     const pregunta = extraccion.preguntaPendiente;

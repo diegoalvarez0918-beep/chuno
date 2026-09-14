@@ -5,7 +5,8 @@ import {
   TIPOS_CON_CONVERSACION,
   estaPendiente,
   resolver,
-  yaHayEscalacionPendiente,
+  TOPE_ESCALACIONES_POR_CONVERSACION,
+  alcanzoTopeDeEscalaciones,
   type PayloadPropuesta,
   type Propuesta,
 } from "../../src/core/propuesta/tipos";
@@ -139,7 +140,7 @@ describe("payloads de propuesta", () => {
   });
 });
 
-describe("yaHayEscalacionPendiente", () => {
+describe("alcanzoTopeDeEscalaciones", () => {
   /** Una escalación: aviso SIN pedido detrás, nacido de una pregunta. */
   function escalacion(conversacionId: string, sobre: Partial<Propuesta> = {}): Propuesta {
     return propuesta({
@@ -155,45 +156,63 @@ describe("yaHayEscalacionPendiente", () => {
     });
   }
 
-  it("detecta la pregunta que el dueño todavía no ha contestado", () => {
-    expect(yaHayEscalacionPendiente([escalacion("conv_1")], "conv_1")).toBe(true);
+  function varias(cuantas: number, conversacionId = "conv_1"): Propuesta[] {
+    return Array.from({ length: cuantas }, (_, i) =>
+      escalacion(conversacionId, { id: `prop_${conversacionId}_${i}` }),
+    );
+  }
+
+  it("sin nada pendiente, no bloquea", () => {
+    expect(alcanzoTopeDeEscalaciones([], "conv_1")).toBe(false);
   });
 
   /**
-   * El corazón del bug: el modelo parafrasea la pregunta en cada pasada, así que
-   * la clave de dedupe cambiaba y no deduplicaba nada. En producción se midieron
-   * ONCE tarjetas de la misma conversación y la misma pregunta.
+   * El caso que rompió el producto el 2026-09-14, y la razón de que esto sea un
+   * tope y no un booleano.
+   *
+   * La regla anterior era "si hay UNA pendiente, no escales más". Un cliente
+   * preguntó por unos lentes y su pregunta no llegó nunca a la bandeja, porque
+   * en esa conversación había una tarjeta sin contestar **de hacía un mes**. El
+   * bot le prometió "ya te confirmo" y no avisó a nadie: el cliente quedó
+   * esperando para siempre y el dueño nunca supo que existía.
+   *
+   * Una pregunta sin contestar no puede dejar mudo a ese cliente para siempre.
    */
-  it("no depende de cómo el modelo redactó la pregunta", () => {
-    const otraRedaccion = escalacion("conv_1", {
-      id: "prop_otro",
-      payload: {
-        tipo: "enviar_aviso",
-        conversacionId: "conv_1",
-        pedidoId: null,
-        texto: "Hola Felipe, sobre lo que me preguntaste: ",
-        pregunta: "El cliente consulta por disponibilidad y precios de gafas de sol.",
-      },
-    });
+  it("con una pendiente vieja, una pregunta NUEVA sigue llegando al dueño", () => {
+    expect(alcanzoTopeDeEscalaciones(varias(1), "conv_1")).toBe(false);
+  });
 
-    expect(yaHayEscalacionPendiente([otraRedaccion], "conv_1")).toBe(true);
+  it("con dos pendientes todavía deja pasar la tercera", () => {
+    expect(alcanzoTopeDeEscalaciones(varias(2), "conv_1")).toBe(false);
+  });
+
+  /**
+   * El freno que sigue siendo necesario: en agosto se midieron ONCE tarjetas de
+   * una sola conversación, todas la misma pregunta, porque el modelo la
+   * parafraseaba distinto cada vez y la clave de dedupe no deduplicaba nada.
+   */
+  it("en el tope, frena: el apilamiento de once tarjetas no puede volver", () => {
+    expect(alcanzoTopeDeEscalaciones(varias(TOPE_ESCALACIONES_POR_CONVERSACION), "conv_1")).toBe(true);
+  });
+
+  it("el tope es de tres, y se declara aquí como literal a propósito", () => {
+    // Importar la constante y compararla consigo misma no probaría nada: sería
+    // la misma tautología que ya nos costó un test ciego el 2026-09-10.
+    expect(TOPE_ESCALACIONES_POR_CONVERSACION).toBe(3);
   });
 
   it("no confunde conversaciones distintas", () => {
-    expect(yaHayEscalacionPendiente([escalacion("conv_1")], "conv_2")).toBe(false);
+    expect(alcanzoTopeDeEscalaciones(varias(5), "conv_2")).toBe(false);
   });
 
   it("deja escalar de nuevo cuando el dueño ya contestó", () => {
-    const contestada = escalacion("conv_1", { estado: "aplicada", resueltoPor: "admin" });
-    expect(yaHayEscalacionPendiente([contestada], "conv_1")).toBe(false);
+    const contestadas = varias(5).map((p) => ({ ...p, estado: "aplicada" }) as Propuesta);
+    expect(alcanzoTopeDeEscalaciones(contestadas, "conv_1")).toBe(false);
   });
 
   it("no confunde un aviso del vigía con una pregunta: aquel sí trae pedido", () => {
-    expect(yaHayEscalacionPendiente([propuesta()], "conv_1")).toBe(false);
-  });
-
-  it("sin nada pendiente, no bloquea", () => {
-    expect(yaHayEscalacionPendiente([], "conv_1")).toBe(false);
+    const avisos = Array.from({ length: 5 }, (_, i) => propuesta({ id: `av_${i}` }));
+    expect(alcanzoTopeDeEscalaciones(avisos, "conv_1")).toBe(false);
   });
 });
 

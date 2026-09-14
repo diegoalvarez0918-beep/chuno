@@ -80,6 +80,26 @@ describe("bloques para el prompt", () => {
     expect(bloqueCatalogo([])).toBe("");
   });
 
+  /**
+   * El 2026-09-14 un cliente pidió "gafas progresivas" y el bot contestó que no
+   * tenía la información, con "Lentes progresivos · $420.000 · entrega en 7
+   * días" delante en este mismo bloque. Se reprodujo con el catálogo real: la
+   * búsqueda **sí** le pasó el producto. Lo que falló fue que el modelo comparó
+   * palabra por palabra en vez de por significado.
+   *
+   * No es un problema de ópticas: en una panadería el cliente pide "un pastel"
+   * y el catálogo dice "torta"; pide "envío" y el catálogo dice "domicilio". Un
+   * bot que solo entiende las palabras exactas del catálogo falla en todos los
+   * negocios, y por eso la instrucción vive aquí —en el bloque que comparten el
+   * prompt de respuesta y el de extracción— y no en uno de los dos.
+   */
+  it("le dice al modelo que empareje por significado, no por palabra exacta", () => {
+    const bloque = bloqueCatalogo([item("Lentes progresivos", 42000000, 7)]);
+
+    expect(bloque.toLowerCase()).toContain("significado");
+    expect(bloque.toLowerCase()).toContain("otras palabras");
+  });
+
   it("arma el bloque de FAQ con pregunta y respuesta", () => {
     const bloque = bloqueFaq(FAQS);
     expect(bloque).toContain("¿Hacen domicilios?");

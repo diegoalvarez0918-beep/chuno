@@ -135,34 +135,49 @@ export function estaPendiente(propuesta: Propuesta): boolean {
 export const TIPOS_CON_CONVERSACION = ["crear_pedido", "enviar_aviso"] as const;
 
 /**
- * ¿Esta conversación ya tiene una pregunta esperando respuesta del dueño?
+ * ¿Esta conversación ya tiene demasiadas preguntas esperando al dueño?
  *
  * El agente escala cuando el cliente pregunta algo que no está en el
- * conocimiento cargado, y la clave de deduplicación se armaba con el texto de
- * la pregunta **tal como la redacta el modelo**. Ese texto cambia en cada
+ * conocimiento cargado. La clave de deduplicación se armaba con el texto de la
+ * pregunta **tal como la redacta el modelo**, y ese texto cambia en cada
  * pasada: "¿tienen gafas de sol?" y "El cliente consulta por disponibilidad y
  * precios de gafas de sol" son la misma pregunta y dos claves distintas. El
  * dedupe no deduplicaba nada — en producción se midieron ONCE tarjetas de una
  * sola conversación, todas la misma pregunta.
  *
- * La lección, y por eso vive en el núcleo: **una clave de deduplicación no
- * puede salir de texto que escribe un modelo.** La regla que sí se sostiene no
- * depende de la redacción: mientras el dueño no haya contestado la pregunta que
- * tiene, no se le apila otra. Cuando conteste, una pregunta nueva vuelve a
- * escalar — que es justo lo que un aviso por día no permitiría.
+ * La lección de entonces sigue en pie: **una clave de deduplicación no puede
+ * salir de texto que escribe un modelo.** Lo que cambió es el freno.
+ *
+ * Era un booleano —"si hay UNA pendiente, no escales más"— y eso asumía que el
+ * dueño contesta. El 2026-09-14 se midió qué pasa cuando no contesta: un
+ * cliente preguntó por unos lentes que **sí estaban en el catálogo**, y su
+ * pregunta no llegó nunca a la bandeja porque esa conversación arrastraba una
+ * tarjeta sin responder de hacía un mes. El bot le prometió "ya te confirmo" y
+ * no avisó a nadie. El cliente quedó esperando para siempre y el dueño nunca
+ * supo que existía — en el producto que se vende como el que no olvida.
+ *
+ * Por eso es un tope y no un booleano: tres preguntas distintas caben, la
+ * cuarta espera. Frena el apilamiento de once sin dejar mudo a un cliente por
+ * una tarjeta vieja. Es la misma corrección de forma que ya hubo que hacerle a
+ * la clave del vigía: un freno binario solo sabe decir dos cosas, y a veces
+ * ninguna de las dos es la correcta.
  *
  * El discriminante contra los avisos del vigía es `pedidoId`: aquellos siempre
  * traen el pedido del que hablan, y una escalación nace de una pregunta.
  */
-export function yaHayEscalacionPendiente(
+export const TOPE_ESCALACIONES_POR_CONVERSACION = 3;
+
+export function alcanzoTopeDeEscalaciones(
   propuestas: readonly Propuesta[],
   conversacionId: string,
 ): boolean {
-  return propuestas.some(
+  const pendientes = propuestas.filter(
     (p) =>
       p.estado === "propuesta" &&
       p.payload.tipo === "enviar_aviso" &&
       p.payload.pedidoId === null &&
       p.payload.conversacionId === conversacionId,
   );
+
+  return pendientes.length >= TOPE_ESCALACIONES_POR_CONVERSACION;
 }
