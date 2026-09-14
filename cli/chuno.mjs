@@ -21,7 +21,16 @@ import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 
 import { cifrarValor } from "./cifrado.mjs";
-import { PRODUCTOS_META, sqlGuardarAjuste, sqlGuardarMeta, validarMeta } from "./meta.mjs";
+import {
+  comprobarHandshake,
+  PRODUCTOS_META,
+  sqlGuardarAjuste,
+  sqlGuardarCredencial,
+  sqlGuardarMeta,
+  urlWebhookMeta,
+  validarAppMeta,
+  validarMeta,
+} from "./meta.mjs";
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -477,38 +486,38 @@ function d1(nombreBase, comando) {
   ]);
 }
 
-const PASOS_META = 4;
+/** La URL pública del Worker, de `wrangler.jsonc`. */
+function urlPublica() {
+  const ruta = join(RAIZ, "wrangler.jsonc");
+  if (!existsSync(ruta)) return null;
+  return readFileSync(ruta, "utf8").match(/"URL_PUBLICA":\s*"([^"]*)"/)?.[1] ?? null;
+}
 
-async function conectarMeta(argv) {
-  const negocioId = argv[0];
-  const bandera = (nombre) => {
-    const i = argv.indexOf(`--${nombre}`);
-    return i === -1 ? null : argv[i + 1] ?? null;
-  };
+/** Lee una bandera `--nombre valor` de una lista de argumentos. */
+function banderaDe(argv, nombre) {
+  const i = argv.indexOf(`--${nombre}`);
+  return i === -1 ? null : argv[i + 1] ?? null;
+}
 
-  const producto = bandera("producto");
-  const id = bandera("id");
-  const plantilla = bandera("plantilla");
-  const agenteHumano = argv.includes("--agente-humano");
-
-  if (!negocioId || !producto || !id) morir("Faltan datos.", AYUDA_META);
-  if (!PRODUCTOS_META[producto]) {
-    morir(`No conozco el producto "${producto}".`, "Son: whatsapp, messenger o instagram.");
+/**
+ * Comprueba que el negocio existe antes de escribirle nada.
+ *
+ * Sin esto el INSERT falla por clave foránea, y el error de SQLite no dice
+ * cuál es el problema de verdad.
+ */
+function exigirNegocio(nombreBase, negocioId) {
+  const existe = d1(nombreBase, `SELECT id FROM negocios WHERE id = ${sql(negocioId)}`);
+  if (!existe.ok) morir(`No pude consultar la base.\n\n${existe.salida}`);
+  if (!existe.salida.includes(negocioId)) {
+    const listado = d1(nombreBase, "SELECT id FROM negocios");
+    morir(`No hay ningún negocio con id "${negocioId}".`, `Los que existen:\n\n${listado.salida}`);
   }
+}
+
+/** Lo que comparten los dos comandos de Meta antes de tocar nada. */
+function prepararConexionMeta(negocioId, pasos) {
   if (!/^[a-z0-9-]{1,60}$/.test(negocioId)) {
     morir("El id del negocio solo admite minúsculas, números y guiones.");
-  }
-  if (!/^[0-9]{1,32}$/.test(id)) {
-    morir(`Ese no parece ${PRODUCTOS_META[producto].comoSeLlamaElId}.`, "Los ids de Meta son solo dígitos.");
-  }
-  if (plantilla && !/^[a-z0-9_]{1,64}:[a-zA-Z]{2}(_[A-Z]{2})?$/.test(plantilla)) {
-    morir(
-      `La plantilla "${plantilla}" no tiene la forma nombre:idioma.`,
-      "Por ejemplo: aviso_pedido:es o aviso_pedido:es_MX",
-    );
-  }
-  if (plantilla && producto !== "whatsapp") {
-    morir("Las plantillas son de WhatsApp.", "Messenger e Instagram usan --agente-humano.");
   }
 
   const instalacion = yaInstalado();
@@ -524,18 +533,127 @@ async function conectarMeta(argv) {
     );
   }
 
-  const cfg = PRODUCTOS_META[producto];
-
-  // El negocio primero: sin esto el INSERT falla por clave foránea y el error
-  // de SQLite no dice cuál es el problema de verdad.
-  paso(2, PASOS_META, "Buscando el negocio");
-  const existe = d1(instalacion.nombre, `SELECT id FROM negocios WHERE id = ${sql(negocioId)}`);
-  if (!existe.ok) morir(`No pude consultar la base.\n\n${existe.salida}`);
-  if (!existe.salida.includes(negocioId)) {
-    const listado = d1(instalacion.nombre, "SELECT id FROM negocios");
-    morir(`No hay ningún negocio con id "${negocioId}".`, `Los que existen:\n\n${listado.salida}`);
-  }
+  paso(2, pasos, "Buscando el negocio");
+  exigirNegocio(instalacion.nombre, negocioId);
   ok(`negocio "${negocioId}"`);
+
+  return { instalacion, clave };
+}
+
+const PASOS_APP_META = 5;
+
+/**
+ * Conecta la APP de Meta de un negocio: lo que le permite RECIBIR.
+ *
+ * Va aparte de `conectar-meta` porque son cosas distintas. La app es una sola
+ * por negocio y sus credenciales gobiernan la entrada —firma y handshake— de
+ * los tres productos a la vez; el token de envío es de cada producto. Juntarlos
+ * obligaría a repetir el App Secret tres veces y a decidir qué pasa cuando no
+ * coinciden.
+ */
+async function conectarAppMeta(argv) {
+  const negocioId = argv[0];
+  const appId = banderaDe(argv, "app-id");
+
+  if (!negocioId || !appId) morir("Faltan datos.", AYUDA_APP_META);
+  if (!/^[0-9]{1,32}$/.test(appId)) {
+    morir("Ese no parece un App ID.", "Los App ID de Meta son solo dígitos, y están en Settings → Basic.");
+  }
+
+  const { instalacion, clave } = prepararConexionMeta(negocioId, PASOS_APP_META);
+
+  paso(3, PASOS_APP_META, "Validando contra Meta");
+  log(c.suave("      Lo que escribas no se ve en pantalla.\n"));
+
+  const appSecret = await preguntar("      App Secret (Settings → Basic → Show): ", { oculto: true });
+  if (!appSecret) morir("Sin App Secret no puedo verificar la firma de los webhooks.");
+
+  const validacion = await validarAppMeta(appId, appSecret);
+  if (!validacion.ok) {
+    morir(
+      `No guardé nada: ${validacion.motivo}.`,
+      "Revisa los dos en Settings → Basic. Meta los valida juntos, así que no puedo decirte cuál de ellos es.",
+    );
+  }
+  ok("Meta acepta el par App ID + App Secret");
+
+  // El verify token NO se valida contra Meta: es una cadena que eliges tú y que
+  // Meta solo usa para devolvértela en el handshake. Lo que sí se comprueba,
+  // más abajo, es que nuestro propio Worker la reconozca.
+  const verifyToken = await preguntar("      Verify token (el que vas a pegar en Meta): ", { oculto: true });
+  if (!verifyToken) {
+    morir("Sin verify token, Meta no puede registrar el webhook.", "Invéntalo tú. Por ejemplo: openssl rand -base64 24");
+  }
+
+  paso(4, PASOS_APP_META, "Guardando");
+  const ahora = new Date().toISOString();
+  const guardado = d1(
+    instalacion.nombre,
+    `${sqlGuardarCredencial(negocioId, "meta_app_secret", await cifrarValor(appSecret, clave), ahora)}
+     ${sqlGuardarCredencial(negocioId, "meta_verify_token", await cifrarValor(verifyToken, clave), ahora)}`,
+  );
+  if (!guardado.ok) morir(`No pude guardar.\n\n${guardado.salida}`);
+  ok("App Secret y verify token, cifrados");
+
+  paso(5, PASOS_APP_META, "Comprobando la puerta contra tu propio Worker");
+  const base = urlPublica();
+  const url = base ? urlWebhookMeta(base, negocioId) : null;
+
+  if (!base) {
+    aviso("no encuentro URL_PUBLICA en wrangler.jsonc; me salto la comprobación");
+  } else {
+    const prueba = await comprobarHandshake(base, negocioId, verifyToken);
+    if (prueba.ok) ok("tu Worker devolvió el challenge: la puerta abre");
+    // No es fatal: las credenciales ya están bien guardadas y lo que falla es
+    // el Worker desplegado, que puede ser viejo o no existir todavía.
+    else aviso(`la puerta todavía no abre — ${prueba.motivo}`);
+  }
+
+  log(`
+  ${c.lima("▌")} ${c.fuerte(`La app de Meta de "${negocioId}" quedó conectada.`)}
+
+  ${c.fuerte("Ahora, en el App Dashboard de Meta:")}
+
+    Callback URL   ${c.fuerte(url ?? "https://<tu worker>/webhook/meta/" + negocioId)}
+    Verify token   el que acabas de escribir
+
+  Dale a ${c.fuerte("Verify and Save")}, y después suscribe el campo ${c.fuerte("messages")}
+  en Webhook fields → Manage. Sin esa suscripción Meta valida la URL y no
+  manda nunca nada.
+
+  ${c.suave("Con esto el negocio RECIBE. Para que pueda contestar, conecta cada")}
+  ${c.suave("producto con: npx chuno-cli conectar-meta " + negocioId + " --producto whatsapp --id <id>")}
+`);
+}
+
+const PASOS_META = 4;
+
+async function conectarMeta(argv) {
+  const negocioId = argv[0];
+  const producto = banderaDe(argv, "producto");
+  const id = banderaDe(argv, "id");
+  const plantilla = banderaDe(argv, "plantilla");
+  const agenteHumano = argv.includes("--agente-humano");
+
+  if (!negocioId || !producto || !id) morir("Faltan datos.", AYUDA_META);
+  if (!PRODUCTOS_META[producto]) {
+    morir(`No conozco el producto "${producto}".`, "Son: whatsapp, messenger o instagram.");
+  }
+  if (!/^[0-9]{1,32}$/.test(id)) {
+    morir(`Ese no parece ${PRODUCTOS_META[producto].comoSeLlamaElId}.`, "Los ids de Meta son solo dígitos.");
+  }
+  if (plantilla && !/^[a-z0-9_]{1,64}:[a-zA-Z]{2}(_[A-Z]{2})?$/.test(plantilla)) {
+    morir(
+      `La plantilla "${plantilla}" no tiene la forma nombre:idioma.`,
+      "Por ejemplo: aviso_pedido:es o aviso_pedido:es_MX",
+    );
+  }
+  if (plantilla && producto !== "whatsapp") {
+    morir("Las plantillas son de WhatsApp.", "Messenger e Instagram usan --agente-humano.");
+  }
+
+  const cfg = PRODUCTOS_META[producto];
+  const { instalacion, clave } = prepararConexionMeta(negocioId, PASOS_META);
 
   // El token se pregunta, nunca se recibe por bandera: un argumento queda en
   // el historial del shell y en la lista de procesos. Es la misma regla que
@@ -666,12 +784,34 @@ const AYUDA = `
   ${c.fuerte("Uso:")}
     npx chuno-cli init           instala y publica tu asistente
     npx chuno-cli revisar        comprueba que tengas todo listo, sin instalar nada
-    npx chuno-cli conectar-meta  conecta WhatsApp, Messenger o Instagram
+    npx chuno-cli conectar-app-meta  conecta la app de Meta del negocio (recibir)
+    npx chuno-cli conectar-meta      conecta un canal para poder contestar
 
   ${c.fuerte("Antes de empezar necesitas:")}
     · Una cuenta de Cloudflare (gratuita) — npx wrangler login
     · Una llave de Gemini (gratuita) — aistudio.google.com/apikey
     · Un bot de Telegram — escríbele a @BotFather y usa /newbot
+`;
+
+const AYUDA_APP_META = `  ${c.fuerte("Uso:")}
+    npx chuno-cli conectar-app-meta <negocio> --app-id <id>
+
+  Conecta la APP de Meta del negocio: es lo que le permite RECIBIR mensajes.
+  Una app por negocio, y sus credenciales valen para WhatsApp, Messenger e
+  Instagram a la vez.
+
+  Te pide dos cosas con el eco apagado:
+
+    ${c.fuerte("App Secret")}     Settings → Basic → Show. Con él se verifica la firma
+                   de cada webhook. Se valida contra Meta antes de guardar.
+    ${c.fuerte("Verify token")}   una cadena que inventas tú y que pegarás en Meta.
+                   Sugerencia: openssl rand -base64 24
+
+  Después de conectar el canal de salida con ${c.fuerte("conectar-meta")}, el negocio
+  puede recibir y contestar.
+
+  ${c.fuerte("Ejemplo:")}
+    npx chuno-cli conectar-app-meta mi-optica --app-id 1234567890123456
 `;
 
 const AYUDA_META = `  ${c.fuerte("Uso:")}
@@ -696,6 +836,11 @@ const comando = process.argv[2];
 
 if (comando === "init") {
   init().catch((e) => morir(e instanceof Error ? e.message : "algo salió mal"));
+} else if (comando === "conectar-app-meta") {
+  verificarEntorno(PASOS_APP_META);
+  conectarAppMeta(process.argv.slice(3)).catch((e) =>
+    morir(e instanceof Error ? e.message : "algo salió mal"),
+  );
 } else if (comando === "conectar-meta") {
   verificarEntorno(PASOS_META);
   conectarMeta(process.argv.slice(3)).catch((e) =>
