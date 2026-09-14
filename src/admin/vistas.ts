@@ -219,6 +219,7 @@ export function vistaRegistro(entradas: readonly EntradaAuditoria[]): string {
     propuesta_rechazada: "El dueño descartó una decisión",
     aviso_enviado: "Envió un aviso al cliente",
     escalado_a_humano: "Le pasó una pregunta al dueño",
+    escalado_frenado: "No te pasó otra pregunta: ya tienes varias sin contestar",
     vigia_avisos: "El vigía detectó promesas en riesgo",
     extraccion_fallida: "No logró entender un pedido",
     respuesta_fallida: "No pudo responderle al cliente",
