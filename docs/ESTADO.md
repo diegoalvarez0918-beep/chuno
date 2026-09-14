@@ -800,8 +800,8 @@ bandeja y migraciones— ya se fusionó en el #17.
 | 6 | Ruta, drenaje y barrido del cron | ✅ en el #18 |
 | 7 | La ventana de 24 h como núcleo puro | ✅ en el #18 (2026-09-13) |
 | 8 | Los tres envíos y `canalSaliente` | ✅ en el #18 (2026-09-13) |
-| **9** | **Credenciales y CLI que valida contra el Graph** | **siguiente** |
-| 10 | Runbook de la app de Meta y cierre en producción | pendiente |
+| 9 | Credenciales y CLI que valida contra el Graph | ✅ en el #18 (2026-09-13) |
+| **10** | **Runbook de la app de Meta y cierre en producción** | **siguiente** |
 
 **D2 ya tiene los dos sentidos escritos, sin desplegar.** `canalSaliente`
 recibe la conversación entera y resuelve la ventana de 24 h al construir el
@@ -815,6 +815,25 @@ propuesta vuelve a pendiente y el motivo queda auditado · ventana abierta con
 token falso → la petición llega al Graph y vuelve `whatsapp: HTTP 401 (código
 190)`, el código de Meta para token inválido.
 
+### Conectar un canal: `npx chuno-cli conectar-meta`
+
+```bash
+npx chuno-cli conectar-meta <negocio> --producto whatsapp|messenger|instagram --id <id>
+  [--plantilla nombre:idioma]   # solo WhatsApp, para escribir fuera de la ventana
+  [--agente-humano]             # Messenger e Instagram, misma idea
+```
+
+**El token se pregunta, no se pasa por bandera.** Un argumento queda en el
+historial del shell y en la lista de procesos, y la cabecera del instalador ya
+declaraba esa regla. Valida el par token+id contra el Graph **antes** de
+guardar: si falla, no escribe nada y dice cuál de los dos estaba mal.
+
+**Necesita `CLAVE_CIFRADO`** en `.dev.vars` o en el entorno, porque cifra el
+token antes de guardarlo. Una instalación hecha con `npx` no la tiene —`init`
+la sube a Cloudflare y no la guarda en ningún lado—, así que hoy este comando
+es la vía del que tiene el repositorio a mano. **Cerrar ese hueco es D3**, el
+panel de Conexiones: ahí la llave la tiene el Worker.
+
 ### Lo verificado, y cómo
 
 Contra el **Worker local**, con webhooks firmados de verdad — no con dobles, que
@@ -826,6 +845,22 @@ control**.
 
 Y la propiedad que cuesta dinero, de punta a punta: una foto —que `interpretar`
 descarta— movió el reloj de la ventana hacia adelante.
+
+**La tarea 9, el 2026-09-13.** Seis entradas mal formadas cortan con código 1 y
+mensaje propio, y el control positivo —una entrada bien formada con un negocio
+inexistente— avanza hasta consultar la base y lista los negocios que sí hay.
+Contra el Graph **real**, con token basura y en los tres productos: código 190,
+culpa del token, y `mi-optica` sigue con **cero** credenciales después. El
+validador se ejercitó antes de creerle, y su clasificación se comprobó por
+mutación: implementada como pedía el plan (`status === 404`), los dos casos de
+id malo caen.
+
+Y el lazo completo, que es lo que de verdad importaba: se corrió **el SQL real
+del comando** —la misma función que ejecuta, no una copia— contra la D1 local,
+y después el Worker leyó esa fila, la descifró y construyó el canal real de
+WhatsApp. El control que lo prueba: un descifrado fallido habría caído a
+`canalDemo`, que responde "enviado" sin salir a la red; lo que salió fue el
+401 del Graph.
 
 Las pruebas corrieron con `--var BUFFER_SEGUNDOS:3600`, así el drenaje escribe
 pero el Durable Object no llega a llamar al modelo. **Cero cuota gastada.** Es
@@ -865,8 +900,13 @@ no contradice la regla de "no subir por API". No perder tiempo buscando `gh`.
 ### Sigue pendiente, sin tocar
 
 - La pantalla del panel para configurar el cerebro sin terminal.
-- **`APRENDIZAJES.md` va por 50 entradas** y su propia regla dice consolidar
+- **`APRENDIZAJES.md` va por 51 entradas** y su propia regla dice consolidar
   pasando de 25. Siguió creciendo; la consolidación sigue sin hacerse.
+- **El camino feliz de `conectar-meta` no se ha ejercitado**: guardar exige un
+  token que Meta acepte, y no hay app de Meta todavía. Lo que sí está probado
+  es todo lo demás, incluido el lazo CLI → D1 → Worker con el SQL real del
+  comando (ver abajo). Lo que falta es exactamente lo que desbloquea la tarea
+  10.
 - `configuracionLLMDe` hace cinco lecturas a D1 por mensaje, sin medición que
   justifique juntarlas.
 
