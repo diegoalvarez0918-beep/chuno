@@ -47,6 +47,9 @@
 
   "vars": {
     "NOMBRE_BOT": "CHUNO",
+    // El Worker no puede deducir su propia URL desde un cron: no hay petición.
+    // La necesita para armar los links de las fotos del catálogo.
+    "URL_PUBLICA": "https://chuno.vozdigital-ai.workers.dev",
     "LLM_PROVEEDOR": "gemini",
     // En orden de preferencia; si uno se jubila o agota su cuota, cae al
     // siguiente. Verificados contra la capa gratuita el 2026-07-29.

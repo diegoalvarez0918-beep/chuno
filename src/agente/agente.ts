@@ -149,7 +149,7 @@ export class AgenteConversacion extends DurableObject<Env> {
     if (!ultimoDelCliente) return;
 
     const giro = obtenerGiro(negocio.giro);
-    const canal = await canalSaliente(this.env, negocioId, conversacion.canal);
+    const canal = await canalSaliente(this.env, negocioId, conversacion);
 
     // El CRM se alimenta aquí: sin pantalla de captura y sin que nadie escriba
     // nada. Un CRM que exige que alguien capture los datos es un CRM que se
@@ -219,7 +219,9 @@ export class AgenteConversacion extends DurableObject<Env> {
         // Un envío que falla en silencio es lo peor de los dos mundos: el
         // cliente no recibe nada y el dueño no se entera de que no recibió.
         // El motivo viene ya saneado del canal — nunca trae texto del mensaje.
-        await auditar(db, negocioId, "envio_fallido", { motivo: envio.error }, "agente");
+        // La conversación va en el detalle porque un fallo sin destino ya costó
+        // un diagnóstico falso: se leyó como si el 400 fuera al chat real.
+        await auditar(db, negocioId, "envio_fallido", { motivo: envio.error, conversacionId }, "agente");
       }
     } else {
       // Que el cerebro falle no puede dejar al cliente hablando solo.

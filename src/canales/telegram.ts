@@ -14,6 +14,25 @@ import type { Canal, MensajeEntrante } from "./tipos";
 const API = "https://api.telegram.org";
 const TIMEOUT_MS = 10_000;
 
+/**
+ * La `description` del error de Telegram, saneada.
+ *
+ * Un "HTTP 400" a secas ya costó un diagnóstico falso: un 400 a un chat
+ * sintético de prueba es indistinguible de uno a un cliente real. La
+ * description de Telegram son plantillas fijas ("Bad Request: chat not found")
+ * sin contenido del mensaje ni datos del chat, así que sí puede viajar a la
+ * auditoría. Se trunca por si acaso: el motivo es para diagnosticar, no un log.
+ */
+async function descripcion(respuesta: Response): Promise<string> {
+  try {
+    const cuerpo = (await respuesta.json()) as { description?: unknown };
+    if (typeof cuerpo?.description !== "string" || !cuerpo.description) return "";
+    return ` (${cuerpo.description.slice(0, 80)})`;
+  } catch {
+    return "";
+  }
+}
+
 /** Solo la parte del update de Telegram que nos interesa. */
 interface UpdateTelegram {
   message?: {
@@ -91,8 +110,7 @@ export function crearCanalTelegram(botToken: string): Canal {
         });
 
         if (!respuesta.ok) {
-          // Sin cuerpo del error en el mensaje: puede traer datos del chat.
-          return fallo(`telegram: HTTP ${respuesta.status}`);
+          return fallo(`telegram: HTTP ${respuesta.status}${await descripcion(respuesta)}`);
         }
 
         return ok(undefined);
@@ -121,7 +139,9 @@ export function crearCanalTelegram(botToken: string): Canal {
           signal: control.signal,
         });
 
-        if (!respuesta.ok) return fallo(`telegram: HTTP ${respuesta.status}`);
+        if (!respuesta.ok) {
+          return fallo(`telegram: HTTP ${respuesta.status}${await descripcion(respuesta)}`);
+        }
         return ok(undefined);
       } catch (e) {
         const razon = e instanceof Error && e.name === "AbortError" ? "timeout" : "red";

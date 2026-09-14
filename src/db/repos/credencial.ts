@@ -12,10 +12,13 @@ import { ahoraISO } from "../id";
 export type ClaveCredencial =
   | "telegram_token"
   | "telegram_webhook_secret"
-  // Solo las dos que necesita la puerta. El token de envío y el phone_number_id
-  // los pide D2, cuando haya código que los use.
   | "meta_app_secret"
   | "meta_verify_token"
+  // Los tokens de envío de la familia Meta. Los ids que los acompañan
+  // (phone_number_id, page_id, ig_id) no son secretos y viven en `settings`.
+  | "whatsapp_token"
+  | "messenger_page_token"
+  | "instagram_token"
   // La llave del cerebro del negocio. Va cifrada como cualquier otra: es el
   // secreto con el que se le factura a alguien.
   | "llm_api_key";

@@ -18,7 +18,17 @@ import { vistaEntrar } from "./publico/entrar";
 import { DURACION_SESION_SEGUNDOS, firmarSesion, verificarSesion } from "./core/sesion";
 import { resembrarDemo } from "./crons/resembrar";
 import { crearCanalTelegram, registrarWebhook } from "./canales/telegram";
-import type { Canal } from "./canales/tipos";
+import type { Canal, MensajeEntrante } from "./canales/tipos";
+import { autenticarMeta } from "./canales/meta/comun";
+import { interpretarWhatsApp, marcasWhatsApp } from "./canales/meta/whatsapp";
+import { interpretarMensajeria, marcasMensajeria } from "./canales/meta/mensajeria";
+import { productoDeMeta } from "./core/meta/producto";
+import {
+  encolar,
+  marcarProcesado,
+  negociosConPendientes,
+  pendientesDe,
+} from "./db/repos/entrante";
 import {
   firmaConFormaValida,
   firmaValida,
@@ -47,6 +57,7 @@ import { vistaEntrevista, vistaEntrevistaDemo } from "./admin/vistas-onboarding"
 import {
   guardarMensaje,
   leerHilo,
+  marcarActividadCliente,
   listarConversaciones,
   obtenerConversacion,
   obtenerOCrearConversacion,
@@ -945,9 +956,62 @@ app.get("/demo/comenzar", (c) =>
 // ───────────────────────────────────────────────────────────────  Telegram  ──
 
 /**
- * Lo que pasa cuando llega un mensaje, sea del bot global o de un bot por
- * negocio: normalizar, guardar y despertar al Durable Object. La autenticación
- * ya ocurrió — cada ruta valida SU secreto antes de llamar aquí.
+ * Lo que pasa cuando llega un mensaje, venga de Telegram o de la familia Meta:
+ * normalizar ya ocurrió, aquí se guarda y se despierta al Durable Object. La
+ * autenticación también ocurrió — cada ruta valida SU secreto antes de llamar.
+ *
+ * Recibe los mensajes ya interpretados y no el cuerpo crudo, porque los dos
+ * llamadores llegan aquí por caminos distintos: Telegram interpreta en la ruta
+ * y Meta interpreta antes de encolar, para que la bandeja guarde algo pequeño
+ * y el drenaje sea tonto.
+ */
+async function atender(
+  env: Env,
+  negocioId: string,
+  mensajes: readonly MensajeEntrante[],
+  origen: string,
+): Promise<void> {
+  for (const entrante of mensajes) {
+    const conversacion = await obtenerOCrearConversacion(
+      env.DB,
+      negocioId,
+      entrante.canal,
+      entrante.canalChatId,
+      entrante.autorNombre,
+    );
+
+    // El mensaje se guarda de inmediato: si el agente falla después, el hilo del
+    // cliente no se pierde. Con su id externo, para que reprocesar no duplique.
+    await guardarMensaje(
+      env.DB,
+      negocioId,
+      conversacion.id,
+      "cliente",
+      entrante.texto,
+      entrante.idExterno,
+    );
+
+    const agente = idDeConversacion(env.AGENTE, negocioId, conversacion.id);
+    await agente.fetch("https://agente/mensaje", {
+      method: "POST",
+      body: JSON.stringify({
+        negocioId,
+        conversacionId: conversacion.id,
+        canalChatId: entrante.canalChatId,
+        // El objeto no puede deducir su propia URL pública, y la necesita para
+        // armar el link de la foto que el canal va a descargar.
+        origen,
+      }),
+    });
+  }
+}
+
+/**
+ * Interpreta el cuerpo ya autenticado de Telegram y lo atiende.
+ *
+ * Siempre 200: un error nuestro no debe hacer que Telegram reintente en bucle.
+ * Telegram manda una actualización por POST, sin lotes, así que no pasa por la
+ * bandeja de `entrantes` — pagar una bandeja donde no hay lote sería ceremonia.
  */
 async function atenderTelegram(
   c: Context<{ Bindings: Env }>,
@@ -964,34 +1028,7 @@ async function atenderTelegram(
     return c.text("ok");
   }
 
-  // Siempre 200: un error nuestro no debe hacer que Telegram reintente en bucle.
-  for (const entrante of canal.interpretar(cuerpo)) {
-    const conversacion = await obtenerOCrearConversacion(
-      c.env.DB,
-      negocioId,
-      entrante.canal,
-      entrante.canalChatId,
-      entrante.autorNombre,
-    );
-
-    // El mensaje se guarda de inmediato: si el agente falla después, el hilo del
-    // cliente no se pierde.
-    await guardarMensaje(c.env.DB, negocioId, conversacion.id, "cliente", entrante.texto);
-
-    const agente = idDeConversacion(c.env.AGENTE, negocioId, conversacion.id);
-    await agente.fetch("https://agente/mensaje", {
-      method: "POST",
-      body: JSON.stringify({
-        negocioId,
-        conversacionId: conversacion.id,
-        canalChatId: entrante.canalChatId,
-        // El objeto no puede deducir su propia URL pública, y la necesita para
-        // armar el link de la foto que Telegram va a descargar.
-        origen: new URL(c.req.url).origin,
-      }),
-    });
-  }
-
+  await atender(c.env, negocioId, canal.interpretar(cuerpo), new URL(c.req.url).origin);
   return c.text("ok");
 }
 
@@ -1084,35 +1121,130 @@ app.get("/webhook/meta/:negocioId", async (c) => {
   return c.text(r.valor);
 });
 
+/** Cuántos pendientes drena una pasada. Acota el trabajo de una invocación. */
+const DRENAJE_MAXIMO = 200;
+
+/**
+ * Vacía la bandeja de un negocio.
+ *
+ * `marcarProcesado` va DESPUÉS de que `atender` termine, nunca antes: si se
+ * marcara primero, un fallo al despertar el Durable Object dejaría el mensaje
+ * guardado y SIN RESPUESTA, que es el modo de falla que el cliente sí nota.
+ * Reintentar es seguro porque `mensajes` tiene índice único por id externo.
+ */
+async function drenar(env: Env, negocioId: string, origen: string): Promise<number> {
+  const pendientes = await pendientesDe(env.DB, negocioId, DRENAJE_MAXIMO);
+
+  let drenados = 0;
+  for (const mensaje of pendientes) {
+    try {
+      await atender(env, negocioId, [mensaje], origen);
+      if (mensaje.idExterno) {
+        await marcarProcesado(env.DB, negocioId, mensaje.canal, mensaje.idExterno);
+      }
+      drenados++;
+    } catch (e) {
+      // Uno que falla no puede llevarse el resto del lote. Queda pendiente y lo
+      // recoge el cron. Nunca el texto del mensaje en el log.
+      console.error("meta: fallo drenando uno", {
+        negocio: negocioId.slice(-4),
+        canal: mensaje.canal,
+        error: e instanceof Error ? e.message : "desconocido",
+      });
+    }
+  }
+
+  return drenados;
+}
+
 app.post("/webhook/meta/:negocioId", async (c) => {
-  const cabecera = c.req.header("x-hub-signature-256") ?? null;
+  const negocioId = c.req.param("negocioId");
+  const leerCuerpo = lectorDeCuerpo(c);
 
-  // Lo barato primero, otra vez: sin una cabecera con forma de firma no hay
-  // consulta ni descifrado. Sin esto la puerta es un amplificador — el atacante
-  // gasta un paquete y nosotros una consulta.
-  if (!firmaConFormaValida(cabecera)) return c.text("no autorizado", 401);
-
-  const appSecret = await leerCredencial(
-    c.env.DB,
-    c.req.param("negocioId"),
-    "meta_app_secret",
-    c.env.CLAVE_CIFRADO,
-  );
-  if (!appSecret) return c.text("no autorizado", 401);
-
-  if (!(await firmaValida(await c.req.text(), cabecera, appSecret))) {
+  // Lo barato primero: sin una cabecera con forma de firma no hay consulta ni
+  // descifrado. Sin esto la puerta es un amplificador — el atacante gasta un
+  // paquete y nosotros una consulta.
+  if (!firmaConFormaValida(c.req.header("x-hub-signature-256") ?? null)) {
     return c.text("no autorizado", 401);
   }
 
-  /**
-   * Autenticado. D1 llega hasta aquí a propósito.
-   *
-   * Y queda escrito para D2: la respuesta se manda YA y el trabajo se difiere.
-   * Meta agrega hasta 1000 actualizaciones por POST; procesarlas dentro de la
-   * petición agota el presupuesto del Worker, Meta lo lee como fallo y
-   * reintenta durante 36 horas. El resultado no es lentitud, es una tormenta de
-   * duplicados que llega justo cuando hay tráfico.
-   */
+  const appSecret = await leerCredencial(
+    c.env.DB,
+    negocioId,
+    "meta_app_secret",
+    c.env.CLAVE_CIFRADO,
+  );
+  // Sin credencial responde igual que con firma mala: desde afuera no se puede
+  // distinguir un negocio que no existe de uno mal configurado.
+  if (!appSecret) return c.text("no autorizado", 401);
+
+  if (!(await autenticarMeta(c.req.raw, leerCuerpo, appSecret))) {
+    return c.text("no autorizado", 401);
+  }
+
+  // ── autenticado ───────────────────────────────────────────────────────────
+  let cuerpo: unknown;
+  try {
+    // Sobre la MISMA cadena que se firmó, nunca c.req.json(): la firma se
+    // calcula sobre esos bytes exactos, y volver a leer no garantiza lo mismo.
+    cuerpo = JSON.parse(await leerCuerpo());
+  } catch {
+    // Autenticado pero ilegible: reintentar no lo arregla.
+    return c.text("ok");
+  }
+
+  const producto = productoDeMeta(cuerpo);
+  // Meta notifica todos los campos a los que la app esté suscrita. Uno que no
+  // nos interesa no es un error suyo: ignorar no es fallar.
+  if (!producto) return c.text("ok");
+
+  const esWhatsApp = producto === "whatsapp";
+  const mensajes = esWhatsApp ? interpretarWhatsApp(cuerpo) : interpretarMensajeria(cuerpo, producto);
+  const marcas = esWhatsApp ? marcasWhatsApp(cuerpo) : marcasMensajeria(cuerpo);
+
+  try {
+    // El orden ES el diseño: la fila queda escrita ANTES de prometerle nada a
+    // Meta. Si esto falla devolvemos 500 y Meta reintenta 36 horas, que aquí es
+    // justo la red que queremos — es el único punto del flujo donde el 200
+    // automático sería el error, porque Meta se iría tranquilo y el lote se
+    // perdería en silencio.
+    await encolar(c.env.DB, negocioId, mensajes);
+  } catch (e) {
+    console.error("meta: no se pudo encolar", {
+      negocio: negocioId.slice(-4),
+      error: e instanceof Error ? e.message : "desconocido",
+    });
+    return c.text("no se pudo recibir", 500);
+  }
+
+  const origen = new URL(c.req.url).origin;
+  c.executionCtx.waitUntil(
+    (async () => {
+      // El drenaje va PRIMERO, y el orden contrario es un bug que ya se
+      // reprodujo: `marcarActividadCliente` solo actualiza, nunca crea, así que
+      // marcando antes el PRIMER mensaje de cada conversación nueva se quedaba
+      // sin reloj de ventana — y con el reloj vacío la ventana se lee "cerrada",
+      // o sea que la primera respuesta a un cliente nuevo saldría como plantilla
+      // de pago o no saldría. Drenar primero garantiza que la conversación
+      // exista cuando llega su marca.
+      try {
+        await drenar(c.env, negocioId, origen);
+      } catch (e) {
+        // Si el drenaje entero se cae, las marcas TIENEN que correr igual: lo
+        // pendiente lo recoge el cron, pero la ventana de 24 h no tiene segunda
+        // oportunidad — Meta ya recibió su 200 y no va a reenviar el evento.
+        console.error("meta: drenaje falló", {
+          negocio: negocioId.slice(-4),
+          error: e instanceof Error ? e.message : "desconocido",
+        });
+      }
+
+      for (const marca of marcas) {
+        await marcarActividadCliente(c.env.DB, negocioId, producto, marca.canalChatId, marca.enISO);
+      }
+    })(),
+  );
+
   return c.text("ok");
 });
 
@@ -1162,6 +1294,23 @@ export default {
 
     ctx.waitUntil(
       (async () => {
+        // Primero la bandeja: recoge lo que un drenaje interrumpido dejó a
+        // medias. No es un cron nuevo, es este con una responsabilidad más.
+        // Peor caso de latencia para un mensaje huérfano, 30 minutos — contra
+        // perderlo, que es lo que pasaría sin esto.
+        try {
+          for (const negocioId of await negociosConPendientes(env.DB, 50)) {
+            const drenados = await drenar(env, negocioId, env.URL_PUBLICA);
+            if (drenados > 0) {
+              console.log("bandeja drenada", { negocio: negocioId.slice(-4), drenados });
+            }
+          }
+        } catch (e) {
+          // La bandeja no puede llevarse por delante al vigía, que cuida
+          // promesas reales.
+          console.error("barrido de bandeja falló", e instanceof Error ? e.message : "desconocido");
+        }
+
         // El resembrado va ANTES del vigía, y no al revés: así el vigía evalúa
         // pedidos frescos, y sus claves de dedupe chocan con las propuestas que
         // el resembrado acaba de dejar en vez de duplicarlas.

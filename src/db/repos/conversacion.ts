@@ -9,6 +9,13 @@ export interface Conversacion {
   readonly canalChatId: string;
   readonly clienteNombre: string | null;
   readonly pausadoHasta: string | null;
+  /**
+   * Última señal de vida del CLIENTE. Es lo que decide la ventana de 24 h de
+   * Meta, y no `actualizadoEn`: ese se mueve también cuando escribimos nosotros,
+   * y un mensaje nuestro no reabre ninguna ventana. Null en Telegram, que no
+   * tiene ventana, y en toda conversación anterior a D2.
+   */
+  readonly ultimoClienteEn: string | null;
   /** Último movimiento del hilo. Es el orden natural de la lista del panel. */
   readonly actualizadoEn: string;
 }
@@ -26,6 +33,7 @@ interface FilaConv {
   canal_chat_id: string;
   cliente_nombre: string | null;
   pausado_hasta: string | null;
+  ultimo_cliente_en: string | null;
   actualizado_en: string;
 }
 
@@ -37,12 +45,13 @@ function aConversacion(f: FilaConv): Conversacion {
     canalChatId: f.canal_chat_id,
     clienteNombre: f.cliente_nombre,
     pausadoHasta: f.pausado_hasta,
+    ultimoClienteEn: f.ultimo_cliente_en ?? null,
     actualizadoEn: f.actualizado_en,
   };
 }
 
 const COLUMNAS =
-  "id, negocio_id, canal, canal_chat_id, cliente_nombre, pausado_hasta, actualizado_en";
+  "id, negocio_id, canal, canal_chat_id, cliente_nombre, pausado_hasta, ultimo_cliente_en, actualizado_en";
 
 /**
  * Busca la conversación de un chat, y la crea si es la primera vez.
@@ -139,20 +148,58 @@ export async function guardarMensaje(
   conversacionId: string,
   autor: AutorMensaje,
   texto: string,
+  /**
+   * Id del mensaje en su canal de origen. Con él, reprocesar un lote no
+   * duplica — y el drenaje SÍ puede correr dos veces, porque solo marca la fila
+   * como procesada después de que el objeto acuse recibo. Null para lo que
+   * escribimos nosotros, que no viene de ningún canal.
+   */
+  idExterno: string | null = null,
 ): Promise<void> {
   const ahora = ahoraISO();
 
   await db.batch([
     db
       .prepare(
-        `INSERT INTO mensajes (id, negocio_id, conversacion_id, autor, texto, creado_en)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        // OR IGNORE por el índice único (negocio_id, id_externo). No afecta a
+        // los mensajes del agente ni del dueño: SQLite admite muchos NULL en un
+        // índice único, así que los suyos nunca chocan entre sí.
+        `INSERT OR IGNORE INTO mensajes
+           (id, negocio_id, conversacion_id, autor, texto, id_externo, creado_en)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(nuevoId("msg"), negocioId, conversacionId, autor, texto, ahora),
+      .bind(nuevoId("msg"), negocioId, conversacionId, autor, texto, idExterno, ahora),
     db
       .prepare("UPDATE conversaciones SET actualizado_en = ? WHERE negocio_id = ? AND id = ?")
       .bind(ahora, negocioId, conversacionId),
   ]);
+}
+
+/**
+ * La hora del último evento del cliente, para la ventana de 24 h de Meta.
+ *
+ * Solo actualiza, nunca crea: si el primer contacto de alguien es un sticker no
+ * hay conversación todavía, y tampoco hay ventana que proteger.
+ *
+ * Y solo hacia adelante. Un lote de Meta puede llegar desordenado, y un reloj
+ * que retrocede cerraría una ventana que en realidad está abierta — lo que nos
+ * haría pagar una plantilla pudiendo escribir gratis.
+ */
+export async function marcarActividadCliente(
+  db: D1Database,
+  negocioId: string,
+  canal: string,
+  canalChatId: string,
+  enISO: string,
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE conversaciones SET ultimo_cliente_en = ?
+       WHERE negocio_id = ? AND canal = ? AND canal_chat_id = ?
+         AND (ultimo_cliente_en IS NULL OR ultimo_cliente_en < ?)`,
+    )
+    .bind(enISO, negocioId, canal, canalChatId, enISO)
+    .run();
 }
 
 /**

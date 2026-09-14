@@ -213,6 +213,30 @@ export async function contarPendientes(db: D1Database, negocioId: string): Promi
  * segundo antes, este UPDATE no toca ninguna fila y devolvemos false. Es lo que
  * evita mandarle dos veces el mismo mensaje al cliente.
  */
+/**
+ * Devuelve una propuesta aplicada a pendiente.
+ *
+ * Existe para un solo caso: el envío no salió porque la ventana de 24 h de
+ * Meta está cerrada. Marcar primero y ejecutar después sigue siendo lo
+ * correcto —dos clics simultáneos no pueden mandar dos mensajes—, pero cuando
+ * el envío NO ocurrió, dejar la propuesta como "aplicada" le miente al dueño.
+ * Reabrirla no reabre ninguna carrera: no hay mensaje enviado que duplicar.
+ */
+export async function reabrirPropuesta(
+  db: D1Database,
+  negocioId: string,
+  propuestaId: string,
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE propuestas
+         SET estado = 'propuesta', resuelto_en = NULL, resuelto_por = NULL
+       WHERE negocio_id = ? AND id = ? AND estado = 'aplicada'`,
+    )
+    .bind(negocioId, propuestaId)
+    .run();
+}
+
 export async function guardarResolucion(db: D1Database, propuesta: Propuesta): Promise<boolean> {
   const r = await db
     .prepare(

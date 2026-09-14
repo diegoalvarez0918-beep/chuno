@@ -8,7 +8,7 @@ import { ahoraISO } from "../db/id";
 import type { Env } from "../env";
 import { guardarMensaje, obtenerConversacion } from "../db/repos/conversacion";
 import { crearPedido, guardarPedido, obtenerPedido } from "../db/repos/pedido";
-import { guardarResolucion, obtenerPropuesta } from "../db/repos/propuesta";
+import { guardarResolucion, obtenerPropuesta, reabrirPropuesta } from "../db/repos/propuesta";
 import { auditar } from "../db/repos/varios";
 
 /**
@@ -54,7 +54,12 @@ export async function decidirPropuesta(
     env.DB,
     negocioId,
     "propuesta_aprobada",
-    { tipo: propuesta.payload.tipo, exito: ejecutado.ok },
+    {
+      tipo: propuesta.payload.tipo,
+      exito: ejecutado.ok,
+      // El motivo del canal viene saneado — nunca trae texto del mensaje.
+      ...(ejecutado.ok ? {} : { motivo: ejecutado.error }),
+    },
     "admin",
   );
 
@@ -116,6 +121,18 @@ async function aprenderDeLaRespuesta(
   );
 }
 
+/**
+ * ¿El envío no salió porque la ventana de 24 h de Meta está cerrada?
+ *
+ * Se reconoce por la forma del motivo que arman los tres canales de Meta:
+ * empieza por el nombre del canal y nombra la ventana. No se comparan cadenas
+ * completas para que ajustar la redacción de un motivo no rompa esto en
+ * silencio.
+ */
+function esVentanaCerrada(motivo: string): boolean {
+  return /^(whatsapp|messenger|instagram): /.test(motivo) && motivo.includes("ventana");
+}
+
 async function ejecutar(
   env: Env,
   negocioId: string,
@@ -144,9 +161,18 @@ async function ejecutar(
       const conversacion = await obtenerConversacion(env.DB, negocioId, p.conversacionId);
       if (!conversacion) return fallo("la conversación ya no existe");
 
-      const canal = await canalSaliente(env, negocioId, conversacion.canal);
+      const canal = await canalSaliente(env, negocioId, conversacion);
       const envio = await canal.enviar(conversacion.canalChatId, p.texto);
-      if (!envio.ok) return fallo(`no se pudo enviar: ${envio.error}`);
+      if (!envio.ok) {
+        // La ventana cerrada no es un fallo transitorio: el mensaje NO salió y
+        // no va a salir solo. Dejar la propuesta "aplicada" le diría al dueño
+        // que su aviso llegó. Se reabre para que la vea pendiente y decida —
+        // el motivo queda en la auditoría.
+        if (esVentanaCerrada(envio.error)) {
+          await reabrirPropuesta(env.DB, negocioId, propuesta.id);
+        }
+        return fallo(`no se pudo enviar: ${envio.error}`);
+      }
 
       await guardarMensaje(env.DB, negocioId, p.conversacionId, "dueno", p.texto);
       await auditar(env.DB, negocioId, "aviso_enviado", { pedidoId: p.pedidoId }, "admin");
