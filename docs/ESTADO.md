@@ -968,3 +968,86 @@ envío sale. No hay bug de envío; lo que había era auditoría ciega, y se
 corrigió en el #18: `envio_fallido` ahora dice a qué conversación iba, y el
 motivo de Telegram trae su `description` (plantillas fijas, sin PII). Detalle
 en `APRENDIZAJES.md`.
+
+---
+
+## Traspaso del 2026-09-14 — D2 cerrado y desplegado, y el producto cambió de forma
+
+**`main` = `e697c94`. Producción desplegada y verificada.** 295 tests verdes,
+typecheck limpio, cero PR abiertos, cero ramas muertas. La D1 remota ya tiene
+las migraciones 002, 003 y la tabla `entrantes`.
+
+### Lo que entró hoy
+
+| | |
+|---|---|
+| D2 completo: WhatsApp, Messenger e Instagram | recibe **y** contesta |
+| `conectar-app-meta` | credenciales de entrada, que nadie escribía |
+| Coexistencia | el dueño conserva su WhatsApp del celular |
+| Registro del webhook por API | con `--waba-id`, sin tocar el panel de Meta |
+| El bot entiende sinónimos | «gafas»→«Lentes», «pastel»→«Torta» |
+| Tope de escalaciones | una tarjeta vieja ya no deja mudo a un cliente |
+
+### Lo que cambia el negocio, y hay que no olvidarlo
+
+**Twilio y ManyChat son revendedores, no proveedores.** Forja los usa; por
+debajo llaman a la misma Cloud API de Meta que usamos nosotros y le suman
+**$0.003–$0.010 por mensaje**. Ir directo no es peor: es el argumento de venta.
+
+**Los precios de Meta, verificados en su documentación el 2026-09-14:** desde
+el 1 de julio de 2025 se cobra por mensaje, y **todos los mensajes que no son
+plantilla son gratis**. CHUNO responde a quien escribió primero, dentro de la
+ventana de 24 h: eso hoy no cuesta nada. Solo se paga la plantilla del aviso
+fuera de ventana. *(Varios blogs anuncian que los mensajes de servicio pasarán
+a cobrarse; la documentación oficial no trae ninguna fecha. Vigilar, no
+asumir.)*
+
+**Coexistencia es el camino por defecto**, y no lo teníamos contemplado. El
+número que ya usa el negocio se conecta escaneando un QR, sigue funcionando en
+el celular del dueño y conserva su historial. Para el segmento de CHUNO —el
+dueño-operador que atiende personalmente— eso decide la venta.
+
+**Política de Meta desde enero de 2026:** prohíbe los asistentes de IA de
+propósito general en WhatsApp *cuando la IA es lo que se ofrece*. CHUNO no cae
+ahí (responde sobre un negocio concreto, y cada negocio usa su propia app),
+pero **al vender se presenta como "el asistente de atención del negocio",
+nunca como "un chatbot de IA"**. La diferencia es legal.
+
+### La óptica dejó de ser el caso de demostración
+
+`mi-optica` tiene en sus FAQ que el examen se atiende con cita y que la fórmula
+debe tener menos de un año, así que el agente **pide la fórmula antes de
+cerrar** un encargo de progresivos. Es correcto para ese negocio y pésimo para
+demostrar: nunca cierra el lazo en un mensaje. Se comprobó con una panadería —
+mismo código, cliente pidiendo un «pastel»— y salió el pedido a la primera, con
+precio y fecha. Detalle en `APRENDIZAJES.md`.
+
+### Cómo se verificó
+
+Contra producción, con dos rondas coincidentes y control (ruta inventada → 404).
+Telegram sigue conectado, sin errores ni mensajes atascados. Datos intactos
+tras las migraciones: 52 mensajes, 3 negocios, 14 productos.
+
+Coexistencia, de punta a punta contra el Worker local con webhooks firmados:
+cliente escribe → sin pausa · el dueño contesta desde su celular → pausa de 120
+min y su mensaje en el hilo · **CONTROL** el mismo eco reenviado (Meta reintenta
+36 h) → un solo mensaje · **CONTROL** cliente nuevo → sin pausa.
+
+### Lo que sigue
+
+1. **Conectar WhatsApp de verdad.** El runbook está listo y probado; falta la
+   parte que solo puede hacer una persona: crear la app en el panel de Meta.
+2. **La landing**, que se está reescribiendo en otra sesión hacia los tres
+   públicos de Forja (agencias, dueños, desarrolladores) y fuera del marco de
+   la óptica.
+3. **Pendientes viejos sin tocar:** consolidar `APRENDIZAJES.md` (54 entradas,
+   su regla dice consolidar pasando de 25), la pantalla del panel para
+   configurar el cerebro, y `configuracionLLMDe` con cinco lecturas por mensaje.
+
+### Nota de método, ganada esta sesión
+
+Diego no es técnico y lo dijo explícitamente: *"no entiendo nada de lo que me
+escribes"*. Lo que funcionó fue darle **pasos numerados y literales** —qué
+tocar, qué escribir, qué debería ver— y después **verificar por él contra la
+base de datos** y contarle el resultado en su idioma. Las tres pruebas que hizo
+así destaparon dos bugs reales que ninguna lectura de código había encontrado.
