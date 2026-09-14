@@ -798,15 +798,22 @@ bandeja y migraciones— ya se fusionó en el #17.
 | 4 | Intérprete de Messenger e Instagram | ✅ en el #18 |
 | 5 | Bandeja, id externo, `atender` compartido | ✅ en el #18 |
 | 6 | Ruta, drenaje y barrido del cron | ✅ en el #18 |
-| **7** | **La ventana de 24 h como núcleo puro** | **siguiente** |
-| 8 | Los tres envíos y `canalSaliente` | pendiente |
-| 9 | Credenciales y CLI que valida contra el Graph | pendiente |
+| 7 | La ventana de 24 h como núcleo puro | ✅ en el #18 (2026-09-13) |
+| 8 | Los tres envíos y `canalSaliente` | ✅ en el #18 (2026-09-13) |
+| **9** | **Credenciales y CLI que valida contra el Graph** | **siguiente** |
 | 10 | Runbook de la app de Meta y cierre en producción | pendiente |
 
-**D2 recibe mensajes pero no contesta por Meta.** La tarea 8 es la que enchufa
-el envío; hasta entonces `canalSaliente` devuelve el canal de la demo para todo
-lo que no sea Telegram, así que un mensaje de WhatsApp se guarda, despierta al
-agente, y su respuesta no sale a ningún lado.
+**D2 ya tiene los dos sentidos escritos, sin desplegar.** `canalSaliente`
+recibe la conversación entera y resuelve la ventana de 24 h al construir el
+canal; un negocio a medio conectar (token sin id, o al revés) cae al canal de
+la demo, que guarda sin salir a la red. Cuando la ventana está cerrada y no hay
+plantilla ni etiqueta, la propuesta aprobada se **reabre** en vez de quedar
+"aplicada" — el mensaje no salió, y dejarla aplicada le mentiría al dueño.
+Verificado el 2026-09-13 contra el Worker local por el camino de aprobar una
+propuesta (cero LLM), con par de controles: ventana cerrada → nada sale, la
+propuesta vuelve a pendiente y el motivo queda auditado · ventana abierta con
+token falso → la petición llega al Graph y vuelve `whatsapp: HTTP 401 (código
+190)`, el código de Meta para token inválido.
 
 ### Lo verificado, y cómo
 
@@ -858,10 +865,20 @@ no contradice la regla de "no subir por API". No perder tiempo buscando `gh`.
 ### Sigue pendiente, sin tocar
 
 - La pantalla del panel para configurar el cerebro sin terminal.
-- **`APRENDIZAJES.md` va por 49 entradas** y su propia regla dice consolidar
-  pasando de 25. Se agrandó esta sesión; la consolidación sigue sin hacerse.
+- **`APRENDIZAJES.md` va por 50 entradas** y su propia regla dice consolidar
+  pasando de 25. Siguió creciendo; la consolidación sigue sin hacerse.
 - `configuracionLLMDe` hace cinco lecturas a D1 por mensaje, sin medición que
   justifique juntarlas.
-- **Sin diagnosticar:** un envío local a un chat real dio `telegram: HTTP 400`
-  mientras `getChat` decía que el chat existe. En producción los envíos llegan.
-  Inquieta más ahora, porque la tarea 8 agrega tres caminos de envío nuevos.
+
+### Cabo suelto cerrado el 2026-09-13: el `telegram: HTTP 400` no fue a un chat real
+
+La cronología de la D1 local lo desarma: el fallo quedó auditado a las
+00:52:07Z del 18 de agosto y la conversación del chat real se **creó** a las
+00:52:13 — seis segundos después. El 400 fue al chat sintético `999000111`: la
+alarma pendiente del Durable Object sobrevive en `.wrangler/state` al reinicio
+de `wrangler dev` y disparó al arrancar. El envío al chat real de las 00:52:50
+**salió bien** — su mensaje de agente está guardado, y solo se guarda cuando el
+envío sale. No hay bug de envío; lo que había era auditoría ciega, y se
+corrigió en el #18: `envio_fallido` ahora dice a qué conversación iba, y el
+motivo de Telegram trae su `description` (plantillas fijas, sin PII). Detalle
+en `APRENDIZAJES.md`.
