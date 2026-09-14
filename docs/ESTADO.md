@@ -319,6 +319,14 @@ contradice la regla de "no subir por API" de más abajo, que es sobre *crear
 commits* — fusionar combina refs que ya están en el remoto y no crea historia
 paralela. Diego sigue decidiendo **cuándo** se fusiona.
 
+**`gh` NO está instalado, y `brew` tampoco** — comprobado el 2026-08-27. Ni
+`/opt/homebrew/bin`, ni `/usr/local/bin`, ni `~/.local/bin`. Instalar Homebrew
+pide la contraseña de Diego, así que no es algo que un agente pueda resolver
+solo. **No hace falta:** abrir un PR se hace con
+`GITHUB_CREATE_A_PULL_REQUEST` de Composio, y vale la misma distinción que la
+fusión — la rama la sube `git push`, y la API solo abre el PR sobre refs que ya
+existen en el remoto. Así se abrió el #16. No perder tiempo buscando `gh`.
+
 ## Lo que está bloqueado en el humano
 
 1. **Llamada con el dueño de la óptica** — quince minutos. De ahí sale el gancho del pitch y no lo puede hacer un agente.
@@ -677,3 +685,240 @@ Hace falta una API key con saldo. Verificado en la documentación de Anthropic.
 - **`configuracionLLMDe` hace cinco lecturas a D1 por mensaje** (una credencial
   y cuatro ajustes), en paralelo. Se pueden juntar en una sola consulta sobre
   `settings`; no se hizo porque no hay medición que lo justifique todavía.
+
+---
+
+## D2 diseñado, 2026-08-27 — spec y plan escritos, código sin empezar
+
+Spec: `docs/superpowers/specs/2026-08-27-d2-canales-meta-design.md`
+Plan: `docs/superpowers/plans/2026-08-27-d2-canales-meta.md` (10 tareas)
+
+Nada de esto está implementado todavía. `main` sigue funcionalmente igual que lo
+desplegado; lo único que cambió es documentación.
+
+### Las tres cosas que se midieron y cambian el diseño
+
+**1. Los tres canales de Meta tienen ventana de 24 horas. Telegram no tiene
+ninguna.** Fuera de ella, WhatsApp exige plantilla pre-aprobada y Messenger e
+Instagram exigen etiqueta; la de agente humano da 7 días. Esto **choca de frente
+con el diferenciador #1**: el vigía es proactivo por definición, y la bandeja de
+aprobación mete latencia humana justo dentro de la ventana. Se modela como
+concepto del dominio con tres salidas —libre, plantilla/etiqueta, y "no se
+puede"—, y la tercera le dice al dueño que el aviso no sale por ahí en vez de
+fingir que salió.
+
+**2. Queues *baja* el techo de la reventa, no lo sube.** Parece la herramienta
+correcta y no lo es. Los topes gratuitos son **por cuenta de Cloudflare**, así
+que se reparten entre todos los negocios del despliegue:
+
+| | Tope gratuito | Costo por mensaje | Techo del despliegue |
+|---|---|---|---|
+| D1 | 100.000 filas escritas/día | ~5 filas por intercambio | ~20.000 intercambios/día |
+| Queues | 10.000 operaciones/día | 3 (escritura, lectura, borrado) | ~3.300 mensajes/día |
+
+Queues **no reemplaza** las escrituras a D1, se le suma: el consumidor sigue
+escribiendo mensaje, conversación y uso. Así que meterlo mueve el cuello de
+botella de D1 a Queues, y sigue así en el plan de pago. Como CHUNO se vende para
+**muchos negocios con poco tráfico cada uno**, ese es el tope equivocado.
+
+Y el argumento que no depende del volumen: **Queues entrega *at least once***, o
+sea que la tabla de idempotencia hace falta igual. Una vez que existe, ya es una
+bandeja durable — un mecanismo en vez de dos.
+
+**3. D1 admite 100 parámetros vinculados por consulta.** Con cinco columnas son
+20 filas por sentencia: el lote de 1000 de Meta son 50 sentencias en un `batch()`.
+
+### La decisión que da forma a todo lo demás
+
+**El `INSERT` en `entrantes` va ANTES del 200.** La durabilidad no sale de que el
+Worker sobreviva, sale de que la fila esté escrita antes de prometerle nada a
+Meta. Con `waitUntil` a secas, un Worker que muere a mitad pierde el lote **en
+silencio**, porque Meta ya recibió su 200 y no reintenta.
+
+Y de ahí sale la única inversión de regla del proyecto: cuando falla el
+`INSERT`, la ruta devuelve **500**. En todas partes devolvemos 200 para que el
+canal no entre en bucle; aquí, y solo aquí, queremos el reintento de 36 horas de
+Meta.
+
+### Deuda que D2 destapa y paga
+
+**La D1 de producción tiene `catalogo.imagen_clave` y el repo no sabe
+reproducirla**, porque su `ALTER` quedó en `.tmp/`, que está en `.gitignore`.
+Comprobado contra la base viva. D2 agrega dos columnas más, así que crea
+`src/db/migraciones/` con los archivos numerados y su comprobación por
+`pragma_table_info`.
+
+### Cómo se acordó cerrarlo
+
+WhatsApp **en vivo** con el número de pruebas que Meta regala; Messenger e
+Instagram con sintético, porque su trámite es más largo y lo que queda sin
+ejercer es el endpoint de envío, no el diseño.
+
+La prueba que importa no es que llegue el mensaje: es **reenviar el mismo lote y
+ver que no aparece una segunda fila**, y luego cambiarle un carácter al
+`id_externo` y ver que sí aparecen dos. Sin ese segundo control, "no se duplicó"
+podría significar que el segundo envío nunca llegó.
+
+### Lo que queda anotado sin resolver
+
+- **El precio de las plantillas de WhatsApp para Colombia no está verificado.**
+  Tienen costo por mensaje y lo paga el negocio. Hay que mirarlo antes de que D3
+  lo prometa en una pantalla.
+- **Instagram es el punto de menos certeza:** su documentación de envío no
+  nombra la etiqueta de agente humano. El código trata el rechazo de Meta como
+  fallo normal en vez de reventar.
+- **No se mapea ningún código de error de Meta a "ventana cerrada" todavía**, a
+  propósito: no hemos visto uno real, e inventarse el número sería el detector
+  sin control que ya costó un diagnóstico falso.
+
+---
+
+## Traspaso del 2026-09-10 — D2 a mitad: recibe, todavía no contesta
+
+`main` = `42912ab`. **Nada de esto está desplegado.** Producción sigue en
+`e17324cd` y no conoce ninguna ruta de Meta más allá de la puerta de D1.
+
+### Lo que hay abierto
+
+| PR | Rama | Qué |
+|---|---|---|
+| #16 | `docs/d2-canales-meta` | spec, plan de 10 tareas, este traspaso y los aprendizajes |
+| #18 | `feat/d2-camino-de-entrada` | tareas 2 a 6: D2 **recibe** los tres canales |
+
+Las dos salen de `main` directo, ninguna apilada. La tarea 1 —esquema,
+bandeja y migraciones— ya se fusionó en el #17.
+
+### Dónde va D2
+
+| | Tarea | Estado |
+|---|---|---|
+| 1 | Esquema, bandeja `entrantes`, migraciones | ✅ fusionada |
+| 2 | `trocear` y `productoDeMeta` | ✅ en el #18 |
+| 3 | Intérprete de WhatsApp | ✅ en el #18 |
+| 4 | Intérprete de Messenger e Instagram | ✅ en el #18 |
+| 5 | Bandeja, id externo, `atender` compartido | ✅ en el #18 |
+| 6 | Ruta, drenaje y barrido del cron | ✅ en el #18 |
+| 7 | La ventana de 24 h como núcleo puro | ✅ en el #18 (2026-09-13) |
+| 8 | Los tres envíos y `canalSaliente` | ✅ en el #18 (2026-09-13) |
+| 9 | Credenciales y CLI que valida contra el Graph | ✅ en el #18 (2026-09-13) |
+| **10** | **Runbook de la app de Meta y cierre en producción** | **siguiente** |
+
+**D2 ya tiene los dos sentidos escritos, sin desplegar.** `canalSaliente`
+recibe la conversación entera y resuelve la ventana de 24 h al construir el
+canal; un negocio a medio conectar (token sin id, o al revés) cae al canal de
+la demo, que guarda sin salir a la red. Cuando la ventana está cerrada y no hay
+plantilla ni etiqueta, la propuesta aprobada se **reabre** en vez de quedar
+"aplicada" — el mensaje no salió, y dejarla aplicada le mentiría al dueño.
+Verificado el 2026-09-13 contra el Worker local por el camino de aprobar una
+propuesta (cero LLM), con par de controles: ventana cerrada → nada sale, la
+propuesta vuelve a pendiente y el motivo queda auditado · ventana abierta con
+token falso → la petición llega al Graph y vuelve `whatsapp: HTTP 401 (código
+190)`, el código de Meta para token inválido.
+
+### Conectar un canal: `npx chuno-cli conectar-meta`
+
+```bash
+npx chuno-cli conectar-meta <negocio> --producto whatsapp|messenger|instagram --id <id>
+  [--plantilla nombre:idioma]   # solo WhatsApp, para escribir fuera de la ventana
+  [--agente-humano]             # Messenger e Instagram, misma idea
+```
+
+**El token se pregunta, no se pasa por bandera.** Un argumento queda en el
+historial del shell y en la lista de procesos, y la cabecera del instalador ya
+declaraba esa regla. Valida el par token+id contra el Graph **antes** de
+guardar: si falla, no escribe nada y dice cuál de los dos estaba mal.
+
+**Necesita `CLAVE_CIFRADO`** en `.dev.vars` o en el entorno, porque cifra el
+token antes de guardarlo. Una instalación hecha con `npx` no la tiene —`init`
+la sube a Cloudflare y no la guarda en ningún lado—, así que hoy este comando
+es la vía del que tiene el repositorio a mano. **Cerrar ese hueco es D3**, el
+panel de Conexiones: ahí la llave la tiene el Worker.
+
+### Lo verificado, y cómo
+
+Contra el **Worker local**, con webhooks firmados de verdad — no con dobles, que
+es la regla del proyecto para lo que hace red. Lote firmado → 200 y sus filas ·
+el mismo lote otra vez → 200 **sin duplicar** · firma falsa, ausente y de otro
+secreto → 401 · `object` ajeno y cuerpo ilegible → 200 sin escribir · Instagram
+→ 200 · eco de Instagram → 200 sin escribir · **ruta inventada → 404 como
+control**.
+
+Y la propiedad que cuesta dinero, de punta a punta: una foto —que `interpretar`
+descarta— movió el reloj de la ventana hacia adelante.
+
+**La tarea 9, el 2026-09-13.** Seis entradas mal formadas cortan con código 1 y
+mensaje propio, y el control positivo —una entrada bien formada con un negocio
+inexistente— avanza hasta consultar la base y lista los negocios que sí hay.
+Contra el Graph **real**, con token basura y en los tres productos: código 190,
+culpa del token, y `mi-optica` sigue con **cero** credenciales después. El
+validador se ejercitó antes de creerle, y su clasificación se comprobó por
+mutación: implementada como pedía el plan (`status === 404`), los dos casos de
+id malo caen.
+
+Y el lazo completo, que es lo que de verdad importaba: se corrió **el SQL real
+del comando** —la misma función que ejecuta, no una copia— contra la D1 local,
+y después el Worker leyó esa fila, la descifró y construyó el canal real de
+WhatsApp. El control que lo prueba: un descifrado fallido habría caído a
+`canalDemo`, que responde "enviado" sin salir a la red; lo que salió fue el
+401 del Graph.
+
+Las pruebas corrieron con `--var BUFFER_SEGUNDOS:3600`, así el drenaje escribe
+pero el Durable Object no llega a llamar al modelo. **Cero cuota gastada.** Es
+la técnica para probar la entrada sin pagar el cerebro.
+
+### Tres bugs que encontró la verificación, no la lectura
+
+1. **El primer mensaje de cada conversación nueva se quedaba sin reloj de
+   ventana.** Las marcas se aplicaban antes del drenaje y
+   `marcarActividadCliente` solo actualiza, nunca crea. La primera respuesta a
+   un cliente nuevo habría salido como plantilla de pago, o no habría salido.
+2. **El reloj ignoraba postbacks y reacciones**, que sí reinician la ventana de
+   Meta. Arreglado invirtiendo la lista.
+3. **`trocear` tenía una guarda que no guardaba:** `Math.floor(100/0)` es
+   `Infinity`, que no es menor que 1.
+
+Y un test que no medía nada: importaba la constante que quería proteger. Detalle
+de los tres en `APRENDIZAJES.md`.
+
+### Al desplegar, ojo con esto
+
+- **`URL_PUBLICA` es una variable nueva** en `wrangler.jsonc` y en `Env`. Un
+  `scheduled()` no tiene petición de la que deducir su URL, y sin ella una foto
+  drenada por el cron lleva un link roto. También hay que ponerla en `.dev.vars`
+  para el desarrollo local.
+- **Las migraciones van ANTES que `schema.sql`.** Comprobado con código de
+  salida 1: el índice único sobre `mensajes.id_externo` falla con
+  `no such column` si el esquema corre primero. Ver `src/db/migraciones/LEEME.md`.
+- La D1 **remota** todavía no tiene nada de D2 aplicado. Eso es la tarea 10.
+
+### Entorno
+
+**`gh` no está instalado y `brew` tampoco.** Los PR se abren con
+`GITHUB_CREATE_A_PULL_REQUEST` de Composio; la rama la sube `git push`, así que
+no contradice la regla de "no subir por API". No perder tiempo buscando `gh`.
+
+### Sigue pendiente, sin tocar
+
+- La pantalla del panel para configurar el cerebro sin terminal.
+- **`APRENDIZAJES.md` va por 52 entradas** y su propia regla dice consolidar
+  pasando de 25. Siguió creciendo; la consolidación sigue sin hacerse.
+- **El camino feliz de `conectar-meta` no se ha ejercitado**: guardar exige un
+  token que Meta acepte, y no hay app de Meta todavía. Lo que sí está probado
+  es todo lo demás, incluido el lazo CLI → D1 → Worker con el SQL real del
+  comando (ver abajo). Lo que falta es exactamente lo que desbloquea la tarea
+  10.
+- `configuracionLLMDe` hace cinco lecturas a D1 por mensaje, sin medición que
+  justifique juntarlas.
+
+### Cabo suelto cerrado el 2026-09-13: el `telegram: HTTP 400` no fue a un chat real
+
+La cronología de la D1 local lo desarma: el fallo quedó auditado a las
+00:52:07Z del 18 de agosto y la conversación del chat real se **creó** a las
+00:52:13 — seis segundos después. El 400 fue al chat sintético `999000111`: la
+alarma pendiente del Durable Object sobrevive en `.wrangler/state` al reinicio
+de `wrangler dev` y disparó al arrancar. El envío al chat real de las 00:52:50
+**salió bien** — su mensaje de agente está guardado, y solo se guarda cuando el
+envío sale. No hay bug de envío; lo que había era auditoría ciega, y se
+corrigió en el #18: `envio_fallido` ahora dice a qué conversación iba, y el
+motivo de Telegram trae su `description` (plantillas fijas, sin PII). Detalle
+en `APRENDIZAJES.md`.
