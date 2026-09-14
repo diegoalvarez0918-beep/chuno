@@ -20,6 +20,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 
+import { cifrarValor } from "./cifrado.mjs";
+import { PRODUCTOS_META, sqlGuardarAjuste, sqlGuardarMeta, validarMeta } from "./meta.mjs";
+
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 // ─────────────────────────────────────────────────────────────────  consola ──
@@ -109,8 +112,9 @@ function esPaqueteDescargado() {
   return /[\\/](?:_npx|node_modules)[\\/]/.test(RAIZ);
 }
 
-function verificarEntorno() {
-  paso(1, TOTAL, "Revisando que tengas todo lo necesario");
+/** `total` viaja porque no todos los comandos tienen los ocho pasos de `init`. */
+function verificarEntorno(total = TOTAL) {
+  paso(1, total, "Revisando que tengas todo lo necesario");
 
   if (!existsSync(join(RAIZ, "src", "db", "schema.sql"))) {
     morir(
@@ -436,6 +440,159 @@ function conectarTelegram(url, token, secreto) {
   else aviso("no pude registrar el webhook; hazlo desde /panel/conectar-telegram");
 }
 
+// ───────────────────────────────────────────────────────────  canales meta ──
+
+/**
+ * La llave maestra con la que se cifran las credenciales.
+ *
+ * No se le pregunta a nadie: es aleatoria y quien instaló nunca la vio. Sale
+ * del entorno o de `.dev.vars`, los dos sitios donde este proyecto admite
+ * secretos locales.
+ *
+ * En una instalación hecha con `npx` no está en ninguno de los dos —`init` la
+ * sube a Cloudflare y no la guarda—, así que este comando es hoy la vía del
+ * que tiene el repositorio a mano. Cerrar ese hueco es el panel de Conexiones.
+ */
+function claveDeCifrado() {
+  if (process.env.CLAVE_CIFRADO) return process.env.CLAVE_CIFRADO.trim();
+
+  const ruta = join(RAIZ, ".dev.vars");
+  if (existsSync(ruta)) {
+    const linea = readFileSync(ruta, "utf8")
+      .split("\n")
+      .find((l) => l.startsWith("CLAVE_CIFRADO="));
+    if (linea) return linea.slice("CLAVE_CIFRADO=".length).trim();
+  }
+
+  return null;
+}
+
+/** Comilla simple para SQL. Lo que llega de fuera ya viene validado por forma. */
+const sql = (v) => `'${String(v).replace(/'/g, "''")}'`;
+
+function d1(nombreBase, comando) {
+  return correr("npx", [
+    "--yes", "wrangler", "d1", "execute", nombreBase,
+    "--remote", "--command", comando, "--yes",
+  ]);
+}
+
+const PASOS_META = 4;
+
+async function conectarMeta(argv) {
+  const negocioId = argv[0];
+  const bandera = (nombre) => {
+    const i = argv.indexOf(`--${nombre}`);
+    return i === -1 ? null : argv[i + 1] ?? null;
+  };
+
+  const producto = bandera("producto");
+  const id = bandera("id");
+  const plantilla = bandera("plantilla");
+  const agenteHumano = argv.includes("--agente-humano");
+
+  if (!negocioId || !producto || !id) morir("Faltan datos.", AYUDA_META);
+  if (!PRODUCTOS_META[producto]) {
+    morir(`No conozco el producto "${producto}".`, "Son: whatsapp, messenger o instagram.");
+  }
+  if (!/^[a-z0-9-]{1,60}$/.test(negocioId)) {
+    morir("El id del negocio solo admite minúsculas, números y guiones.");
+  }
+  if (!/^[0-9]{1,32}$/.test(id)) {
+    morir(`Ese no parece ${PRODUCTOS_META[producto].comoSeLlamaElId}.`, "Los ids de Meta son solo dígitos.");
+  }
+  if (plantilla && !/^[a-z0-9_]{1,64}:[a-zA-Z]{2}(_[A-Z]{2})?$/.test(plantilla)) {
+    morir(
+      `La plantilla "${plantilla}" no tiene la forma nombre:idioma.`,
+      "Por ejemplo: aviso_pedido:es o aviso_pedido:es_MX",
+    );
+  }
+  if (plantilla && producto !== "whatsapp") {
+    morir("Las plantillas son de WhatsApp.", "Messenger e Instagram usan --agente-humano.");
+  }
+
+  const instalacion = yaInstalado();
+  if (!instalacion) {
+    morir("No encuentro una instalación de CHUNO aquí.", "Corre este comando desde la carpeta del proyecto instalado.");
+  }
+
+  const clave = claveDeCifrado();
+  if (!clave) {
+    morir(
+      "No encuentro CLAVE_CIFRADO, y sin ella no puedo guardar el token cifrado.",
+      "Ponla en .dev.vars o pásala como variable de entorno. Es la misma que subiste a Cloudflare al instalar.",
+    );
+  }
+
+  const cfg = PRODUCTOS_META[producto];
+
+  // El negocio primero: sin esto el INSERT falla por clave foránea y el error
+  // de SQLite no dice cuál es el problema de verdad.
+  paso(2, PASOS_META, "Buscando el negocio");
+  const existe = d1(instalacion.nombre, `SELECT id FROM negocios WHERE id = ${sql(negocioId)}`);
+  if (!existe.ok) morir(`No pude consultar la base.\n\n${existe.salida}`);
+  if (!existe.salida.includes(negocioId)) {
+    const listado = d1(instalacion.nombre, "SELECT id FROM negocios");
+    morir(`No hay ningún negocio con id "${negocioId}".`, `Los que existen:\n\n${listado.salida}`);
+  }
+  ok(`negocio "${negocioId}"`);
+
+  // El token se pregunta, nunca se recibe por bandera: un argumento queda en
+  // el historial del shell y en la lista de procesos. Es la misma regla que
+  // sigue el resto de este instalador.
+  paso(3, PASOS_META, "Validando contra Meta");
+  log(c.suave("      Lo que escribas no se ve en pantalla.\n"));
+  const token = await preguntar(`      Token de ${producto}: `, { oculto: true });
+  if (!token) morir("Sin token no hay nada que guardar.");
+
+  const validacion = await validarMeta(producto, token, id);
+  if (!validacion.ok) {
+    const pista = validacion.culpa === "id"
+      ? `Revisa ${cfg.comoSeLlamaElId} en el panel de Meta. El token no se tocó.`
+      : validacion.culpa === "token"
+        ? "Genera un token nuevo en el panel de Meta. El id no se tocó."
+        : "Revisa los dos en el panel de Meta.";
+    morir(`No guardé nada: ${validacion.motivo}.`, pista);
+  }
+  ok("Meta acepta el par token + id");
+
+  paso(4, PASOS_META, "Guardando");
+  const cifrado = await cifrarValor(token, clave);
+  const ahora = new Date().toISOString();
+
+  const guardado = d1(instalacion.nombre, sqlGuardarMeta(negocioId, cfg, cifrado, id, ahora));
+  if (!guardado.ok) morir(`No pude guardar.\n\n${guardado.salida}`);
+  ok(`token cifrado y ${cfg.ajusteId}`);
+
+  if (plantilla) {
+    const r = d1(
+      instalacion.nombre,
+      sqlGuardarAjuste(negocioId, "whatsapp_plantilla_aviso", plantilla),
+    );
+    if (!r.ok) morir(`Guardé el token pero no la plantilla.\n\n${r.salida}`);
+    ok(`plantilla "${plantilla}" para fuera de la ventana de 24 h`);
+  }
+
+  if (agenteHumano) {
+    const r = d1(instalacion.nombre, sqlGuardarAjuste(negocioId, "meta_agente_humano", "si"));
+    if (!r.ok) morir(`Guardé el token pero no la etiqueta.\n\n${r.salida}`);
+    ok("etiqueta de agente humano activada");
+  }
+
+  const fueraDeVentana = plantilla || agenteHumano
+    ? "Fuera de esas 24 horas sale con lo que acabas de configurar."
+    : `Fuera de esas 24 horas ${c.fuerte("no saldrá")}, y la decisión te queda pendiente en la bandeja con el motivo.`;
+
+  log(`
+  ${c.lima("▌")} ${c.fuerte(`${producto} conectado a "${negocioId}".`)}
+
+  Tu asistente responde libremente durante las 24 horas siguientes a cada
+  mensaje del cliente, que es la ventana que da Meta. ${fueraDeVentana}
+
+  ${c.suave("Nada sale al cliente sin que tú lo apruebes. Eso no cambia por canal.")}
+`);
+}
+
 // ──────────────────────────────────────────────────────────────────  inicio ──
 
 async function init() {
@@ -507,8 +664,9 @@ const AYUDA = `
   ${c.fuerte("chuno")} — instala CHUNO en tu propia nube de Cloudflare
 
   ${c.fuerte("Uso:")}
-    npx chuno-cli init     instala y publica tu asistente
-    npx chuno-cli revisar  comprueba que tengas todo listo, sin instalar nada
+    npx chuno-cli init           instala y publica tu asistente
+    npx chuno-cli revisar        comprueba que tengas todo listo, sin instalar nada
+    npx chuno-cli conectar-meta  conecta WhatsApp, Messenger o Instagram
 
   ${c.fuerte("Antes de empezar necesitas:")}
     · Una cuenta de Cloudflare (gratuita) — npx wrangler login
@@ -516,10 +674,33 @@ const AYUDA = `
     · Un bot de Telegram — escríbele a @BotFather y usa /newbot
 `;
 
+const AYUDA_META = `  ${c.fuerte("Uso:")}
+    npx chuno-cli conectar-meta <negocio> --producto <cual> --id <id>
+
+  ${c.fuerte("Productos:")} whatsapp · messenger · instagram
+
+  ${c.fuerte("Opcionales:")}
+    --plantilla <nombre>:<idioma>  plantilla aprobada para escribir fuera de
+                                   las 24 h de ventana (solo WhatsApp)
+    --agente-humano                usar la etiqueta de agente humano fuera de
+                                   la ventana (Messenger e Instagram)
+
+  El token se pregunta al correr el comando: no se pasa como argumento, porque
+  los argumentos quedan en el historial del shell y en la lista de procesos.
+
+  ${c.fuerte("Ejemplo:")}
+    npx chuno-cli conectar-meta mi-optica --producto whatsapp --id 123456789012345
+`;
+
 const comando = process.argv[2];
 
 if (comando === "init") {
   init().catch((e) => morir(e instanceof Error ? e.message : "algo salió mal"));
+} else if (comando === "conectar-meta") {
+  verificarEntorno(PASOS_META);
+  conectarMeta(process.argv.slice(3)).catch((e) =>
+    morir(e instanceof Error ? e.message : "algo salió mal"),
+  );
 } else if (comando === "revisar") {
   // Solo lecturas: comprueba requisitos sin crear, escribir ni desplegar nada.
   verificarEntorno();
