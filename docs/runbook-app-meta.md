@@ -42,19 +42,39 @@ URL. Guárdalo donde guardas contraseñas; lo vas a pegar en el paso 6.
 
 De la misma pantalla copia también el **App ID**.
 
-## 3. Inventar el verify token
+## 3. La contraseña de enlace: no hagas nada
 
-Es una cadena que **eliges tú**, no te la da Meta. Sirve una sola vez: cuando
-registres el webhook, Meta llamará a nuestra URL con ella y esperará que se la
-devolvamos. Si no coincide, no registra nada.
+Meta necesita una palabra secreta para comprobar que la URL es tuya. **La
+genera el instalador solo** en el paso 6, así que no hay que inventarla ni
+guardarla. Antes se pedía a mano y era fricción pura: había que escribirla
+idéntica en dos sitios, y un error no se detectaba hasta que el webhook
+fallaba.
 
-Que sea larga y aleatoria. Por ejemplo:
+## 3.5 Decide QUÉ número vas a conectar
 
-```bash
-openssl rand -base64 24
-```
+Es la decisión que más afecta al dueño del negocio, y conviene tomarla antes de
+tocar nada.
 
-Guárdala: la necesitas en el paso 6 y en el paso 7, y tienen que ser idénticas.
+| | **Coexistencia** (recomendado) | Línea dedicada |
+|---|---|---|
+| Qué número | **el que ya usa el negocio** | uno nuevo, solo para el bot |
+| El dueño en su celular | **lo sigue usando igual** | pierde WhatsApp en ese número |
+| Sus chats de siempre | **se conservan (hasta 6 meses)** | se quedan atrás |
+| Cómo se conecta | **escanea un QR** | trámites de verificación |
+| Para quién | la mipyme que atiende desde el celular | operación con equipo y panel |
+
+**Coexistencia es el camino por defecto de CHUNO**, y la razón es el cliente:
+el dueño-operador vive en su WhatsApp. Decirle "pierdes tu WhatsApp del
+celular" es pedirle que cambie cómo trabaja, y la mitad dirá que no. Está
+disponible en todos los países desde mayo de 2026.
+
+Se elige en el paso 4, con la opción **Connect your existing WhatsApp Business
+App**: Meta manda un mensaje al número y se escanea el QR desde la app.
+
+**Lo que CHUNO hace distinto en este modo:** cuando el dueño contesta desde su
+celular, el asistente **se hace a un lado dos horas** y ese mensaje aparece en
+el hilo del panel. Sin eso el cliente recibiría dos respuestas a lo mismo — la
+del dueño y la del bot encima.
 
 ## 4. Agregar WhatsApp a la app
 
@@ -91,12 +111,18 @@ La URL pública sale de `wrangler.jsonc` (`URL_PUBLICA`). Hoy es
 ## 6. Guardar las credenciales de entrada en CHUNO
 
 ```bash
-npx chuno-cli conectar-app-meta mi-optica --app-id <App ID del paso 2>
+npx chuno-cli conectar-app-meta mi-optica --app-id <App ID> --waba-id <WABA ID>
 ```
 
-Te pide el **App Secret** y el **verify token** con el eco apagado —no se pasan
-por bandera, porque los argumentos quedan en el historial del shell— y los
-guarda cifrados.
+El **WABA ID** está en la misma pantalla *API Setup*, al lado del Phone number
+ID. Con él, el comando **registra el webhook en Meta por ti** y te ahorra el
+paso 7 entero, que es donde más gente se atasca. Sin él todo funciona igual,
+pero tendrás que pegar la URL a mano.
+
+Te pide solo el **App Secret**, con el eco apagado —no se pasa por bandera,
+porque los argumentos quedan en el historial del shell— y lo guarda cifrado.
+**La contraseña de enlace la genera él**: no tienes que inventarla ni copiarla
+a ningún lado.
 
 Antes de guardar nada, valida el par **App ID + App Secret** contra el Graph.
 Si Meta no lo reconoce, no escribe y te lo dice. No puede decirte cuál de los
@@ -111,7 +137,10 @@ dice por qué — normalmente que el Worker todavía no está desplegado con D2.
 Esta es una app por negocio, y sus credenciales valen para WhatsApp, Messenger
 e Instagram a la vez: los tres comparten Callback URL, App Secret y firma.
 
-## 7. Registrar el webhook en Meta
+## 7. Registrar el webhook en Meta — solo si no usaste `--waba-id`
+
+> Si el paso 6 dijo *"webhook registrado en Meta"*, **sáltate este paso entero**
+> y pasa al 8.
 
 En el App Dashboard: **WhatsApp → Configuration → Webhook → Edit**.
 
