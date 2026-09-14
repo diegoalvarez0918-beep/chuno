@@ -7,6 +7,7 @@
  */
 
 import { firmaConFormaValida, firmaValida } from "../../core/meta/entrada";
+import { fallo, ok, type Resultado } from "../../core/resultado";
 
 /**
  * La autenticación de los tres productos, en un solo cuerpo.
@@ -59,4 +60,74 @@ export function horaDeMeta(timestamp: unknown): string | null {
 /** `entry` y compañía llegan de fuera: nunca asumimos que sean listas. */
 export function lista<T>(valor: unknown): T[] {
   return Array.isArray(valor) ? (valor as T[]) : [];
+}
+
+export const GRAPH = "https://graph.facebook.com/v25.0";
+export const GRAPH_IG = "https://graph.instagram.com/v25.0";
+
+const TIMEOUT_MS = 10_000;
+
+/**
+ * Un POST al Graph con timeout, sin SDK.
+ *
+ * El cuerpo del error NO entra en el mensaje: puede traer el teléfono o el
+ * texto del mensaje, y eso es PII. Solo el código.
+ */
+export async function postAlGraph(
+  url: string,
+  cuerpo: unknown,
+  token: string | null,
+  etiqueta: string,
+): Promise<Resultado<void, string>> {
+  const control = new AbortController();
+  const reloj = setTimeout(() => control.abort(), TIMEOUT_MS);
+
+  try {
+    const respuesta = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(cuerpo),
+      signal: control.signal,
+    });
+
+    if (!respuesta.ok) {
+      return fallo(`${etiqueta}: HTTP ${respuesta.status}${await codigo(respuesta)}`);
+    }
+    return ok(undefined);
+  } catch (e) {
+    const razon = e instanceof Error && e.name === "AbortError" ? "timeout" : "red";
+    return fallo(`${etiqueta}: fallo de ${razon}`);
+  } finally {
+    clearTimeout(reloj);
+  }
+}
+
+/**
+ * El código del error de Meta, y SOLO el código.
+ *
+ * Nuestro reloj de la ventana es una optimización; la autoridad es Meta. Cuando
+ * rechaza un envío hay que poder saber por qué, y el motivo tiene que llegar a
+ * la bandeja del dueño. Pero `error.message` puede traer el teléfono o el texto
+ * del mensaje, así que de ahí solo salen los números.
+ *
+ * No se mapea ningún código a "ventana cerrada" todavía, a propósito: no hemos
+ * visto uno real. Inventarse el número sería exactamente el detector sin
+ * control que ya nos costó un diagnóstico falso. Cuando aparezca el primer
+ * rechazo de verdad, ahí se mapea — con la medición delante.
+ */
+async function codigo(respuesta: Response): Promise<string> {
+  try {
+    const cuerpo = (await respuesta.json()) as {
+      error?: { code?: unknown; error_subcode?: unknown };
+    };
+    const c = Number(cuerpo?.error?.code);
+    const sub = Number(cuerpo?.error?.error_subcode);
+    if (!Number.isFinite(c)) return "";
+    return Number.isFinite(sub) ? ` (código ${c}/${sub})` : ` (código ${c})`;
+  } catch {
+    return "";
+  }
 }

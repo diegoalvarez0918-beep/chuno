@@ -149,7 +149,7 @@ export class AgenteConversacion extends DurableObject<Env> {
     if (!ultimoDelCliente) return;
 
     const giro = obtenerGiro(negocio.giro);
-    const canal = await canalSaliente(this.env, negocioId, conversacion.canal);
+    const canal = await canalSaliente(this.env, negocioId, conversacion);
 
     // El CRM se alimenta aquí: sin pantalla de captura y sin que nadie escriba
     // nada. Un CRM que exige que alguien capture los datos es un CRM que se

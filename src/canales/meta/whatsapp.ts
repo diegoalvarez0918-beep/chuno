@@ -1,6 +1,8 @@
 import { recortarTexto } from "../../core/limites";
-import type { MensajeEntrante } from "../tipos";
-import { horaDeMeta, lista, type MarcaActividad } from "./comun";
+import { fallo, ok, type Resultado } from "../../core/resultado";
+import type { ModoEnvio } from "../../core/meta/ventana";
+import type { Canal, MensajeEntrante } from "../tipos";
+import { autenticarMeta, GRAPH, horaDeMeta, lista, postAlGraph, type MarcaActividad } from "./comun";
 
 /** Solo la parte del webhook de WhatsApp que leemos. */
 interface Contacto {
@@ -66,6 +68,80 @@ export function interpretarWhatsApp(cuerpo: unknown): MensajeEntrante[] {
   }
 
   return salida;
+}
+
+export interface ConfigWhatsApp {
+  readonly token: string;
+  readonly phoneNumberId: string;
+  /** Resuelto al construir el canal: quien envía no sabe de ventanas. */
+  readonly modo: ModoEnvio;
+}
+
+export function crearCanalWhatsApp(cfg: ConfigWhatsApp): Canal {
+  const url = `${GRAPH}/${cfg.phoneNumberId}/messages`;
+
+  const cuerpoDeTexto = (a: string, texto: string): Resultado<unknown, string> => {
+    if (cfg.modo.tipo === "cerrada") {
+      // No es una excepción: es información para el dueño. La bandeja la
+      // muestra y él decide escribirle por su cuenta.
+      return fallo("whatsapp: ventana de 24 h cerrada y sin plantilla configurada");
+    }
+
+    if (cfg.modo.tipo === "plantilla") {
+      return ok({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: a,
+        type: "template",
+        template: {
+          name: cfg.modo.nombre,
+          language: { code: cfg.modo.idioma },
+          components: [{ type: "body", parameters: [{ type: "text", text: texto }] }],
+        },
+      });
+    }
+
+    return ok({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: a,
+      type: "text",
+      text: { preview_url: false, body: texto },
+    });
+  };
+
+  return {
+    id: "whatsapp",
+    interpretar: interpretarWhatsApp,
+    autenticar: autenticarMeta,
+
+    async enviar(canalChatId, texto) {
+      const cuerpo = cuerpoDeTexto(canalChatId, texto);
+      if (!cuerpo.ok) return fallo(cuerpo.error);
+      return postAlGraph(url, cuerpo.valor, cfg.token, "whatsapp");
+    },
+
+    async enviarFoto(canalChatId, urlFoto, pie) {
+      // Una foto no cabe en una plantilla aprobada de texto, y fuera de ventana
+      // no hay forma libre de mandarla. Se dice, no se intenta y falla feo.
+      if (cfg.modo.tipo !== "libre") {
+        return fallo("whatsapp: fuera de la ventana de 24 h no se pueden mandar fotos");
+      }
+
+      return postAlGraph(
+        url,
+        {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: canalChatId,
+          type: "image",
+          image: { link: urlFoto, caption: pie.slice(0, 1000) },
+        },
+        cfg.token,
+        "whatsapp",
+      );
+    },
+  };
 }
 
 export function marcasWhatsApp(cuerpo: unknown): MarcaActividad[] {
