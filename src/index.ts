@@ -20,7 +20,12 @@ import { resembrarDemo } from "./crons/resembrar";
 import { crearCanalTelegram, registrarWebhook } from "./canales/telegram";
 import type { Canal, MensajeEntrante } from "./canales/tipos";
 import { autenticarMeta } from "./canales/meta/comun";
-import { interpretarWhatsApp, marcasWhatsApp } from "./canales/meta/whatsapp";
+import {
+  ecosDelDueno,
+  hayEcosDelDueno,
+  interpretarWhatsApp,
+  marcasWhatsApp,
+} from "./canales/meta/whatsapp";
 import { interpretarMensajeria, marcasMensajeria } from "./canales/meta/mensajeria";
 import { productoDeMeta } from "./core/meta/producto";
 import {
@@ -1242,11 +1247,68 @@ app.post("/webhook/meta/:negocioId", async (c) => {
       for (const marca of marcas) {
         await marcarActividadCliente(c.env.DB, negocioId, producto, marca.canalChatId, marca.enISO);
       }
+
+      // Coexistencia: el dueño contestó desde su propio celular.
+      if (esWhatsApp && hayEcosDelDueno(cuerpo)) {
+        await atenderDueno(c.env, negocioId, ecosDelDueno(cuerpo));
+      }
     })(),
   );
 
   return c.text("ok");
 });
+
+/**
+ * El dueño está atendiendo desde la app de su celular: el agente se aparta.
+ *
+ * Es la mitad que faltaba del modo Coexistencia. Sin esto el agente no se
+ * entera de que ya hubo respuesta humana y escribe encima, así que el cliente
+ * recibe dos respuestas a lo mismo — y el hilo del panel sale con huecos,
+ * porque le falta justo lo que dijo el dueño.
+ *
+ * La pausa se aplica aunque el eco no traiga texto (una foto, un audio): lo que
+ * prueba que el dueño está ahí es el evento, no su contenido. Por eso el
+ * llamador decide con `hayEcosDelDueno` y no con el largo de esta lista.
+ */
+async function atenderDueno(
+  env: Env,
+  negocioId: string,
+  ecos: readonly MensajeEntrante[],
+): Promise<void> {
+  const ahora = ahoraISO();
+
+  // Sin texto no hay a quién pausar: el chat sale de cada eco.
+  for (const eco of ecos) {
+    const conversacion = await obtenerOCrearConversacion(
+      env.DB,
+      negocioId,
+      "whatsapp",
+      eco.canalChatId,
+      null,
+    );
+
+    // `idExterno` es lo que hace esto seguro ante los reintentos de Meta, que
+    // dura 36 horas: el índice único descarta el duplicado en vez de repetir
+    // el mensaje del dueño en el hilo.
+    await guardarMensaje(env.DB, negocioId, conversacion.id, "dueno", eco.texto, eco.idExterno);
+
+    await pausarConversacion(
+      env.DB,
+      negocioId,
+      conversacion.id,
+      hastaCuandoPausar(ahora, PAUSA_POR_DEFECTO_MINUTOS),
+    );
+
+    await auditar(
+      env.DB,
+      negocioId,
+      "dueno_atiende",
+      { conversacionId: conversacion.id, minutos: PAUSA_POR_DEFECTO_MINUTOS },
+      // El actor es el dueño: quien escribió fue él, desde su celular.
+      "admin",
+    );
+  }
+}
 
 /** Le dice a Telegram a dónde mandar los mensajes. Se corre una sola vez. */
 app.get("/panel/conectar-telegram", async (c) => {

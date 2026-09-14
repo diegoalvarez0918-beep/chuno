@@ -220,6 +220,7 @@ export function vistaRegistro(entradas: readonly EntradaAuditoria[]): string {
     aviso_enviado: "Envió un aviso al cliente",
     escalado_a_humano: "Le pasó una pregunta al dueño",
     escalado_frenado: "No te pasó otra pregunta: ya tienes varias sin contestar",
+    dueno_atiende: "Contestaste desde tu celular y el asistente se hizo a un lado",
     vigia_avisos: "El vigía detectó promesas en riesgo",
     extraccion_fallida: "No logró entender un pedido",
     respuesta_fallida: "No pudo responderle al cliente",

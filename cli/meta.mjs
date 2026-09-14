@@ -174,6 +174,59 @@ export function urlWebhookMeta(urlPublica, negocioId) {
 }
 
 /**
+ * Registra nuestra URL como webhook de esa cuenta de WhatsApp, sin que nadie
+ * entre al panel de Meta.
+ *
+ * Es el paso donde más gente se atasca —copiar una URL larga y una contraseña
+ * en dos campos, y acordarse de marcar la casilla `messages`— y Meta permite
+ * hacerlo por API: `POST /{WABA}/subscribed_apps` con `override_callback_uri`.
+ * Para Telegram el instalador ya registraba el webhook solo desde el primer
+ * día; esto es ponerle a Meta el mismo trato.
+ *
+ * Dos llamadas y no una: Meta exige que la app esté suscrita a la cuenta antes
+ * de poder sobrescribirle la URL. La primera suscribe, la segunda apunta.
+ */
+export async function registrarWebhookMeta(wabaId, token, urlCallback, verifyToken) {
+  const url = `${PRODUCTOS_META.whatsapp.graph}/${encodeURIComponent(wabaId)}/subscribed_apps`;
+
+  const suscripcion = await postGraph(url, token, {});
+  if (!suscripcion.ok) return suscripcion;
+
+  return postGraph(url, token, {
+    override_callback_uri: urlCallback,
+    verify_token: verifyToken,
+  });
+}
+
+/**
+ * Un POST al Graph. El cuerpo del error NO viaja en el motivo: puede traer el
+ * teléfono del negocio. Solo el código, que es lo que sirve para diagnosticar.
+ */
+async function postGraph(url, token, cuerpo) {
+  let respuesta;
+  try {
+    respuesta = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify(cuerpo),
+    });
+  } catch {
+    return { ok: false, motivo: "no pude contactar a Meta" };
+  }
+
+  if (respuesta.ok) return { ok: true };
+
+  const datos = await respuesta.json().catch(() => ({}));
+  const codigo = Number(datos?.error?.code);
+  return {
+    ok: false,
+    motivo: `Meta rechazó el registro (HTTP ${respuesta.status}, código ${
+      Number.isFinite(codigo) ? codigo : "sin código"
+    })`,
+  };
+}
+
+/**
  * Repite el handshake que hará Meta, contra nuestro propio Worker.
  *
  * Es el **camino feliz** de esta puerta, y hasta hoy no existía: D1 se

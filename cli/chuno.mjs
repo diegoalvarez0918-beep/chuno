@@ -27,6 +27,7 @@ import {
   sqlGuardarAjuste,
   sqlGuardarCredencial,
   sqlGuardarMeta,
+  registrarWebhookMeta,
   urlWebhookMeta,
   validarAppMeta,
   validarMeta,
@@ -577,13 +578,13 @@ async function conectarAppMeta(argv) {
   }
   ok("Meta acepta el par App ID + App Secret");
 
-  // El verify token NO se valida contra Meta: es una cadena que eliges tú y que
-  // Meta solo usa para devolvértela en el handshake. Lo que sí se comprueba,
-  // más abajo, es que nuestro propio Worker la reconozca.
-  const verifyToken = await preguntar("      Verify token (el que vas a pegar en Meta): ", { oculto: true });
-  if (!verifyToken) {
-    morir("Sin verify token, Meta no puede registrar el webhook.", "Invéntalo tú. Por ejemplo: openssl rand -base64 24");
-  }
+  // El verify token se GENERA, no se pregunta. Es una cadena que solo sirve
+  // para que Meta nos la devuelva en el handshake, así que pedírsela a una
+  // persona era fricción pura: tenía que inventarla, guardarla y volver a
+  // escribirla idéntica en el panel de Meta — tres sitios donde equivocarse
+  // sin que nada lo detecte hasta que el webhook falla.
+  const verifyToken = randomBytes(24).toString("base64url");
+  ok("verify token generado");
 
   paso(4, PASOS_APP_META, "Guardando");
   const ahora = new Date().toISOString();
@@ -609,18 +610,44 @@ async function conectarAppMeta(argv) {
     else aviso(`la puerta todavía no abre — ${prueba.motivo}`);
   }
 
-  log(`
-  ${c.lima("▌")} ${c.fuerte(`La app de Meta de "${negocioId}" quedó conectada.`)}
+  // ── Registrar el webhook en Meta, sin que nadie entre a su panel ─────────
+  const waba = banderaDe(argv, "waba-id");
+  let registrado = false;
 
-  ${c.fuerte("Ahora, en el App Dashboard de Meta:")}
+  if (waba && url) {
+    const token = await preguntar("      Token de WhatsApp (API Setup, para registrar el webhook): ", {
+      oculto: true,
+    });
+
+    if (token) {
+      const r = await registrarWebhookMeta(waba, token, url, verifyToken);
+      if (r.ok) {
+        ok("webhook registrado en Meta: no tienes que pegar nada en su panel");
+        registrado = true;
+      } else {
+        aviso(`no pude registrar el webhook — ${r.motivo}`);
+        aviso("lo puedes pegar a mano; los datos van abajo");
+      }
+    }
+  }
+
+  const manual = `
+  ${c.fuerte("Falta un paso en el App Dashboard de Meta:")}
 
     Callback URL   ${c.fuerte(url ?? "https://<tu worker>/webhook/meta/" + negocioId)}
-    Verify token   el que acabas de escribir
+    Verify token   ${c.fuerte(verifyToken)}
 
-  Dale a ${c.fuerte("Verify and Save")}, y después suscribe el campo ${c.fuerte("messages")}
-  en Webhook fields → Manage. Sin esa suscripción Meta valida la URL y no
-  manda nunca nada.
+  Pégalos en WhatsApp → Configuration → Webhook → Edit, dale a Verify and Save,
+  y marca el campo ${c.fuerte("messages")} en Webhook fields → Manage.
+`;
 
+  const listo = `
+  ${c.suave("El webhook quedó registrado solo. No tienes que tocar el panel de Meta.")}
+`;
+
+  log(`
+  ${c.lima("▌")} ${c.fuerte(`La app de Meta de "${negocioId}" quedó conectada.`)}
+${registrado ? listo : manual}
   ${c.suave("Con esto el negocio RECIBE. Para que pueda contestar, conecta cada")}
   ${c.suave("producto con: npx chuno-cli conectar-meta " + negocioId + " --producto whatsapp --id <id>")}
 `);
@@ -794,24 +821,24 @@ const AYUDA = `
 `;
 
 const AYUDA_APP_META = `  ${c.fuerte("Uso:")}
-    npx chuno-cli conectar-app-meta <negocio> --app-id <id>
+    npx chuno-cli conectar-app-meta <negocio> --app-id <id> [--waba-id <id>]
 
   Conecta la APP de Meta del negocio: es lo que le permite RECIBIR mensajes.
   Una app por negocio, y sus credenciales valen para WhatsApp, Messenger e
   Instagram a la vez.
 
-  Te pide dos cosas con el eco apagado:
+  Te pide el ${c.fuerte("App Secret")} (Settings → Basic → Show) con el eco apagado, y lo
+  valida contra Meta antes de guardar nada.
 
-    ${c.fuerte("App Secret")}     Settings → Basic → Show. Con él se verifica la firma
-                   de cada webhook. Se valida contra Meta antes de guardar.
-    ${c.fuerte("Verify token")}   una cadena que inventas tú y que pegarás en Meta.
-                   Sugerencia: openssl rand -base64 24
+  ${c.fuerte("Con --waba-id")} registra además el webhook en Meta por ti, y entonces no
+  tienes que pegar nada en su panel. El WABA ID está en WhatsApp → API Setup,
+  al lado del Phone number ID; te pedirá también el token de esa pantalla.
 
-  Después de conectar el canal de salida con ${c.fuerte("conectar-meta")}, el negocio
-  puede recibir y contestar.
+  Sin --waba-id todo funciona igual, pero al final te da la URL y la contraseña
+  para que las pegues tú.
 
   ${c.fuerte("Ejemplo:")}
-    npx chuno-cli conectar-app-meta mi-optica --app-id 1234567890123456
+    npx chuno-cli conectar-app-meta mi-optica --app-id 1234567890123456 --waba-id 9876543210
 `;
 
 const AYUDA_META = `  ${c.fuerte("Uso:")}

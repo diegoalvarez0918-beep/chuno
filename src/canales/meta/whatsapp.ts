@@ -18,6 +18,21 @@ interface MensajeWA {
   text?: { body?: string };
 }
 
+/**
+ * Lo que el DUEÑO mandó desde la app de WhatsApp en su celular.
+ *
+ * Ojo con la asimetría, que es la trampa de este payload: aquí `from` es el
+ * NEGOCIO y el cliente está en `to`, al revés que en un mensaje entrante.
+ */
+interface EcoWA {
+  id?: string;
+  from?: string;
+  to?: string;
+  type?: string;
+  timestamp?: string | number;
+  text?: { body?: string };
+}
+
 interface Valor {
   contacts?: unknown;
   messages?: unknown;
@@ -27,6 +42,11 @@ interface Valor {
    * escrito que existe y nadie lo confunda con un entrante.
    */
   statuses?: unknown;
+  /**
+   * Modo Coexistencia: el número sigue vivo en la app del celular y Meta nos
+   * avisa por aquí de lo que el dueño manda desde ahí.
+   */
+  message_echoes?: unknown;
 }
 
 function* valores(cuerpo: unknown): Generator<Valor> {
@@ -142,6 +162,58 @@ export function crearCanalWhatsApp(cfg: ConfigWhatsApp): Canal {
       );
     },
   };
+}
+
+/**
+ * Lo que el dueño contestó desde su propio celular, en modo Coexistencia.
+ *
+ * Existe aparte de `interpretarWhatsApp` porque responde otra pregunta. Aquella
+ * dice "¿qué hay que contestar?"; esta dice "¿el dueño ya contestó él mismo?".
+ * Sin escucharla, el agente no se entera de que hubo respuesta humana y escribe
+ * encima: el cliente recibe dos respuestas a lo mismo. Y el hilo del panel sale
+ * con huecos, porque le falta justo lo que dijo el dueño.
+ *
+ * El `canalChatId` sale de `to` y NUNCA de `from`: en un eco el que escribe es
+ * el negocio. Leerlo al derecho crearía una conversación cuyo "cliente" es el
+ * propio número del negocio.
+ */
+export function ecosDelDueno(cuerpo: unknown): MensajeEntrante[] {
+  const salida: MensajeEntrante[] = [];
+
+  for (const valor of valores(cuerpo)) {
+    for (const eco of lista<EcoWA>(valor.message_echoes)) {
+      const texto = eco?.type === "text" ? eco?.text?.body?.trim() : undefined;
+      const cliente = eco?.to;
+      // Sin texto no hay nada que poner en el hilo —una foto que mandó el
+      // dueño, por ejemplo—, pero el lote igual prueba que está atendiendo:
+      // quien llama pausa mirando el lote, no esta lista.
+      if (!eco?.id || !cliente || !texto) continue;
+
+      salida.push({
+        canal: "whatsapp",
+        canalChatId: cliente,
+        texto: recortarTexto(texto),
+        autorNombre: null,
+        idExterno: eco.id,
+      });
+    }
+  }
+
+  return salida;
+}
+
+/**
+ * ¿Hay señales de que el dueño esté atendiendo desde su celular?
+ *
+ * Mira el lote crudo y no el resultado de `ecosDelDueno`, a propósito: una foto
+ * o un audio que mande el dueño no deja texto que guardar, pero prueba igual
+ * que está en la conversación y que el agente debe hacerse a un lado.
+ */
+export function hayEcosDelDueno(cuerpo: unknown): boolean {
+  for (const valor of valores(cuerpo)) {
+    if (lista<EcoWA>(valor.message_echoes).length > 0) return true;
+  }
+  return false;
 }
 
 export function marcasWhatsApp(cuerpo: unknown): MarcaActividad[] {
