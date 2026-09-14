@@ -801,7 +801,8 @@ bandeja y migraciones— ya se fusionó en el #17.
 | 7 | La ventana de 24 h como núcleo puro | ✅ en el #18 (2026-09-13) |
 | 8 | Los tres envíos y `canalSaliente` | ✅ en el #18 (2026-09-13) |
 | 9 | Credenciales y CLI que valida contra el Graph | ✅ en el #18 (2026-09-13) |
-| **10** | **Runbook de la app de Meta y cierre en producción** | **siguiente** |
+| **10** | **Runbook de la app de Meta y cierre en producción** | **en curso** · runbook escrito · **bloqueada por el hueco de abajo** |
+| **11** | **`conectar-app-meta`: las credenciales de ENTRADA** | **nueva, y va antes que el resto de la 10** |
 
 **D2 ya tiene los dos sentidos escritos, sin desplegar.** `canalSaliente`
 recibe la conversación entera y resuelve la ventana de 24 h al construir el
@@ -814,6 +815,33 @@ propuesta (cero LLM), con par de controles: ventana cerrada → nada sale, la
 propuesta vuelve a pendiente y el motivo queda auditado · ventana abierta con
 token falso → la petición llega al Graph y vuelve `whatsapp: HTTP 401 (código
 190)`, el código de Meta para token inválido.
+
+### 🚧 La puerta de Meta está cerrada con una llave que nadie puede fabricar
+
+Hallado el 2026-09-13 al escribir el runbook, y es lo que bloquea la tarea 10.
+
+`meta_app_secret` y `meta_verify_token` se **leen** en las dos rutas de
+`/webhook/meta/:negocioId` —sin ellas, 403 al handshake y 401 a todo POST— y
+**ningún código del repo las escribe**. Los únicos llamadores de
+`guardarCredencial` guardan `telegram_token` y `telegram_webhook_secret`, en
+`src/onboarding/materializar.ts`. Ni el panel, ni el onboarding, ni un seed.
+
+**Lo que lo hizo invisible:** D1 se verificó en producción y pasó —400 sin
+parámetros, 403 con token malo, 401 sin firma— y las tres respuestas eran
+correctas **porque no había credencial**, que da exactamente el mismo 403 que
+un negocio bien configurado con el token equivocado. Una tanda de puras
+negativas no distingue "bien cerrado" de "imposible de abrir". Medido otra vez
+contra producción hoy: `mi-optica` sigue dando 403 al handshake.
+
+**Se cierra con** un comando hermano, `chuno-cli conectar-app-meta <negocio>`,
+que pida App ID, App Secret y verify token, los valide —el App Secret **sí** se
+comprueba contra el Graph usando `<app-id>|<app-secret>` como token de app— y
+los guarde cifrados. Reutiliza `claveDeCifrado`, `d1` y el cifrado que ya
+existen; son unas 60 líneas.
+
+**Hasta entonces, no meter esas credenciales con SQL suelto contra
+producción** — es lo que el proyecto decidió no repetir tras el rastro que
+costó una sesión de diagnóstico (traspaso del 2026-08-15).
 
 ### Conectar un canal: `npx chuno-cli conectar-meta`
 
