@@ -900,7 +900,7 @@ no contradice la regla de "no subir por API". No perder tiempo buscando `gh`.
 ### Sigue pendiente, sin tocar
 
 - La pantalla del panel para configurar el cerebro sin terminal.
-- **`APRENDIZAJES.md` va por 51 entradas** y su propia regla dice consolidar
+- **`APRENDIZAJES.md` va por 52 entradas** y su propia regla dice consolidar
   pasando de 25. Siguió creciendo; la consolidación sigue sin hacerse.
 - **El camino feliz de `conectar-meta` no se ha ejercitado**: guardar exige un
   token que Meta acepte, y no hay app de Meta todavía. Lo que sí está probado
